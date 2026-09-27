@@ -29,6 +29,7 @@ accepted.
 | [0008](./0008-labor-utilization-advisory-correlation.md) | Labor-utilization advisory correlation: correlating queue depth with observed idleness | Accepted |
 | [0009](./0009-explain-travel-factor.md) | explain_travel_factor: correlating a real travel-distance reading against a slow path, with no location-code auto-resolution | Accepted |
 | [0010](./0010-standard-metrics-convention.md) | Standard metrics convention across the fleet | Accepted |
+| [0011](./0011-reasoner-path-circuit-breaker-timeout-retry.md) | Reasoner-path resilience: circuit breaker, deadline-derived timeout, bounded retry | Accepted |
 
 ## Proposing a new one
 

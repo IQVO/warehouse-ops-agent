@@ -59,12 +59,25 @@ func wireReasoner(ctx context.Context, cfg config.Config, logger *slog.Logger, f
 	}
 	invoker := mcpclient.NewToolInvoker(sessions, allowed)
 
+	// ADR-0011: the Anthropic Messages API call is itself an external
+	// dependency, wrapped in a per-dependency circuit breaker whose state
+	// transitions publish the circuit_breaker_state{dependency="anthropic-llm"}
+	// gauge via the SAME OTel meter ArbitrationMetrics already uses. A
+	// failed registration is logged and the reasoner still gets a nil
+	// recorder (resilience.RecordStateChange's documented no-op) rather
+	// than blocking startup over an observability nicety.
+	breakerMetrics, err := telemetry.NewCircuitBreakerMetrics()
+	if err != nil {
+		logger.Warn("llm reasoner: circuit breaker metrics unavailable", "error", err.Error())
+	}
+
 	reasoner, err := anthropic.New(anthropic.Config{
-		APIKey:  cfg.LLM.APIKey,
-		Model:   cfg.LLM.Model,
-		BaseURL: cfg.LLM.BaseURL,
-		Timeout: cfg.LLM.Timeout,
-		Logger:  logger,
+		APIKey:          cfg.LLM.APIKey,
+		Model:           cfg.LLM.Model,
+		BaseURL:         cfg.LLM.BaseURL,
+		Timeout:         cfg.LLM.Timeout,
+		Logger:          logger,
+		BreakerRecorder: breakerMetrics,
 	}, invoker)
 	if err != nil {
 		return err
