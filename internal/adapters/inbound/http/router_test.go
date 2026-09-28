@@ -432,22 +432,25 @@ func (s *stubLaborPerformanceReports) GetLaborPerformanceFreshnessLagSeconds(ctx
 // deliberately a separate local struct, not the adapter's unexported
 // DTO, so a rename of a JSON tag fails this test.
 type dashboardResponse struct {
-	From        string `json:"from"`
-	To          string `json:"to"`
-	GeneratedAt string `json:"generatedAt"`
-	Sections    []struct {
-		Id                  string   `json:"id"`
-		Title               string   `json:"title"`
-		SourceContext       string   `json:"sourceContext"`
-		ChartKind           string   `json:"chartKind"`
-		Available           bool     `json:"available"`
-		Error               *string  `json:"error"`
-		FreshnessLagSeconds *float64 `json:"freshnessLagSeconds"`
-		Series              []struct {
-			Label string  `json:"label"`
-			Value float64 `json:"value"`
-		} `json:"series"`
-	} `json:"sections"`
+	From        string             `json:"from"`
+	To          string             `json:"to"`
+	GeneratedAt string             `json:"generatedAt"`
+	Sections    []dashboardSection `json:"sections"`
+}
+
+// dashboardSection is one chart-ready section of the dashboard envelope.
+type dashboardSection struct {
+	Id                  string   `json:"id"`
+	Title               string   `json:"title"`
+	SourceContext       string   `json:"sourceContext"`
+	ChartKind           string   `json:"chartKind"`
+	Available           bool     `json:"available"`
+	Error               *string  `json:"error"`
+	FreshnessLagSeconds *float64 `json:"freshnessLagSeconds"`
+	Series              []struct {
+		Label string  `json:"label"`
+		Value float64 `json:"value"`
+	} `json:"series"`
 }
 
 func newTestConsoleReports() *usecases.ConsoleReports {
@@ -463,32 +466,63 @@ func newTestConsoleReports() *usecases.ConsoleReports {
 }
 
 func TestGetWMSDashboard_Returns200WithChartReadySections(t *testing.T) {
-	handlers := &inboundhttp.Handlers{ConsoleReports: newTestConsoleReports()}
+	rec := serveDashboardRequest(t, newTestConsoleReports(), "/console/reports/wms?from=2026-09-04T00:00:00Z&to=2026-09-05T00:00:00Z")
+	body := decodeDashboardResponse(t, rec)
+
+	assertDashboardWindow(t, body, "2026-09-04T00:00:00Z", "2026-09-05T00:00:00Z", 3)
+	assertOrderFunnelSection(t, body.Sections[0])
+	// The unwired facility-layout client degrades to an unavailable
+	// section rather than failing the whole response.
+	assertSectionDegraded(t, body.Sections[2], "catalog-growth")
+}
+
+// serveDashboardRequest wires the console-reports use case into the router,
+// serves one GET, and requires a 200 back.
+func serveDashboardRequest(t *testing.T, uc *usecases.ConsoleReports, target string) *httptest.ResponseRecorder {
+	t.Helper()
+	handlers := &inboundhttp.Handlers{ConsoleReports: uc}
 	router := inboundhttp.NewRouter(handlers, "warehouse-ops-agent-test")
 
-	req := httptest.NewRequest(http.MethodGet, "/console/reports/wms?from=2026-09-04T00:00:00Z&to=2026-09-05T00:00:00Z", nil)
+	req := httptest.NewRequest(http.MethodGet, target, nil)
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
+	return rec
+}
 
+// decodeDashboardResponse decodes the recorder's body as the console's
+// wire envelope.
+func decodeDashboardResponse(t *testing.T, rec *httptest.ResponseRecorder) dashboardResponse {
+	t.Helper()
 	var body dashboardResponse
 	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if body.From != "2026-09-04T00:00:00Z" || body.To != "2026-09-05T00:00:00Z" {
+	return body
+}
+
+// assertDashboardWindow checks the echoed query window, the generatedAt
+// timestamp, and the section count.
+func assertDashboardWindow(t *testing.T, body dashboardResponse, wantFrom, wantTo string, wantSections int) {
+	t.Helper()
+	if body.From != wantFrom || body.To != wantTo {
 		t.Fatalf("window not echoed: %+v", body)
 	}
 	if body.GeneratedAt == "" {
 		t.Fatal("expected a generatedAt timestamp")
 	}
-	if len(body.Sections) != 3 {
-		t.Fatalf("expected 3 sections, got %d", len(body.Sections))
+	if len(body.Sections) != wantSections {
+		t.Fatalf("expected %d sections, got %d", wantSections, len(body.Sections))
 	}
+}
 
-	funnel := body.Sections[0]
+// assertOrderFunnelSection checks the first WMS section: the order funnel
+// chart with its freshness lag and series.
+func assertOrderFunnelSection(t *testing.T, funnel dashboardSection) {
+	t.Helper()
 	if funnel.Id != "order-funnel" || funnel.ChartKind != "funnel" || funnel.SourceContext != "order-management" {
 		t.Fatalf("unexpected first section: %+v", funnel)
 	}
@@ -501,12 +535,14 @@ func TestGetWMSDashboard_Returns200WithChartReadySections(t *testing.T) {
 	if len(funnel.Series) != 4 || funnel.Series[0].Label != "Received" || funnel.Series[0].Value != 10 {
 		t.Fatalf("unexpected funnel series: %+v", funnel.Series)
 	}
+}
 
-	// The unwired facility-layout client degrades to an unavailable
-	// section rather than failing the whole response.
-	catalog := body.Sections[2]
-	if catalog.Id != "catalog-growth" || catalog.Available || catalog.Error == nil {
-		t.Fatalf("expected catalog-growth to degrade, got %+v", catalog)
+// assertSectionDegraded checks that a section degraded to unavailable with
+// a non-null error instead of failing the whole response.
+func assertSectionDegraded(t *testing.T, section dashboardSection, wantId string) {
+	t.Helper()
+	if section.Id != wantId || section.Available || section.Error == nil {
+		t.Fatalf("expected %s to degrade, got %+v", wantId, section)
 	}
 }
 

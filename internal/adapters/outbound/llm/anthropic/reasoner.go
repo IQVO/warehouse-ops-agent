@@ -240,47 +240,12 @@ func (r *Reasoner) Reason(ctx context.Context, brief ports.Brief) (ports.Plan, e
 		}
 		messages = append(messages, apiMessage{Role: "assistant", Content: resp.Content})
 
-		var results []apiContent
-		for _, c := range resp.Content {
-			if c.Type != "tool_use" {
-				continue
-			}
-			if c.Name == submitPlanTool {
-				var in submitPlanInput
-				if err := json.Unmarshal(c.Input, &in); err != nil {
-					return plan, fmt.Errorf("anthropic: submit_plan input: %w", err)
-				}
-				plan.RecommendedAction = in.RecommendedAction
-				plan.ProposedHeads = in.ProposedHeads
-				plan.Rationale = in.Rationale
-				return plan, nil
-			}
-			spec, ok := lookup[c.Name]
-			if !ok {
-				// A tool we never offered: refuse, tell the model, keep going.
-				results = append(results, apiContent{Type: "tool_result", ToolUseID: c.ID, Content: "unknown tool", IsError: true})
-				plan.ToolCalls = append(plan.ToolCalls, ports.ToolCall{Tool: c.Name, Outcome: "refused: unknown tool"})
-				continue
-			}
-			var args map[string]any
-			if len(c.Input) > 0 {
-				if err := json.Unmarshal(c.Input, &args); err != nil {
-					results = append(results, apiContent{Type: "tool_result", ToolUseID: c.ID, Content: "arguments are not a JSON object", IsError: true})
-					plan.ToolCalls = append(plan.ToolCalls, ports.ToolCall{Upstream: spec.Upstream, Tool: spec.Name, Outcome: "refused: bad arguments"})
-					continue
-				}
-			}
-			started := time.Now()
-			out, err := r.invoker.Invoke(ctx, spec.Upstream, spec.Name, args)
-			call := ports.ToolCall{Upstream: spec.Upstream, Tool: spec.Name, Args: args, Outcome: "ok"}
-			if err != nil {
-				call.Outcome = err.Error()
-				results = append(results, apiContent{Type: "tool_result", ToolUseID: c.ID, Content: err.Error(), IsError: true})
-			} else {
-				results = append(results, apiContent{Type: "tool_result", ToolUseID: c.ID, Content: out})
-			}
-			plan.ToolCalls = append(plan.ToolCalls, call)
-			r.cfg.Logger.InfoContext(ctx, "llm.tool_call", "upstream", spec.Upstream, "tool", spec.Name, "outcome", call.Outcome, "latency_ms", time.Since(started).Milliseconds())
+		results, submitted, err := r.processAssistantTurn(ctx, resp, lookup, &plan)
+		if err != nil {
+			return plan, err
+		}
+		if submitted {
+			return plan, nil
 		}
 		if len(results) == 0 {
 			// The model answered in prose instead of submitting a plan.
@@ -292,6 +257,78 @@ func (r *Reasoner) Reason(ctx context.Context, brief ports.Brief) (ports.Plan, e
 		messages = append(messages, apiMessage{Role: "user", Content: results})
 	}
 	return plan, fmt.Errorf("anthropic: no plan submitted within %d turns", r.cfg.MaxTurns)
+}
+
+// processAssistantTurn walks one assistant response's content blocks:
+// every tool_use is either the terminal submit_plan (applied to the plan
+// under construction, submitted=true), an un-offered tool (refused), or a
+// real invocation of an offered read tool whose result must be echoed
+// back. It returns the tool_result blocks for the next user message and
+// whether the model already submitted its plan.
+func (r *Reasoner) processAssistantTurn(ctx context.Context, resp *apiResponse, lookup map[string]ports.ToolSpec, plan *ports.Plan) (results []apiContent, submitted bool, err error) {
+	for _, c := range resp.Content {
+		if c.Type != "tool_use" {
+			continue
+		}
+		if c.Name == submitPlanTool {
+			if err := applySubmitPlan(c.Input, plan); err != nil {
+				return nil, false, err
+			}
+			return results, true, nil
+		}
+		spec, ok := lookup[c.Name]
+		if !ok {
+			// A tool we never offered: refuse, tell the model, keep going.
+			results = append(results, apiContent{Type: "tool_result", ToolUseID: c.ID, Content: "unknown tool", IsError: true})
+			plan.ToolCalls = append(plan.ToolCalls, ports.ToolCall{Tool: c.Name, Outcome: "refused: unknown tool"})
+			continue
+		}
+		result, call := r.executeToolCall(ctx, c, spec)
+		results = append(results, result)
+		plan.ToolCalls = append(plan.ToolCalls, call)
+	}
+	return results, false, nil
+}
+
+// applySubmitPlan decodes the submit_plan tool input into the plan under
+// construction — the ONLY way the model can answer.
+func applySubmitPlan(input json.RawMessage, plan *ports.Plan) error {
+	var in submitPlanInput
+	if err := json.Unmarshal(input, &in); err != nil {
+		return fmt.Errorf("anthropic: submit_plan input: %w", err)
+	}
+	plan.RecommendedAction = in.RecommendedAction
+	plan.ProposedHeads = in.ProposedHeads
+	plan.Rationale = in.Rationale
+	return nil
+}
+
+// executeToolCall invokes one offered read tool on the model's behalf and
+// returns both the tool_result block to echo back and the audit-trail
+// entry. Arguments that are not a JSON object are refused without an
+// invocation, and an invoker error becomes an is_error tool_result rather
+// than a failed Reason call.
+func (r *Reasoner) executeToolCall(ctx context.Context, c apiContent, spec ports.ToolSpec) (apiContent, ports.ToolCall) {
+	var args map[string]any
+	if len(c.Input) > 0 {
+		if err := json.Unmarshal(c.Input, &args); err != nil {
+			return apiContent{Type: "tool_result", ToolUseID: c.ID, Content: "arguments are not a JSON object", IsError: true},
+				ports.ToolCall{Upstream: spec.Upstream, Tool: spec.Name, Outcome: "refused: bad arguments"}
+		}
+	}
+	started := time.Now()
+	out, err := r.invoker.Invoke(ctx, spec.Upstream, spec.Name, args)
+	call := ports.ToolCall{Upstream: spec.Upstream, Tool: spec.Name, Args: args, Outcome: "ok"}
+	if err != nil {
+		call.Outcome = err.Error()
+	}
+	r.cfg.Logger.InfoContext(ctx, "llm.tool_call", "upstream", spec.Upstream, "tool", spec.Name, "outcome", call.Outcome, "latency_ms", time.Since(started).Milliseconds())
+
+	result := apiContent{Type: "tool_result", ToolUseID: c.ID, Content: out}
+	if err != nil {
+		result.Content, result.IsError = err.Error(), true
+	}
+	return result, call
 }
 
 func (r *Reasoner) tools(brief ports.Brief) ([]apiTool, map[string]ports.ToolSpec) {

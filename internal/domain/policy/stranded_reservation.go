@@ -171,58 +171,26 @@ func Evaluate(in Inputs) (StrandedReservationException, error) {
 	var evidence []EvidenceEntry
 
 	if !in.StuckTasksAvailable {
-		evidence = append(evidence, EvidenceEntry{
-			Tool:    "fulfillment-execution.diagnose_stuck_tasks",
-			Summary: "unavailable — degrading to hold, no stuck-task evidence",
-		})
-		return StrandedReservationException{
-			Detected:  false,
-			Action:    ActionHold,
-			Rationale: "fulfillment-execution's expired-lease signal is unavailable; degrading to hold rather than recommending on partial evidence",
-			Evidence:  evidence,
-		}, nil
+		evidence = addEvidence(evidence, "fulfillment-execution.diagnose_stuck_tasks", "unavailable — degrading to hold, no stuck-task evidence")
+		return holdException(false, "", "fulfillment-execution's expired-lease signal is unavailable; degrading to hold rather than recommending on partial evidence", evidence), nil
 	}
 
 	expired := stuckByType(in.StuckTasks, in.TaskType)
-	evidence = append(evidence, EvidenceEntry{
-		Tool:    "fulfillment-execution.diagnose_stuck_tasks",
-		Summary: fmt.Sprintf("%d %s task(s) with expired/expiring leases", len(expired), in.TaskType),
-	})
+	evidence = addEvidence(evidence, "fulfillment-execution.diagnose_stuck_tasks", fmt.Sprintf("%d %s task(s) with expired/expiring leases", len(expired), in.TaskType))
 
 	if len(expired) == 0 {
-		return StrandedReservationException{
-			Detected:  false,
-			Action:    ActionHold,
-			Rationale: fmt.Sprintf("no expired/expiring %s leases; nothing to correlate", in.TaskType),
-			Evidence:  evidence,
-		}, nil
+		return holdException(false, "", fmt.Sprintf("no expired/expiring %s leases; nothing to correlate", in.TaskType), evidence), nil
 	}
 
 	if in.Availability == nil {
-		evidence = append(evidence, EvidenceEntry{
-			Tool:    "inventory-storage.check_availability",
-			Summary: "unavailable — degrading to hold, cannot assess shortfall",
-		})
-		return StrandedReservationException{
-			Detected:  false,
-			Action:    ActionHold,
-			Rationale: "inventory-storage's availability signal is unavailable; degrading to hold rather than recommending on partial evidence",
-			Evidence:  evidence,
-		}, nil
+		evidence = addEvidence(evidence, "inventory-storage.check_availability", "unavailable — degrading to hold, cannot assess shortfall")
+		return holdException(false, "", "inventory-storage's availability signal is unavailable; degrading to hold rather than recommending on partial evidence", evidence), nil
 	}
 
-	evidence = append(evidence, EvidenceEntry{
-		Tool:    "inventory-storage.check_availability",
-		Summary: fmt.Sprintf("SKU %s usable=%d (shortfall threshold <=%d)", in.Availability.SKU, in.Availability.Usable, in.MinUsableThreshold),
-	})
+	evidence = addEvidence(evidence, "inventory-storage.check_availability", fmt.Sprintf("SKU %s usable=%d (shortfall threshold <=%d)", in.Availability.SKU, in.Availability.Usable, in.MinUsableThreshold))
 
 	if in.Availability.Usable > in.MinUsableThreshold {
-		return StrandedReservationException{
-			Detected:  false,
-			Action:    ActionHold,
-			Rationale: fmt.Sprintf("SKU %s usable stock (%d) is above the shortfall threshold (%d); expired leases do not correlate with a shortfall", in.Availability.SKU, in.Availability.Usable, in.MinUsableThreshold),
-			Evidence:  evidence,
-		}, nil
+		return holdException(false, "", fmt.Sprintf("SKU %s usable stock (%d) is above the shortfall threshold (%d); expired leases do not correlate with a shortfall", in.Availability.SKU, in.Availability.Usable, in.MinUsableThreshold), evidence), nil
 	}
 
 	// Both signals correlate: expired leases for this task type AND a
@@ -235,37 +203,44 @@ func Evaluate(in Inputs) (StrandedReservationException, error) {
 	// surfaces the detected correlation, per the "partial upstream
 	// availability" guardrail.
 	if in.ReservationId == "" {
-		evidence = append(evidence, EvidenceEntry{
-			Tool:    "policy.stranded_reservation",
-			Summary: "no candidate reservationId supplied — cannot recommend a revoke without one",
-		})
-		return StrandedReservationException{
-			Detected:  true,
-			Action:    ActionHold,
-			Rationale: "a shortfall correlates with expired leases, but no candidate reservationId was supplied; holding rather than recommending a write without one",
-			Evidence:  evidence,
-		}, nil
+		evidence = addEvidence(evidence, "policy.stranded_reservation", "no candidate reservationId supplied — cannot recommend a revoke without one")
+		return holdException(true, "", "a shortfall correlates with expired leases, but no candidate reservationId was supplied; holding rather than recommending a write without one", evidence), nil
 	}
 
 	if in.Bin == nil {
-		evidence = append(evidence, EvidenceEntry{
-			Tool:    "inventory-storage.get_bin_occupancy",
-			Summary: "unavailable — degrading to hold, blast radius unknown",
-		})
-		return StrandedReservationException{
-			Detected:      true,
-			Action:        ActionHold,
-			ReservationId: in.ReservationId,
-			Rationale:     "a shortfall correlates with expired leases, but the blast radius (bin occupancy) is unavailable; holding rather than recommending a write without it",
-			Evidence:      evidence,
-		}, nil
+		evidence = addEvidence(evidence, "inventory-storage.get_bin_occupancy", "unavailable — degrading to hold, blast radius unknown")
+		return holdException(true, in.ReservationId, "a shortfall correlates with expired leases, but the blast radius (bin occupancy) is unavailable; holding rather than recommending a write without it", evidence), nil
 	}
 
-	evidence = append(evidence, EvidenceEntry{
-		Tool:    "inventory-storage.get_bin_occupancy",
-		Summary: fmt.Sprintf("bin %s holds %d unit(s) of SKU %s reserved that would return to usable", in.Bin.BinId, in.Bin.QuantityFreed, in.Bin.SKU),
-	})
+	evidence = addEvidence(evidence, "inventory-storage.get_bin_occupancy", fmt.Sprintf("bin %s holds %d unit(s) of SKU %s reserved that would return to usable", in.Bin.BinId, in.Bin.QuantityFreed, in.Bin.SKU))
 
+	return revokeException(in, expired, evidence), nil
+}
+
+// addEvidence appends one line to the mandatory evidence trail: which
+// upstream tool call produced it and the human-readable reading.
+func addEvidence(entries []EvidenceEntry, tool, summary string) []EvidenceEntry {
+	return append(entries, EvidenceEntry{Tool: tool, Summary: summary})
+}
+
+// holdException is the shared shape of every degrade / no-correlation
+// exit: a typed ActionHold result carrying the evidence accumulated so
+// far. detected and reservationId distinguish a confirmed-but-held
+// correlation from a plain no-correlation.
+func holdException(detected bool, reservationId, rationale string, evidence []EvidenceEntry) StrandedReservationException {
+	return StrandedReservationException{
+		Detected:      detected,
+		Action:        ActionHold,
+		ReservationId: reservationId,
+		Rationale:     rationale,
+		Evidence:      evidence,
+	}
+}
+
+// revokeException is the fully-correlated exit: the ranked
+// ActionRevokeReservation recommendation with its rationale, the complete
+// evidence trail, and the mandatory blast radius shown before anyone acts.
+func revokeException(in Inputs, expired []StuckTaskSignal, evidence []EvidenceEntry) StrandedReservationException {
 	return StrandedReservationException{
 		Detected:      true,
 		Action:        ActionRevokeReservation,
@@ -276,7 +251,7 @@ func Evaluate(in Inputs) (StrandedReservationException, error) {
 		),
 		Evidence:    evidence,
 		BlastRadius: in.Bin,
-	}, nil
+	}
 }
 
 func stuckByType(tasks []StuckTaskSignal, t TaskType) []StuckTaskSignal {

@@ -139,8 +139,38 @@ type Decision struct {
 // receives or has to reject an unrecognized enum value; that rejection
 // happens once, at the untrusted-input boundary, via ParseRebalanceAction.
 func Decide(pathId string, wes *RebalanceSignal, wfm *StaffingSignal, fe *StuckTasksSignal) Decision {
-	d := Decision{PathId: pathId}
+	missing := missingSignals(wes, wfm, fe)
+	d := Decision{
+		PathId:   pathId,
+		Evidence: evidenceEntries(wes, wfm, fe),
+	}
 
+	// The wes signal is the anchor: without it there is nothing to
+	// correlate against. Degrade immediately.
+	if wes == nil {
+		return degradeToHold(d, missing, "wes-work-planning's rebalance recommendation is unavailable; holding pending a retry — no lever can be safely ranked without the anchor signal.")
+	}
+
+	switch wes.Action {
+	case RebalanceReassignLabor, RebalanceThrottleUpstream:
+		// Both cases point at the same question: is the bottleneck a
+		// confirmed labor gap? Only wfm can answer that.
+		return decideLaborGap(d, wes, wfm, fe, missing)
+	case RebalanceNoActionNeeded:
+		return decideHealthyBacklog(d, wfm, fe, missing)
+	default:
+		// Unreachable when callers construct RebalanceSignal.Action via
+		// ParseRebalanceAction, which is the only sanctioned path; kept as
+		// an explicit, safe fallback rather than a panic.
+		d.RecommendedAction = FlowBalanceActionHold
+		d.Rationale = fmt.Sprintf("unrecognized wes action %q reached the policy layer; holding.", wes.Action)
+		return d
+	}
+}
+
+// missingSignals lists every upstream signal that was unavailable, in
+// wes, wfm, fe order.
+func missingSignals(wes *RebalanceSignal, wfm *StaffingSignal, fe *StuckTasksSignal) []string {
 	var missing []string
 	if wes == nil {
 		missing = append(missing, "wes-work-planning.get_rebalance_recommendation")
@@ -151,115 +181,104 @@ func Decide(pathId string, wes *RebalanceSignal, wfm *StaffingSignal, fe *StuckT
 	if fe == nil {
 		missing = append(missing, "fulfillment-execution.diagnose_stuck_tasks")
 	}
+	return missing
+}
 
+// evidenceEntries appends one evidence-trail entry per available signal,
+// in wes, wfm, fe order, so every decision shows the readings that drove
+// it.
+func evidenceEntries(wes *RebalanceSignal, wfm *StaffingSignal, fe *StuckTasksSignal) []FlowBalanceEvidenceEntry {
+	var entries []FlowBalanceEvidenceEntry
 	if wes != nil {
-		d.Evidence = append(d.Evidence, FlowBalanceEvidenceEntry{
+		entries = append(entries, FlowBalanceEvidenceEntry{
 			Source: wes.Source,
 			Detail: fmt.Sprintf("action=%s backlogDepth=%d wip=%d (pathId=%s)", wes.Action, wes.BacklogDepth, wes.WIP, wes.PathId),
 		})
 	}
 	if wfm != nil {
-		d.Evidence = append(d.Evidence, FlowBalanceEvidenceEntry{
+		entries = append(entries, FlowBalanceEvidenceEntry{
 			Source: wfm.Source,
 			Detail: fmt.Sprintf("plannedHeads=%d activeHeads=%d understaffed=%t (pathId=%s)", wfm.PlannedHeads, wfm.ActiveHeads, wfm.Understaffed, wfm.PathId),
 		})
 	}
 	if fe != nil {
-		d.Evidence = append(d.Evidence, FlowBalanceEvidenceEntry{
+		entries = append(entries, FlowBalanceEvidenceEntry{
 			Source: fe.Source,
 			Detail: fmt.Sprintf("stuckTaskCount=%d reasons=%v", fe.Count, fe.Reasons),
 		})
 	}
+	return entries
+}
 
-	// The wes signal is the anchor: without it there is nothing to
-	// correlate against. Degrade immediately.
-	if wes == nil {
-		d.Partial = true
-		d.MissingSignals = missing
-		d.RecommendedAction = FlowBalanceActionHold
-		d.Rationale = "wes-work-planning's rebalance recommendation is unavailable; holding pending a retry — no lever can be safely ranked without the anchor signal."
+// degradeToHold marks d as a Partial, conservative Hold listing exactly
+// which signals were missing — the shared degrade exit for every branch
+// whose deciding signal was unavailable.
+func degradeToHold(d Decision, missing []string, rationale string) Decision {
+	d.Partial = true
+	d.MissingSignals = missing
+	d.RecommendedAction = FlowBalanceActionHold
+	d.Rationale = rationale
+	return d
+}
+
+// decideLaborGap resolves the ReassignLabor/ThrottleUpstream branch: wes
+// sees a flow problem, and the question is whether a confirmed labor gap
+// (only wfm can answer) or blocked claims (fe) explain it.
+func decideLaborGap(d Decision, wes *RebalanceSignal, wfm *StaffingSignal, fe *StuckTasksSignal, missing []string) Decision {
+	if wfm == nil {
+		return degradeToHold(d, missing, fmt.Sprintf("wes recommends %s but workforce-management's staffing gap is unavailable; holding rather than guessing whether labor is the bottleneck.", wes.Action))
+	}
+
+	if wfm.Understaffed {
+		d.RecommendedAction = ActionAssignLabor
+		d.ProposedHeads = proposedHeads(wfm.PlannedHeads, wfm.ActiveHeads)
+		d.Rationale = fmt.Sprintf("wes recommends %s and workforce-management confirms the path is understaffed; assigning %d head(s) is the in-vocabulary lever supported by both signals.", wes.Action, d.ProposedHeads)
 		return d
 	}
 
-	switch wes.Action {
-	case RebalanceReassignLabor, RebalanceThrottleUpstream:
-		// Both cases point at the same question: is the bottleneck a
-		// confirmed labor gap? Only wfm can answer that.
-		if wfm == nil {
-			d.Partial = true
-			d.MissingSignals = missing
-			d.RecommendedAction = FlowBalanceActionHold
-			d.Rationale = fmt.Sprintf("wes recommends %s but workforce-management's staffing gap is unavailable; holding rather than guessing whether labor is the bottleneck.", wes.Action)
-			return d
-		}
+	// wfm says fully staffed, yet wes still sees a flow problem.
+	// Assigning more labor is not supported by the evidence; check
+	// whether stuck tasks explain the saturation instead.
+	if fe == nil {
+		return degradeToHold(d, missing, fmt.Sprintf("wes recommends %s but workforce-management reports adequate staffing and fulfillment-execution's stuck-task diagnostic is unavailable; holding for human review.", wes.Action))
+	}
 
-		if wfm.Understaffed {
-			d.RecommendedAction = ActionAssignLabor
-			d.ProposedHeads = proposedHeads(wfm.PlannedHeads, wfm.ActiveHeads)
-			d.Rationale = fmt.Sprintf("wes recommends %s and workforce-management confirms the path is understaffed; assigning %d head(s) is the in-vocabulary lever supported by both signals.", wes.Action, d.ProposedHeads)
-			return d
-		}
+	d.RecommendedAction = FlowBalanceActionHold
+	if fe.Count > 0 {
+		d.Rationale = fmt.Sprintf("wes recommends %s, but workforce-management reports adequate staffing and fulfillment-execution reports %d stuck task(s) — the bottleneck looks like blocked claims, not a labor gap; holding for human review of the stuck leases.", wes.Action, fe.Count)
+	} else {
+		d.Rationale = fmt.Sprintf("wes recommends %s, but neither a staffing gap nor stuck tasks corroborate it; holding for human review rather than pulling an unsupported lever.", wes.Action)
+	}
+	return d
+}
 
-		// wfm says fully staffed, yet wes still sees a flow problem.
-		// Assigning more labor is not supported by the evidence; check
-		// whether stuck tasks explain the saturation instead.
-		if fe == nil {
-			d.Partial = true
-			d.MissingSignals = missing
-			d.RecommendedAction = FlowBalanceActionHold
-			d.Rationale = fmt.Sprintf("wes recommends %s but workforce-management reports adequate staffing and fulfillment-execution's stuck-task diagnostic is unavailable; holding for human review.", wes.Action)
-			return d
-		}
+// decideHealthyBacklog resolves the NoActionNeeded branch: with a healthy
+// backlog, a fully staffed path with no stuck tasks can safely take the
+// next work unit; anything less degrades or holds.
+func decideHealthyBacklog(d Decision, wfm *StaffingSignal, fe *StuckTasksSignal, missing []string) Decision {
+	if fe == nil {
+		return degradeToHold(d, missing, "wes reports no backlog action needed, but fulfillment-execution's stuck-task diagnostic is unavailable; holding rather than assuming the path is healthy.")
+	}
 
+	if fe.Count > 0 {
 		d.RecommendedAction = FlowBalanceActionHold
-		if fe.Count > 0 {
-			d.Rationale = fmt.Sprintf("wes recommends %s, but workforce-management reports adequate staffing and fulfillment-execution reports %d stuck task(s) — the bottleneck looks like blocked claims, not a labor gap; holding for human review of the stuck leases.", wes.Action, fe.Count)
-		} else {
-			d.Rationale = fmt.Sprintf("wes recommends %s, but neither a staffing gap nor stuck tasks corroborate it; holding for human review rather than pulling an unsupported lever.", wes.Action)
-		}
-		return d
-
-	case RebalanceNoActionNeeded:
-		if fe == nil {
-			d.Partial = true
-			d.MissingSignals = missing
-			d.RecommendedAction = FlowBalanceActionHold
-			d.Rationale = "wes reports no backlog action needed, but fulfillment-execution's stuck-task diagnostic is unavailable; holding rather than assuming the path is healthy."
-			return d
-		}
-
-		if fe.Count > 0 {
-			d.RecommendedAction = FlowBalanceActionHold
-			d.Rationale = fmt.Sprintf("wes reports no backlog action needed, but fulfillment-execution reports %d stuck task(s); holding for human review despite the healthy backlog signal.", fe.Count)
-			return d
-		}
-
-		if wfm == nil {
-			d.Partial = true
-			d.MissingSignals = missing
-			d.RecommendedAction = FlowBalanceActionHold
-			d.Rationale = "wes reports no backlog action needed and no tasks are stuck, but workforce-management's staffing gap is unavailable; holding rather than releasing work into a path of unknown staffing."
-			return d
-		}
-
-		if !wfm.Understaffed {
-			d.RecommendedAction = ActionReleaseNextWork
-			d.Rationale = "wes reports no backlog action needed, no tasks are stuck, and workforce-management confirms the path is fully staffed; releasing the next work unit is safe and keeps spare capacity utilized."
-			return d
-		}
-
-		d.RecommendedAction = FlowBalanceActionHold
-		d.Rationale = "wes reports no backlog action needed and no tasks are stuck, but workforce-management flags a staffing gap; holding — the gap is visible but not itself an exception this correlation should force an action on."
-		return d
-
-	default:
-		// Unreachable when callers construct RebalanceSignal.Action via
-		// ParseRebalanceAction, which is the only sanctioned path; kept as
-		// an explicit, safe fallback rather than a panic.
-		d.RecommendedAction = FlowBalanceActionHold
-		d.Rationale = fmt.Sprintf("unrecognized wes action %q reached the policy layer; holding.", wes.Action)
+		d.Rationale = fmt.Sprintf("wes reports no backlog action needed, but fulfillment-execution reports %d stuck task(s); holding for human review despite the healthy backlog signal.", fe.Count)
 		return d
 	}
+
+	if wfm == nil {
+		return degradeToHold(d, missing, "wes reports no backlog action needed and no tasks are stuck, but workforce-management's staffing gap is unavailable; holding rather than releasing work into a path of unknown staffing.")
+	}
+
+	if !wfm.Understaffed {
+		d.RecommendedAction = ActionReleaseNextWork
+		d.Rationale = "wes reports no backlog action needed, no tasks are stuck, and workforce-management confirms the path is fully staffed; releasing the next work unit is safe and keeps spare capacity utilized."
+		return d
+	}
+
+	d.RecommendedAction = FlowBalanceActionHold
+	d.Rationale = "wes reports no backlog action needed and no tasks are stuck, but workforce-management flags a staffing gap; holding — the gap is visible but not itself an exception this correlation should force an action on."
+	return d
 }
 
 // proposedHeads is the labor gap, floored at 1 so an AssignLabor

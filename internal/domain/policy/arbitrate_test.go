@@ -50,62 +50,99 @@ func TestValidatePlan(t *testing.T) {
 	}
 }
 
-func TestArbitrate(t *testing.T) {
-	det := Decision{PathId: "pick", RecommendedAction: FlowBalanceActionHold, Rationale: "det", Evidence: []FlowBalanceEvidenceEntry{{Source: "s", Detail: "d"}}}
-	valid := &PlanProposal{RecommendedAction: ActionAssignLabor, ProposedHeads: 2, Rationale: "llm"}
-	invalid := &PlanProposal{RecommendedAction: "nope", Rationale: "llm"}
-	boom := errors.New("timeout")
+// arbitrateDet builds the deterministic decision every Arbitrate subtest
+// arbitrates over.
+func arbitrateDet() Decision {
+	return Decision{
+		PathId:            "pick",
+		RecommendedAction: FlowBalanceActionHold,
+		Rationale:         "det",
+		Evidence:          []FlowBalanceEvidenceEntry{{Source: "s", Detail: "d"}},
+	}
+}
 
+// errArbitrateTimeout is the shared transport-error fixture.
+var errArbitrateTimeout = errors.New("timeout")
+
+func TestArbitrate(t *testing.T) {
 	t.Run("off ignores everything", func(t *testing.T) {
-		a := Arbitrate(det, valid, nil, LLMOff)
+		a := Arbitrate(arbitrateDet(), &PlanProposal{RecommendedAction: ActionAssignLabor, ProposedHeads: 2, Rationale: "llm"}, nil, LLMOff)
 		if a.Source != SourceDeterministic || a.Agree != nil || a.Decision.RecommendedAction != FlowBalanceActionHold {
 			t.Fatalf("unexpected %+v", a)
 		}
 	})
 	t.Run("shadow keeps deterministic but records disagreement", func(t *testing.T) {
-		a := Arbitrate(det, valid, nil, LLMShadow)
-		if a.Source != SourceDeterministic || a.Agree == nil || *a.Agree || a.Decision.RecommendedAction != FlowBalanceActionHold {
-			t.Fatalf("unexpected %+v", a)
-		}
+		assertShadowDisagreement(t, arbitrateDet(), ActionAssignLabor)
 	})
 	t.Run("shadow records agreement", func(t *testing.T) {
-		same := &PlanProposal{RecommendedAction: FlowBalanceActionHold, Rationale: "llm"}
-		a := Arbitrate(det, same, nil, LLMShadow)
-		if a.Agree == nil || !*a.Agree {
-			t.Fatalf("unexpected %+v", a)
-		}
+		assertShadowAgreement(t, arbitrateDet())
 	})
 	t.Run("on uses a valid plan, keeps evidence and pathId", func(t *testing.T) {
-		a := Arbitrate(det, valid, nil, LLMOn)
-		if a.Source != SourceLLM || a.Decision.RecommendedAction != ActionAssignLabor || a.Decision.ProposedHeads != 2 || a.Decision.Rationale != "llm" {
-			t.Fatalf("unexpected %+v", a)
-		}
-		if a.Decision.PathId != "pick" || len(a.Decision.Evidence) != 1 {
-			t.Fatal("evidence/pathId must be preserved from the deterministic pass")
-		}
+		assertOnAdoptsValidPlan(t, arbitrateDet())
 	})
 	t.Run("on falls back on transport error", func(t *testing.T) {
-		a := Arbitrate(det, nil, boom, LLMOn)
-		if a.Source != SourceFallback || a.Reason != "timeout" || a.Decision.RecommendedAction != FlowBalanceActionHold {
-			t.Fatalf("unexpected %+v", a)
-		}
+		assertFallback(t, Arbitrate(arbitrateDet(), nil, errArbitrateTimeout, LLMOn), "timeout")
 	})
 	t.Run("on falls back on invalid plan", func(t *testing.T) {
-		a := Arbitrate(det, invalid, nil, LLMOn)
+		a := Arbitrate(arbitrateDet(), &PlanProposal{RecommendedAction: "nope", Rationale: "llm"}, nil, LLMOn)
 		if a.Source != SourceFallback || !errorsContains(a.Reason, "unrecognized action") {
 			t.Fatalf("unexpected %+v", a)
 		}
 	})
 	t.Run("on falls back on nil plan", func(t *testing.T) {
-		if a := Arbitrate(det, nil, nil, LLMOn); a.Source != SourceFallback {
+		if a := Arbitrate(arbitrateDet(), nil, nil, LLMOn); a.Source != SourceFallback {
 			t.Fatalf("unexpected %+v", a)
 		}
 	})
 	t.Run("shadow with error stays deterministic and reports reason", func(t *testing.T) {
-		if a := Arbitrate(det, nil, boom, LLMShadow); a.Source != SourceDeterministic || a.Reason == "" {
+		if a := Arbitrate(arbitrateDet(), nil, errArbitrateTimeout, LLMShadow); a.Source != SourceDeterministic || a.Reason == "" {
 			t.Fatalf("unexpected %+v", a)
 		}
 	})
+}
+
+// assertShadowDisagreement checks that shadow mode returns the
+// deterministic decision while recording the model's disagreement.
+func assertShadowDisagreement(t *testing.T, det Decision, modelAction RecommendedAction) {
+	t.Helper()
+	a := Arbitrate(det, &PlanProposal{RecommendedAction: modelAction, ProposedHeads: 2, Rationale: "llm"}, nil, LLMShadow)
+	if a.Source != SourceDeterministic || a.Agree == nil || *a.Agree || a.Decision.RecommendedAction != FlowBalanceActionHold {
+		t.Fatalf("unexpected %+v", a)
+	}
+}
+
+// assertShadowAgreement checks that shadow mode records agreement when
+// the model echoes the deterministic action.
+func assertShadowAgreement(t *testing.T, det Decision) {
+	t.Helper()
+	same := &PlanProposal{RecommendedAction: FlowBalanceActionHold, Rationale: "llm"}
+	a := Arbitrate(det, same, nil, LLMShadow)
+	if a.Agree == nil || !*a.Agree {
+		t.Fatalf("unexpected %+v", a)
+	}
+}
+
+// assertOnAdoptsValidPlan checks that on mode adopts the model's plan
+// while keeping the deterministic pass's evidence and pathId.
+func assertOnAdoptsValidPlan(t *testing.T, det Decision) {
+	t.Helper()
+	valid := &PlanProposal{RecommendedAction: ActionAssignLabor, ProposedHeads: 2, Rationale: "llm"}
+	a := Arbitrate(det, valid, nil, LLMOn)
+	if a.Source != SourceLLM || a.Decision.RecommendedAction != ActionAssignLabor || a.Decision.ProposedHeads != 2 || a.Decision.Rationale != "llm" {
+		t.Fatalf("unexpected %+v", a)
+	}
+	if a.Decision.PathId != "pick" || len(a.Decision.Evidence) != 1 {
+		t.Fatal("evidence/pathId must be preserved from the deterministic pass")
+	}
+}
+
+// assertFallback checks that on mode fell back to the deterministic
+// decision for the stated reason.
+func assertFallback(t *testing.T, a Arbitration, wantReason string) {
+	t.Helper()
+	if a.Source != SourceFallback || a.Reason != wantReason || a.Decision.RecommendedAction != FlowBalanceActionHold {
+		t.Fatalf("unexpected %+v", a)
+	}
 }
 
 func errorsContains(s, sub string) bool { return len(s) >= len(sub) && contains(s, sub) }

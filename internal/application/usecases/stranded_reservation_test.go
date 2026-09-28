@@ -58,17 +58,21 @@ func (f fakeInventoryStorage) GetBinOccupancy(context.Context, string) (ports.Bi
 
 var _ ports.InventoryStorageClient = fakeInventoryStorage{}
 
+// strandedReservationCase is one row of the DetectStrandedReservation
+// correlation table.
+type strandedReservationCase struct {
+	name            string
+	fe              fakeFulfillmentExecution
+	inv             fakeInventoryStorage
+	req             StrandedReservationRequest
+	wantErr         bool
+	wantDetected    bool
+	wantAction      policy.StrandedReservationAction
+	wantBlastRadius bool
+}
+
 func TestDetectStrandedReservation_Execute(t *testing.T) {
-	tests := []struct {
-		name            string
-		fe              fakeFulfillmentExecution
-		inv             fakeInventoryStorage
-		req             StrandedReservationRequest
-		wantErr         bool
-		wantDetected    bool
-		wantAction      policy.StrandedReservationAction
-		wantBlastRadius bool
-	}{
+	tests := []strandedReservationCase{
 		{
 			name: "rejects unknown task type",
 			req: StrandedReservationRequest{
@@ -189,42 +193,56 @@ func TestDetectStrandedReservation_Execute(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			uc := DetectStrandedReservation{
-				FulfillmentExecution: tc.fe,
-				InventoryStorage:     tc.inv,
-			}
-
-			got, err := uc.Execute(context.Background(), tc.req)
-			if tc.wantErr {
-				if err == nil {
-					t.Fatal("expected an error, got nil")
-				}
-				return
-			}
-			if err != nil {
-				t.Fatalf("Execute: %v", err)
-			}
-			if got.Detected != tc.wantDetected {
-				t.Fatalf("Detected = %v, want %v", got.Detected, tc.wantDetected)
-			}
-			if got.Action != tc.wantAction {
-				t.Fatalf("Action = %q, want %q", got.Action, tc.wantAction)
-			}
-			hasBlastRadius := got.BlastRadius != nil
-			if hasBlastRadius != tc.wantBlastRadius {
-				t.Fatalf("BlastRadius present = %v, want %v (got %+v)", hasBlastRadius, tc.wantBlastRadius, got.BlastRadius)
-			}
-			if tc.wantBlastRadius {
-				if got.BlastRadius.BinId != tc.req.BinId {
-					t.Fatalf("BlastRadius.BinId = %q, want %q", got.BlastRadius.BinId, tc.req.BinId)
-				}
-				if got.BlastRadius.QuantityFreed != 12 {
-					t.Fatalf("BlastRadius.QuantityFreed = %d, want 12", got.BlastRadius.QuantityFreed)
-				}
-				if len(got.Evidence) == 0 {
-					t.Fatal("expected a non-empty evidence trail on a revoke recommendation")
-				}
-			}
+			runStrandedReservationCase(t, tc)
 		})
+	}
+}
+
+// runStrandedReservationCase executes one table case against the fakes
+// and asserts the outcome's error/detected/action shape.
+func runStrandedReservationCase(t *testing.T, tc strandedReservationCase) {
+	t.Helper()
+	uc := DetectStrandedReservation{
+		FulfillmentExecution: tc.fe,
+		InventoryStorage:     tc.inv,
+	}
+
+	got, err := uc.Execute(context.Background(), tc.req)
+	if tc.wantErr {
+		if err == nil {
+			t.Fatal("expected an error, got nil")
+		}
+		return
+	}
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if got.Detected != tc.wantDetected {
+		t.Fatalf("Detected = %v, want %v", got.Detected, tc.wantDetected)
+	}
+	if got.Action != tc.wantAction {
+		t.Fatalf("Action = %q, want %q", got.Action, tc.wantAction)
+	}
+	hasBlastRadius := got.BlastRadius != nil
+	if hasBlastRadius != tc.wantBlastRadius {
+		t.Fatalf("BlastRadius present = %v, want %v (got %+v)", hasBlastRadius, tc.wantBlastRadius, got.BlastRadius)
+	}
+	if tc.wantBlastRadius {
+		assertRevokeBlastRadius(t, got, tc.req.BinId)
+	}
+}
+
+// assertRevokeBlastRadius checks the fully-correlated revoke outcome's
+// mandatory blast radius and evidence trail.
+func assertRevokeBlastRadius(t *testing.T, got policy.StrandedReservationException, wantBinId string) {
+	t.Helper()
+	if got.BlastRadius.BinId != wantBinId {
+		t.Fatalf("BlastRadius.BinId = %q, want %q", got.BlastRadius.BinId, wantBinId)
+	}
+	if got.BlastRadius.QuantityFreed != 12 {
+		t.Fatalf("BlastRadius.QuantityFreed = %d, want 12", got.BlastRadius.QuantityFreed)
+	}
+	if len(got.Evidence) == 0 {
+		t.Fatal("expected a non-empty evidence trail on a revoke recommendation")
 	}
 }

@@ -59,40 +59,64 @@ func (uc *RuntimeSignals) Execute(ctx context.Context) policy.RuntimeSignalsRepo
 		logLimit = 50
 	}
 
-	// Fetch error-level log lines ONCE (fleet-wide, not per-service —
-	// Loki's own `container`/`app` labels let us attribute lines to a
-	// service after the fact) rather than issuing one query per service,
-	// which would multiply round-trips for no extra signal.
-	var (
-		errorLogsByService = map[string]int{}
-		unavailable        []string
-	)
-	if uc.Logs != nil {
-		entries, err := uc.Logs.QueryErrorLines(ctx, uc.Namespace, int64(windowMins*60), logLimit)
-		if err != nil {
-			unavailable = append(unavailable, "loki")
-		} else {
-			for _, e := range entries {
-				svc := e.Labels["app"]
-				if svc == "" {
-					svc = e.Labels["container"]
-				}
-				if svc != "" {
-					errorLogsByService[svc]++
-				}
-			}
-		}
-	} else {
+	var unavailable []string
+	errorLogsByService, logsOK := uc.collectErrorLogs(ctx, windowMins, logLimit)
+	if !logsOK {
 		unavailable = append(unavailable, "loki")
 	}
 
 	telemetryAvailable := uc.Telemetry != nil
-	telemetryFailed := false
 	if !telemetryAvailable {
 		unavailable = append(unavailable, "prometheus")
 	}
 
+	signals, telemetryFailed := uc.collectSignals(ctx, errorLogsByService, windowMins, telemetryAvailable)
+	if telemetryAvailable && telemetryFailed {
+		unavailable = append(unavailable, "prometheus")
+	}
+
+	report.Services = signals
+	report.UnavailableSources = unavailable
+	return report
+}
+
+// collectErrorLogs fetches error-level log lines ONCE (fleet-wide, not
+// per-service — Loki's own `container`/`app` labels let us attribute lines
+// to a service after the fact) rather than issuing one query per service,
+// which would multiply round-trips for no extra signal, and tallies them
+// per service. ok is false when the LogReader port is unwired or the
+// query failed; the caller then reports the source as unavailable and
+// every service's RecentErrorLogs stays at its zero value, per Execute's
+// degrade-not-fail contract.
+func (uc *RuntimeSignals) collectErrorLogs(ctx context.Context, windowMins, logLimit int) (counts map[string]int, ok bool) {
+	if uc.Logs == nil {
+		return nil, false
+	}
+	entries, err := uc.Logs.QueryErrorLines(ctx, uc.Namespace, int64(windowMins*60), logLimit)
+	if err != nil {
+		return nil, false
+	}
+	counts = map[string]int{}
+	for _, e := range entries {
+		svc := e.Labels["app"]
+		if svc == "" {
+			svc = e.Labels["container"]
+		}
+		if svc != "" {
+			counts[svc]++
+		}
+	}
+	return counts, true
+}
+
+// collectSignals builds one ServiceSignal per monitored service, reading
+// both Prometheus queries when the telemetry source is wired and
+// classifying severities either way. The bool return reports whether any
+// telemetry query failed, so Execute can mark prometheus unavailable after
+// the loop while still emitting every service's (zero-valued) signal.
+func (uc *RuntimeSignals) collectSignals(ctx context.Context, errorLogsByService map[string]int, windowMins int, telemetryAvailable bool) ([]policy.ServiceSignal, bool) {
 	signals := make([]policy.ServiceSignal, 0, len(uc.Services))
+	telemetryFailed := false
 	for _, svc := range uc.Services {
 		sig := policy.ServiceSignal{
 			ServiceName:      svc,
@@ -113,13 +137,7 @@ func (uc *RuntimeSignals) Execute(ctx context.Context) policy.RuntimeSignalsRepo
 
 		signals = append(signals, sig)
 	}
-	if telemetryAvailable && telemetryFailed {
-		unavailable = append(unavailable, "prometheus")
-	}
-
-	report.Services = signals
-	report.UnavailableSources = unavailable
-	return report
+	return signals, telemetryFailed
 }
 
 // errorRate computes the 5xx fraction of istio_requests_total for svc over

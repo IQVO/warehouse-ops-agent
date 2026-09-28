@@ -51,52 +51,12 @@ func TestNoMutatingHTTPMethodInOutboundClients(t *testing.T) {
 	for _, dir := range outboundClientDirs {
 		dir := dir
 		t.Run(dir, func(t *testing.T) {
-			entries, err := os.ReadDir(dir)
-			if err != nil {
-				t.Fatalf("read dir %s: %v", dir, err)
-			}
-
-			fset := token.NewFileSet()
-			for _, e := range entries {
-				if e.IsDir() || !strings.HasSuffix(e.Name(), ".go") || strings.HasSuffix(e.Name(), "_test.go") {
-					continue
-				}
-
-				path := filepath.Join(dir, e.Name())
+			for _, path := range goFilesIn(t, dir) {
 				src, err := os.ReadFile(path)
 				if err != nil {
 					t.Fatalf("read %s: %v", path, err)
 				}
-
-				// Parse to walk real AST literals/selectors rather than
-				// grepping raw text, so a mutating method name mentioned
-				// only in a comment (e.g. explaining why it must NOT be
-				// used) does not produce a false failure.
-				file, err := parser.ParseFile(fset, path, src, 0)
-				if err != nil {
-					t.Fatalf("parse %s: %v", path, err)
-				}
-
-				ast.Inspect(file, func(n ast.Node) bool {
-					switch node := n.(type) {
-					case *ast.SelectorExpr:
-						if ident, ok := node.X.(*ast.Ident); ok {
-							sel := ident.Name + "." + node.Sel.Name
-							for _, m := range mutatingHTTPMethods {
-								if sel == m {
-									t.Errorf("%s: found %q — outbound clients to the five bounded contexts must stay GET/HEAD-only (zero write capability, ADR-0004/v1)", path, sel)
-								}
-							}
-						}
-					case *ast.BasicLit:
-						for _, m := range mutatingHTTPMethods {
-							if node.Value == m {
-								t.Errorf("%s: found %s — outbound clients to the five bounded contexts must stay GET/HEAD-only (zero write capability, ADR-0004/v1)", path, m)
-							}
-						}
-					}
-					return true
-				})
+				assertNoMutatingHTTPMethod(t, path, parseGoFile(t, path, src))
 			}
 		})
 	}
@@ -113,15 +73,100 @@ func TestNoMutatingToolAnnotationInMCPServer(t *testing.T) {
 		t.Fatalf("read %s: %v", path, err)
 	}
 
-	fset := token.NewFileSet()
-	file, err := parser.ParseFile(fset, path, src, 0)
+	toolCount, readOnlyTrueCount := countToolRegistrations(parseGoFile(t, path, src))
+	if toolCount == 0 {
+		t.Fatal("found zero mcp.Tool registrations — this test's AST walk is broken, or the file moved; fix the scan before trusting it")
+	}
+
+	// This agent's convention is a single `readOnly := true` local variable
+	// reused by every tool literal (see registerTools in tools.go) rather
+	// than a literal `true` per tool. Confirm that variable is never
+	// reassigned to false anywhere in the file.
+	assertReadOnlyNeverSetFalse(t, string(src))
+
+	if readOnlyTrueCount != toolCount {
+		t.Errorf("found %d mcp.Tool registration(s) but only %d ToolAnnotations{ReadOnlyHint: readOnly} reference(s) — every tool must set ReadOnlyHint via the shared readOnly variable (zero write capability, ADR-0004/v1)", toolCount, readOnlyTrueCount)
+	}
+}
+
+// goFilesIn lists the non-test .go source files in dir, failing the test
+// if the directory cannot be read.
+func goFilesIn(t *testing.T, dir string) []string {
+	t.Helper()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("read dir %s: %v", dir, err)
+	}
+	var paths []string
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".go") || strings.HasSuffix(e.Name(), "_test.go") {
+			continue
+		}
+		paths = append(paths, filepath.Join(dir, e.Name()))
+	}
+	return paths
+}
+
+// parseGoFile parses one Go source file for the AST-level assertions
+// below. Walking real AST literals/selectors rather than grepping raw
+// text keeps a mutating method name mentioned only in a comment (e.g.
+// explaining why it must NOT be used) from producing a false failure.
+func parseGoFile(t *testing.T, path string, src []byte) *ast.File {
+	t.Helper()
+	file, err := parser.ParseFile(token.NewFileSet(), path, src, 0)
 	if err != nil {
 		t.Fatalf("parse %s: %v", path, err)
 	}
+	return file
+}
 
-	toolCount := 0
-	readOnlyTrueCount := 0
+// assertNoMutatingHTTPMethod fails the test if any expression in file
+// names a mutating HTTP method, as a package selector or a string
+// literal.
+func assertNoMutatingHTTPMethod(t *testing.T, path string, file *ast.File) {
+	t.Helper()
+	ast.Inspect(file, func(n ast.Node) bool {
+		switch node := n.(type) {
+		case *ast.SelectorExpr:
+			assertSelectorNotMutating(t, path, node)
+		case *ast.BasicLit:
+			assertLiteralNotMutating(t, path, node)
+		}
+		return true
+	})
+}
 
+// assertSelectorNotMutating fails the test if node spells a mutating HTTP
+// method constant such as http.MethodPost.
+func assertSelectorNotMutating(t *testing.T, path string, node *ast.SelectorExpr) {
+	t.Helper()
+	ident, ok := node.X.(*ast.Ident)
+	if !ok {
+		return
+	}
+	sel := ident.Name + "." + node.Sel.Name
+	for _, m := range mutatingHTTPMethods {
+		if sel == m {
+			t.Errorf("%s: found %q — outbound clients to the five bounded contexts must stay GET/HEAD-only (zero write capability, ADR-0004/v1)", path, sel)
+		}
+	}
+}
+
+// assertLiteralNotMutating fails the test if node is a mutating HTTP
+// method string literal such as "POST".
+func assertLiteralNotMutating(t *testing.T, path string, node *ast.BasicLit) {
+	t.Helper()
+	for _, m := range mutatingHTTPMethods {
+		if node.Value == m {
+			t.Errorf("%s: found %s — outbound clients to the five bounded contexts must stay GET/HEAD-only (zero write capability, ADR-0004/v1)", path, m)
+		}
+	}
+}
+
+// countToolRegistrations walks the tool-registration file and tallies both
+// mcp.Tool composite literals and ToolAnnotations{ReadOnlyHint: …}
+// references that set the hint true.
+func countToolRegistrations(file *ast.File) (toolCount, readOnlyTrueCount int) {
 	ast.Inspect(file, func(n ast.Node) bool {
 		comp, ok := n.(*ast.CompositeLit)
 		if !ok {
@@ -135,40 +180,46 @@ func TestNoMutatingToolAnnotationInMCPServer(t *testing.T) {
 		case "Tool":
 			toolCount++
 		case "ToolAnnotations":
-			for _, elt := range comp.Elts {
-				kv, ok := elt.(*ast.KeyValueExpr)
-				if !ok {
-					continue
-				}
-				key, ok := kv.Key.(*ast.Ident)
-				if !ok || key.Name != "ReadOnlyHint" {
-					continue
-				}
-				if ident, ok := kv.Value.(*ast.Ident); ok && ident.Name == "readOnly" {
-					// registerTools defines `readOnly := true` once and
-					// reuses the variable for every tool — resolved below.
-					readOnlyTrueCount++
-				} else if ident, ok := kv.Value.(*ast.Ident); ok && ident.Name == "true" {
-					readOnlyTrueCount++
-				}
-			}
+			readOnlyTrueCount += countReadOnlyTrueHints(comp)
 		}
 		return true
 	})
+	return toolCount, readOnlyTrueCount
+}
 
-	if toolCount == 0 {
-		t.Fatal("found zero mcp.Tool registrations — this test's AST walk is broken, or the file moved; fix the scan before trusting it")
+// countReadOnlyTrueHints counts ReadOnlyHint key/value pairs in one
+// ToolAnnotations literal whose value is the shared `readOnly` variable
+// or the literal `true`.
+func countReadOnlyTrueHints(comp *ast.CompositeLit) int {
+	count := 0
+	for _, elt := range comp.Elts {
+		kv, ok := elt.(*ast.KeyValueExpr)
+		if !ok {
+			continue
+		}
+		key, ok := kv.Key.(*ast.Ident)
+		if !ok || key.Name != "ReadOnlyHint" {
+			continue
+		}
+		ident, ok := kv.Value.(*ast.Ident)
+		if !ok {
+			continue
+		}
+		// registerTools defines `readOnly := true` once and reuses the
+		// variable for every tool — resolved by the never-false scan in
+		// assertReadOnlyNeverSetFalse.
+		if ident.Name == "readOnly" || ident.Name == "true" {
+			count++
+		}
 	}
+	return count
+}
 
-	// This agent's convention is a single `readOnly := true` local variable
-	// reused by every tool literal (see registerTools in tools.go) rather
-	// than a literal `true` per tool. Confirm that variable is never
-	// reassigned to false anywhere in the file.
-	if strings.Contains(string(src), "readOnly := false") || strings.Contains(string(src), "readOnly = false") {
+// assertReadOnlyNeverSetFalse confirms the shared readOnly convention
+// variable is never assigned false anywhere in the file.
+func assertReadOnlyNeverSetFalse(t *testing.T, src string) {
+	t.Helper()
+	if strings.Contains(src, "readOnly := false") || strings.Contains(src, "readOnly = false") {
 		t.Fatal("found 'readOnly' set to false in tools.go — this agent's MCP tools must stay ReadOnlyHint:true (zero write capability, ADR-0004/v1)")
-	}
-
-	if readOnlyTrueCount != toolCount {
-		t.Errorf("found %d mcp.Tool registration(s) but only %d ToolAnnotations{ReadOnlyHint: readOnly} reference(s) — every tool must set ReadOnlyHint via the shared readOnly variable (zero write capability, ADR-0004/v1)", toolCount, readOnlyTrueCount)
 	}
 }
