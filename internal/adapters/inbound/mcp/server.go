@@ -26,5 +26,5 @@ func NewServer(deps Deps) *mcp.Server {
 // bearer-key gate this used to carry; every request is served
 // unauthenticated.
 func Handler(server *mcp.Server) *mcp.StreamableHTTPHandler {
-	return mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server }, nil)
+	return mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server }, &mcp.StreamableHTTPOptions{Stateless: true})
 }

@@ -71,11 +71,22 @@ resources:
     cpu: 100m
     memory: 128Mi
 
+# HPA (ADR 0012). Default-disabled: enabling this changes nothing about
+# production replica counts on merge. CPU is the only metric wired for
+# v1 (targetMemoryUtilizationPercentage is left null/omitted here on
+# purpose -- most of this agent's per-request cost is waiting on
+# upstream MCP/REST/LLM I/O, not allocating; CPU is still an honest
+# v1 signal per the fleet plan's own "CPU/memory initially, then a
+# custom metric once a baseline exists" guidance). min1/max3, not
+# order-management's api min1/max4 -- this is a single-Deployment,
+# lower-traffic decision-support aggregator, not an OLTP API sized
+# against a shared Postgres connection budget.
 autoscaling:
   enabled: false
   minReplicas: 1
-  maxReplicas: 5
-  targetCPUUtilizationPercentage: 80
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 70
+  # targetMemoryUtilizationPercentage: 0  # uncomment + set to also gate on memory
 
 # This agent is a stateless MCP-client aggregator: no database, no Kafka.
 # config.agentAddr is its own listen address, serving BOTH the inbound HTTP

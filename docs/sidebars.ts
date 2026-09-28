@@ -67,6 +67,7 @@ const sidebars: SidebarsConfig = {
         'adr/0009-explain-travel-factor',
         'adr/0010-standard-metrics-convention',
         'adr/0011-reasoner-path-circuit-breaker-timeout-retry',
+        'adr/0012-horizontal-autoscaling-single-deployment',
       ],
     },
   ],
