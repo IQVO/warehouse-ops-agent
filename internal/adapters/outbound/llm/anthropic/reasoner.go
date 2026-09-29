@@ -5,6 +5,21 @@
 // synthetic "submit_plan" tool whose strict schema is the only way for the
 // model to answer. The model never sees HTTP, a database, or free text as
 // an instruction channel.
+//
+// ADR-0011 wraps the actual outbound HTTP call to the Anthropic Messages
+// API (call/doRequest below — NOT the whole Reason tool-use loop) in a
+// per-dependency sony/gobreaker circuit breaker, a context-deadline-
+// derived timeout, and a bounded cenkalti/backoff/v4 jittered retry for
+// transient errors only. This mirrors the shared shape order-management's
+// ADR-0025 established (internal/resilience) in a fresh, repo-local
+// package — see internal/resilience's own doc comment for why this is not
+// a cross-repo import. On a breaker-OPEN rejection, call returns an error
+// exactly like any other Reason failure; the EXISTING fallback mechanism
+// this repo already had (usecases.FlowBalanceAdvisory.arbitrate treating
+// a Reasoner error as policy.Arbitrate's planErr, which routes LLMOn mode
+// to the deterministic Decision with Source=fallback) is what formalizes
+// ADR-0004's stated-but-not-yet-implemented resilience intent — no new
+// fallback path is invented here.
 package anthropic
 
 import (
@@ -19,7 +34,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cenkalti/backoff/v4"
+	gobreaker "github.com/sony/gobreaker/v2"
+
 	"github.com/claudioed/warehouse-ops-agent/internal/ports"
+	"github.com/claudioed/warehouse-ops-agent/internal/resilience"
 )
 
 const (
@@ -29,6 +48,40 @@ const (
 	submitPlanTool   = "submit_plan"
 	defaultMaxTurns  = 6
 	defaultMaxTokens = 1024
+
+	// circuitBreakerDependencyName labels this breaker's Prometheus gauge
+	// series: circuit_breaker_state{dependency="anthropic-llm"}.
+	circuitBreakerDependencyName = "anthropic-llm"
+
+	// maxCallTimeout bounds ONE Anthropic Messages API attempt (including
+	// its bounded retries), derived from the inbound request's remaining
+	// deadline via resilience.CallTimeout. 12s is deliberately higher
+	// than a typical cross-context REST call's timeout in this fleet
+	// (order-management's resilience.DefaultTimeout is 30s for its own
+	// breaker cooldown, but its per-call HTTP timeouts are much
+	// shorter) — an LLM tool-use turn is doing real inference work, not
+	// a cache/DB-backed lookup, so it earns a longer per-call budget.
+	// Chosen from this adapter's own pre-existing default end-to-end
+	// Reason() timeout (8s for the WHOLE multi-turn loop, defaultTimeout
+	// below) plus headroom for one retry: 12s per call still leaves the
+	// outer per-request context (propagated from the inbound HTTP
+	// request, typically several seconds to tens of seconds) as the
+	// real, tighter bound in production — this constant only matters
+	// when the caller's own deadline is absent or looser than 12s (a
+	// background job, a test with no context deadline).
+	maxCallTimeout = 12 * time.Second
+
+	// maxRetryAttempts caps the jittered retry at 3 total attempts (1
+	// original + 2 retries) per the plan's "max 2-3, don't over-retry a
+	// paid LLM call" guidance.
+	maxRetryAttempts = 3
+
+	// retryInitialInterval/retryMaxInterval bound the exponential-
+	// backoff-with-jitter schedule between attempts — short, because the
+	// whole retry loop is already bounded by maxCallTimeout end to end
+	// (mirrors order-management's productclassification.BreakerClient).
+	retryInitialInterval = 100 * time.Millisecond
+	retryMaxInterval     = 1 * time.Second
 )
 
 // Config is the adapter's composition-root input.
@@ -45,12 +98,26 @@ type Config struct {
 	// HTTPClient defaults to http.DefaultClient.
 	HTTPClient *http.Client
 	Logger     *slog.Logger
+
+	// BreakerRecorder receives this dependency's circuit-breaker state
+	// transitions (resilience.StateRecorder) — typically
+	// telemetry.CircuitBreakerMetrics, wired by the composition root. A
+	// nil recorder is a documented no-op default (see
+	// resilience.RecordStateChange), so a caller that does not care
+	// about the metric never needs to construct one.
+	BreakerRecorder resilience.StateRecorder
+	// BreakerCooldown overrides resilience.DefaultCooldown (how long the
+	// breaker stays OPEN before a half-open probe). Production code
+	// should leave this zero; tests set it short so a half-open-
+	// recovery assertion does not have to sleep the real cooldown.
+	BreakerCooldown time.Duration
 }
 
 // Reasoner implements ports.Reasoner against the Anthropic Messages API.
 type Reasoner struct {
 	cfg     Config
 	invoker ports.ToolInvoker
+	breaker *gobreaker.CircuitBreaker[*apiResponse]
 }
 
 // New validates the config and binds the tool invoker.
@@ -79,7 +146,24 @@ func New(cfg Config, invoker ports.ToolInvoker) (*Reasoner, error) {
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
 	}
-	return &Reasoner{cfg: cfg, invoker: invoker}, nil
+	if cfg.BreakerCooldown <= 0 {
+		cfg.BreakerCooldown = resilience.DefaultCooldown
+	}
+
+	breaker := gobreaker.NewCircuitBreaker[*apiResponse](gobreaker.Settings{
+		Name:        circuitBreakerDependencyName,
+		MaxRequests: resilience.DefaultMaxRequests,
+		Interval:    resilience.DefaultInterval,
+		Timeout:     cfg.BreakerCooldown,
+		ReadyToTrip: resilience.ReadyToTrip,
+		// The caller giving up (request cancelled) is not the
+		// dependency's fault; don't let it count as a failure against
+		// the breaker either way.
+		IsExcluded:    func(err error) bool { return errors.Is(err, context.Canceled) },
+		OnStateChange: resilience.RecordStateChange(circuitBreakerDependencyName, cfg.BreakerRecorder),
+	})
+
+	return &Reasoner{cfg: cfg, invoker: invoker, breaker: breaker}, nil
 }
 
 // --- wire types (only what this adapter uses) ---
@@ -156,47 +240,12 @@ func (r *Reasoner) Reason(ctx context.Context, brief ports.Brief) (ports.Plan, e
 		}
 		messages = append(messages, apiMessage{Role: "assistant", Content: resp.Content})
 
-		var results []apiContent
-		for _, c := range resp.Content {
-			if c.Type != "tool_use" {
-				continue
-			}
-			if c.Name == submitPlanTool {
-				var in submitPlanInput
-				if err := json.Unmarshal(c.Input, &in); err != nil {
-					return plan, fmt.Errorf("anthropic: submit_plan input: %w", err)
-				}
-				plan.RecommendedAction = in.RecommendedAction
-				plan.ProposedHeads = in.ProposedHeads
-				plan.Rationale = in.Rationale
-				return plan, nil
-			}
-			spec, ok := lookup[c.Name]
-			if !ok {
-				// A tool we never offered: refuse, tell the model, keep going.
-				results = append(results, apiContent{Type: "tool_result", ToolUseID: c.ID, Content: "unknown tool", IsError: true})
-				plan.ToolCalls = append(plan.ToolCalls, ports.ToolCall{Tool: c.Name, Outcome: "refused: unknown tool"})
-				continue
-			}
-			var args map[string]any
-			if len(c.Input) > 0 {
-				if err := json.Unmarshal(c.Input, &args); err != nil {
-					results = append(results, apiContent{Type: "tool_result", ToolUseID: c.ID, Content: "arguments are not a JSON object", IsError: true})
-					plan.ToolCalls = append(plan.ToolCalls, ports.ToolCall{Upstream: spec.Upstream, Tool: spec.Name, Outcome: "refused: bad arguments"})
-					continue
-				}
-			}
-			started := time.Now()
-			out, err := r.invoker.Invoke(ctx, spec.Upstream, spec.Name, args)
-			call := ports.ToolCall{Upstream: spec.Upstream, Tool: spec.Name, Args: args, Outcome: "ok"}
-			if err != nil {
-				call.Outcome = err.Error()
-				results = append(results, apiContent{Type: "tool_result", ToolUseID: c.ID, Content: err.Error(), IsError: true})
-			} else {
-				results = append(results, apiContent{Type: "tool_result", ToolUseID: c.ID, Content: out})
-			}
-			plan.ToolCalls = append(plan.ToolCalls, call)
-			r.cfg.Logger.InfoContext(ctx, "llm.tool_call", "upstream", spec.Upstream, "tool", spec.Name, "outcome", call.Outcome, "latency_ms", time.Since(started).Milliseconds())
+		results, submitted, err := r.processAssistantTurn(ctx, resp, lookup, &plan)
+		if err != nil {
+			return plan, err
+		}
+		if submitted {
+			return plan, nil
 		}
 		if len(results) == 0 {
 			// The model answered in prose instead of submitting a plan.
@@ -208,6 +257,78 @@ func (r *Reasoner) Reason(ctx context.Context, brief ports.Brief) (ports.Plan, e
 		messages = append(messages, apiMessage{Role: "user", Content: results})
 	}
 	return plan, fmt.Errorf("anthropic: no plan submitted within %d turns", r.cfg.MaxTurns)
+}
+
+// processAssistantTurn walks one assistant response's content blocks:
+// every tool_use is either the terminal submit_plan (applied to the plan
+// under construction, submitted=true), an un-offered tool (refused), or a
+// real invocation of an offered read tool whose result must be echoed
+// back. It returns the tool_result blocks for the next user message and
+// whether the model already submitted its plan.
+func (r *Reasoner) processAssistantTurn(ctx context.Context, resp *apiResponse, lookup map[string]ports.ToolSpec, plan *ports.Plan) (results []apiContent, submitted bool, err error) {
+	for _, c := range resp.Content {
+		if c.Type != "tool_use" {
+			continue
+		}
+		if c.Name == submitPlanTool {
+			if err := applySubmitPlan(c.Input, plan); err != nil {
+				return nil, false, err
+			}
+			return results, true, nil
+		}
+		spec, ok := lookup[c.Name]
+		if !ok {
+			// A tool we never offered: refuse, tell the model, keep going.
+			results = append(results, apiContent{Type: "tool_result", ToolUseID: c.ID, Content: "unknown tool", IsError: true})
+			plan.ToolCalls = append(plan.ToolCalls, ports.ToolCall{Tool: c.Name, Outcome: "refused: unknown tool"})
+			continue
+		}
+		result, call := r.executeToolCall(ctx, c, spec)
+		results = append(results, result)
+		plan.ToolCalls = append(plan.ToolCalls, call)
+	}
+	return results, false, nil
+}
+
+// applySubmitPlan decodes the submit_plan tool input into the plan under
+// construction — the ONLY way the model can answer.
+func applySubmitPlan(input json.RawMessage, plan *ports.Plan) error {
+	var in submitPlanInput
+	if err := json.Unmarshal(input, &in); err != nil {
+		return fmt.Errorf("anthropic: submit_plan input: %w", err)
+	}
+	plan.RecommendedAction = in.RecommendedAction
+	plan.ProposedHeads = in.ProposedHeads
+	plan.Rationale = in.Rationale
+	return nil
+}
+
+// executeToolCall invokes one offered read tool on the model's behalf and
+// returns both the tool_result block to echo back and the audit-trail
+// entry. Arguments that are not a JSON object are refused without an
+// invocation, and an invoker error becomes an is_error tool_result rather
+// than a failed Reason call.
+func (r *Reasoner) executeToolCall(ctx context.Context, c apiContent, spec ports.ToolSpec) (apiContent, ports.ToolCall) {
+	var args map[string]any
+	if len(c.Input) > 0 {
+		if err := json.Unmarshal(c.Input, &args); err != nil {
+			return apiContent{Type: "tool_result", ToolUseID: c.ID, Content: "arguments are not a JSON object", IsError: true},
+				ports.ToolCall{Upstream: spec.Upstream, Tool: spec.Name, Outcome: "refused: bad arguments"}
+		}
+	}
+	started := time.Now()
+	out, err := r.invoker.Invoke(ctx, spec.Upstream, spec.Name, args)
+	call := ports.ToolCall{Upstream: spec.Upstream, Tool: spec.Name, Args: args, Outcome: "ok"}
+	if err != nil {
+		call.Outcome = err.Error()
+	}
+	r.cfg.Logger.InfoContext(ctx, "llm.tool_call", "upstream", spec.Upstream, "tool", spec.Name, "outcome", call.Outcome, "latency_ms", time.Since(started).Milliseconds())
+
+	result := apiContent{Type: "tool_result", ToolUseID: c.ID, Content: out}
+	if err != nil {
+		result.Content, result.IsError = err.Error(), true
+	}
+	return result, call
 }
 
 func (r *Reasoner) tools(brief ports.Brief) ([]apiTool, map[string]ports.ToolSpec) {
@@ -239,7 +360,104 @@ func (r *Reasoner) tools(brief ports.Brief) ([]apiTool, map[string]ports.ToolSpe
 	return tools, lookup
 }
 
+// call executes one Anthropic Messages API request behind a per-
+// dependency circuit breaker, a context-deadline-derived timeout, and a
+// bounded jittered retry (ADR-0011) — the resilience wrapper sits around
+// the ACTUAL outbound HTTP call, not the whole Reason tool-use loop: each
+// turn of that loop invokes this once, so a several-turn conversation
+// still only ever contributes one success/failure per turn toward the
+// breaker's trip condition, never N (a retry storm inside one turn is
+// bounded and counts as a single logical attempt).
+//
+// A breaker-OPEN (or half-open-and-saturated) rejection is returned as an
+// ordinary error, exactly like a transport failure or an exhausted retry
+// budget — Reason propagates it unchanged, and the EXISTING fallback
+// mechanism (usecases.FlowBalanceAdvisory.arbitrate -> policy.Arbitrate
+// treating any Reasoner error as planErr) is what routes LLMOn mode back
+// to the deterministic Decision. No second fallback path is added here.
 func (r *Reasoner) call(ctx context.Context, req apiRequest) (*apiResponse, error) {
+	callCtx, cancel := resilience.CallTimeout(ctx, maxCallTimeout)
+	defer cancel()
+
+	resp, err := r.breaker.Execute(func() (*apiResponse, error) {
+		return r.retryingRequest(callCtx, req)
+	})
+	if err != nil {
+		if isBreakerRejection(err) {
+			return nil, fmt.Errorf("anthropic: circuit breaker open for %s: %w", circuitBreakerDependencyName, err)
+		}
+		return nil, err
+	}
+	return resp, nil
+}
+
+// retryingRequest retries doRequest with jittered exponential backoff,
+// bounded to maxRetryAttempts total attempts and to callCtx's own
+// deadline (whichever is tighter). Only a transient error (a transport-
+// level failure, or a 5xx apiStatusError) is retried; a 4xx
+// apiStatusError (bad API key, malformed request) or a response-decode
+// error is permanent and returns on the first attempt — retrying a
+// paid LLM call that can never succeed wastes both money and the call's
+// timeout budget.
+func (r *Reasoner) retryingRequest(callCtx context.Context, req apiRequest) (*apiResponse, error) {
+	policy := backoff.NewExponentialBackOff(
+		backoff.WithInitialInterval(retryInitialInterval),
+		backoff.WithMaxInterval(retryMaxInterval),
+	)
+	bounded := backoff.WithContext(backoff.WithMaxRetries(policy, maxRetryAttempts-1), callCtx)
+
+	return backoff.RetryNotifyWithData(func() (*apiResponse, error) {
+		resp, err := r.doRequest(callCtx, req)
+		if err != nil && !isTransientError(err) {
+			return nil, backoff.Permanent(err)
+		}
+		return resp, err
+	}, bounded, nil)
+}
+
+// transientError marks a failure worth retrying: a transport-level
+// problem (dial failure, timeout, connection reset) or a response-body
+// read failure, as opposed to a well-formed response the server itself
+// rejected.
+type transientError struct{ err error }
+
+func (e *transientError) Error() string { return e.err.Error() }
+func (e *transientError) Unwrap() error { return e.err }
+
+// apiStatusError carries the Anthropic API's own HTTP status so the
+// retry policy can tell a transient server problem (5xx — retry) from a
+// permanent client problem (4xx: bad API key, malformed request —
+// retrying can never fix it).
+type apiStatusError struct {
+	Status int
+	Err    error
+}
+
+func (e *apiStatusError) Error() string { return e.Err.Error() }
+func (e *apiStatusError) Unwrap() error { return e.Err }
+
+// isTransientError reports whether err is worth retrying: any
+// transientError, or a 5xx apiStatusError. A 4xx apiStatusError and a
+// response-decode error (malformed JSON body) are permanent.
+func isTransientError(err error) bool {
+	var status *apiStatusError
+	if errors.As(err, &status) {
+		return status.Status >= 500
+	}
+	var transient *transientError
+	return errors.As(err, &transient)
+}
+
+// isBreakerRejection reports whether err is gobreaker refusing to even
+// attempt the call (open, or half-open and already at its probe limit)
+// — the only case where the caller should treat this exactly like any
+// other Reasoner failure and let the existing deterministic fallback
+// take over.
+func isBreakerRejection(err error) bool {
+	return errors.Is(err, gobreaker.ErrOpenState) || errors.Is(err, gobreaker.ErrTooManyRequests)
+}
+
+func (r *Reasoner) doRequest(ctx context.Context, req apiRequest) (*apiResponse, error) {
 	body, err := json.Marshal(req)
 	if err != nil {
 		return nil, fmt.Errorf("anthropic: encode: %w", err)
@@ -253,12 +471,12 @@ func (r *Reasoner) call(ctx context.Context, req apiRequest) (*apiResponse, erro
 	httpReq.Header.Set("anthropic-version", apiVersion)
 	resp, err := r.cfg.HTTPClient.Do(httpReq)
 	if err != nil {
-		return nil, fmt.Errorf("anthropic: messages: %w", err)
+		return nil, &transientError{fmt.Errorf("anthropic: messages: %w", err)}
 	}
 	defer func() { _ = resp.Body.Close() }()
 	raw, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {
-		return nil, fmt.Errorf("anthropic: read: %w", err)
+		return nil, &transientError{fmt.Errorf("anthropic: read: %w", err)}
 	}
 	var out apiResponse
 	if err := json.Unmarshal(raw, &out); err != nil {
@@ -269,7 +487,7 @@ func (r *Reasoner) call(ctx context.Context, req apiRequest) (*apiResponse, erro
 		if out.Error != nil {
 			msg = out.Error.Type + ": " + out.Error.Message
 		}
-		return nil, fmt.Errorf("anthropic: status %d: %s", resp.StatusCode, msg)
+		return nil, &apiStatusError{Status: resp.StatusCode, Err: fmt.Errorf("anthropic: status %d: %s", resp.StatusCode, msg)}
 	}
 	return &out, nil
 }

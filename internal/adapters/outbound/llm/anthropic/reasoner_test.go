@@ -108,25 +108,55 @@ func TestReason_ToolUseThenSubmit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	assertSubmittedPlan(t, plan)
+	assertInvokerAuditTrail(t, inv, plan)
+	// The second request must carry the tool_result back to the model.
+	second := s.requests[1]
+	assertToolResultEchoed(t, second)
+	// Tool catalogue: the MCP tool plus submit_plan, nothing else.
+	assertToolCatalogue(t, second)
+	assertPromptsCarryVocabularyAndFacts(t, second)
+}
+
+// assertSubmittedPlan checks the plan the model submitted through
+// submit_plan, including the captured model id.
+func assertSubmittedPlan(t *testing.T, plan ports.Plan) {
+	t.Helper()
 	if plan.RecommendedAction != "assign_labor" || plan.ProposedHeads != 2 || !strings.Contains(plan.Rationale, "2-head") {
 		t.Fatalf("unexpected plan %+v", plan)
 	}
 	if plan.Model != "claude-sonnet-4-5-20250929" {
 		t.Fatalf("model not captured: %q", plan.Model)
 	}
+}
+
+// assertInvokerAuditTrail checks the plan's tool-call audit: exactly one
+// invocation, of the offered workforce-management tool, with its args and
+// ok outcome recorded.
+func assertInvokerAuditTrail(t *testing.T, inv *fakeInvoker, plan ports.Plan) {
+	t.Helper()
 	if len(inv.calls) != 1 || inv.calls[0] != "workforce-management/get_staffing_gap" {
 		t.Fatalf("invoker calls %v", inv.calls)
 	}
 	if len(plan.ToolCalls) != 1 || plan.ToolCalls[0].Outcome != "ok" || plan.ToolCalls[0].Args["pathId"] != "pick" {
 		t.Fatalf("audit trail %+v", plan.ToolCalls)
 	}
-	// The second request must carry the tool_result back to the model.
-	second := s.requests[1]
+}
+
+// assertToolResultEchoed checks that the follow-up request carries the
+// invoker's output back to the model as a tool_result.
+func assertToolResultEchoed(t *testing.T, second apiRequest) {
+	t.Helper()
 	last := second.Messages[len(second.Messages)-1]
 	if last.Role != "user" || len(last.Content) != 1 || last.Content[0].Type != "tool_result" || last.Content[0].ToolUseID != "tu_1" || !strings.Contains(last.Content[0].Content, "understaffed") {
 		t.Fatalf("tool_result not echoed: %+v", last)
 	}
-	// Tool catalogue: the MCP tool plus submit_plan, nothing else.
+}
+
+// assertToolCatalogue checks the tools offered to the model: the MCP tool
+// plus submit_plan, nothing else.
+func assertToolCatalogue(t *testing.T, second apiRequest) {
+	t.Helper()
 	names := []string{}
 	for _, tl := range second.Tools {
 		names = append(names, tl.Name)
@@ -134,6 +164,12 @@ func TestReason_ToolUseThenSubmit(t *testing.T) {
 	if strings.Join(names, ",") != "workforce-management__get_staffing_gap,submit_plan" {
 		t.Fatalf("tools offered: %v", names)
 	}
+}
+
+// assertPromptsCarryVocabularyAndFacts checks the system and user prompts
+// carry the action vocabulary and the gathered facts.
+func assertPromptsCarryVocabularyAndFacts(t *testing.T, second apiRequest) {
+	t.Helper()
 	if !strings.Contains(second.System, "hold") || !strings.Contains(second.Messages[0].Content[0].Text, "ReassignLabor") {
 		t.Fatal("system/user prompts must carry the vocabulary and the facts")
 	}

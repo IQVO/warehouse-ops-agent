@@ -36,6 +36,10 @@ func main() {
 	}
 }
 
+// run is the composition root's body: logger + observability, env config,
+// every outbound client, every use case, both inbound adapters, then serve
+// until SIGINT/SIGTERM. The wiring itself lives in the newX helpers below,
+// one per adapter family.
 func run() error {
 	logger := newLogger(getenv("LOG_LEVEL", "info"))
 	slog.SetDefault(logger)
@@ -59,40 +63,53 @@ func run() error {
 	}
 
 	cfg := config.Load()
+	clients := newOutboundClients(cfg)
 
-	// Build every outbound MCP client. Each satisfies its internal/ports
-	// interface at compile time (see the var _ assertions in
-	// internal/adapters/outbound/mcpclient/*.go).
+	decision := newDecisionSupport(cfg, clients)
+	if err := wireReasoner(rootCtx, cfg, logger, decision.flowBalance); err != nil {
+		return err
+	}
+
+	handlers := &inboundhttp.Handlers{
+		DailyBrief:          decision.dailyBrief,
+		FlowBalanceAdvisory: decision.flowBalance,
+		ExplainTravelFactor: decision.explainTravelFactor,
+		OrderLifecycle:      newOrderLifecycle(cfg),
+		ConsoleReports:      newConsoleReports(cfg),
+		RuntimeSignals:      newRuntimeSignals(cfg, clients.telemetry, clients.logs),
+	}
+	mcpDeps := inboundmcp.Deps{
+		DailyBrief:          decision.dailyBrief,
+		FlowBalanceAdvisory: decision.flowBalance,
+		ExplainTravelFactor: decision.explainTravelFactor,
+		StrandedReservation: decision.strandedReservation,
+	}
+
+	return serveAgent(cfg, logger, serviceName, handlers, mcpDeps)
+}
+
+// outboundClients bundles every outbound adapter the use cases consume,
+// built from env config. Each MCP client satisfies its internal/ports
+// interface at compile time (see the var _ assertions in
+// internal/adapters/outbound/mcpclient/*.go).
+type outboundClients struct {
+	wes       ports.WesWorkPlanningClient
+	fe        ports.FulfillmentExecutionClient
+	wfm       ports.WorkforceManagementClient
+	facility  ports.FacilityLayoutClient
+	inv       ports.InventoryStorageClient
+	lp        ports.LaborPerformanceClient
+	telemetry ports.TelemetryReader
+	logs      ports.LogReader
+}
+
+// newOutboundClients builds every outbound MCP client (one per upstream
+// bounded context) plus the telemetry and log readers.
+func newOutboundClients(cfg config.Config) outboundClients {
 	var (
-		wes ports.WesWorkPlanningClient = mcpclient.NewWesWorkPlanning(mcpclient.Config{
-			Name:     "wes-work-planning",
-			Endpoint: cfg.WesWorkPlanning.Endpoint,
-		})
-		fe ports.FulfillmentExecutionClient = mcpclient.NewFulfillmentExecution(mcpclient.Config{
-			Name:     "fulfillment-execution",
-			Endpoint: cfg.FulfillmentExecution.Endpoint,
-		})
-		wfm ports.WorkforceManagementClient = mcpclient.NewWorkforceManagement(mcpclient.Config{
-			Name:     "workforce-management",
-			Endpoint: cfg.WorkforceManagement.Endpoint,
-		})
-		facility ports.FacilityLayoutClient = mcpclient.NewFacilityLayout(mcpclient.Config{
-			Name:     "facility-layout",
-			Endpoint: cfg.FacilityLayout.Endpoint,
-		})
-		inv ports.InventoryStorageClient = mcpclient.NewInventoryStorage(mcpclient.Config{
-			Name:     "inventory-storage",
-			Endpoint: cfg.InventoryStorage.Endpoint,
-		})
-		telem = newTelemetryReader(cfg.PrometheusURL)
-
 		om ports.OrderManagementMCPClient = mcpclient.NewOrderManagement(mcpclient.Config{
 			Name:     "order-management",
 			Endpoint: cfg.OrderManagement.Endpoint,
-		})
-		lp ports.LaborPerformanceClient = mcpclient.NewLaborPerformance(mcpclient.Config{
-			Name:     "labor-performance",
-			Endpoint: cfg.LaborPerformance.Endpoint,
 		})
 		ppm ports.ProcessPathManagementClient = mcpclient.NewProcessPathManagement(mcpclient.Config{
 			Name:     "process-path-management",
@@ -101,64 +118,104 @@ func run() error {
 	)
 	_ = om  // not used by the E3 daily brief; kept wired for a future use case.
 	_ = ppm // not used by the E3 daily brief; kept wired for a future use case.
-	// inv is now consumed by strandedReservation (below), no longer
-	// unused -- the `_ = inv` marker above is removed accordingly.
+	// inv (below) is consumed by strandedReservation; no `_ =` marker needed.
 
-	logs := newLogReader(cfg.LokiURL)
-	runtimeSignals := &usecases.RuntimeSignals{
-		Telemetry:     telem,
-		Logs:          logs,
-		Services:      cfg.RuntimeSignalsServices,
-		Namespace:     cfg.RuntimeSignalsNamespace,
-		WindowMinutes: 10,
+	return outboundClients{
+		wes: mcpclient.NewWesWorkPlanning(mcpclient.Config{
+			Name:     "wes-work-planning",
+			Endpoint: cfg.WesWorkPlanning.Endpoint,
+		}),
+		fe: mcpclient.NewFulfillmentExecution(mcpclient.Config{
+			Name:     "fulfillment-execution",
+			Endpoint: cfg.FulfillmentExecution.Endpoint,
+		}),
+		wfm: mcpclient.NewWorkforceManagement(mcpclient.Config{
+			Name:     "workforce-management",
+			Endpoint: cfg.WorkforceManagement.Endpoint,
+		}),
+		facility: mcpclient.NewFacilityLayout(mcpclient.Config{
+			Name:     "facility-layout",
+			Endpoint: cfg.FacilityLayout.Endpoint,
+		}),
+		inv: mcpclient.NewInventoryStorage(mcpclient.Config{
+			Name:     "inventory-storage",
+			Endpoint: cfg.InventoryStorage.Endpoint,
+		}),
+		telemetry: newTelemetryReader(cfg.PrometheusURL),
+		lp: mcpclient.NewLaborPerformance(mcpclient.Config{
+			Name:     "labor-performance",
+			Endpoint: cfg.LaborPerformance.Endpoint,
+		}),
+		logs: newLogReader(cfg.LokiURL),
 	}
+}
 
-	dailyBrief := &usecases.DailyBrief{
-		Facility: facility,
-		Wes:      wes,
-		Fe:       fe,
-		Wfm:      wfm,
-		Targets:  toUseCaseTargets(cfg.PathTargets),
-	}
+// decisionSupport bundles the MCP-Customer / decision-support use case
+// family: the daily brief (E3), the flow-balance advisory (E1) with its
+// ADR-0008 utilization overlay, explain-travel-factor (ADR 0009), and the
+// E2 stranded-reservation correlation.
+type decisionSupport struct {
+	dailyBrief          *usecases.DailyBrief
+	flowBalance         *usecases.FlowBalanceAdvisory
+	explainTravelFactor *usecases.ExplainTravelFactor
+	strandedReservation *usecases.DetectStrandedReservation
+}
 
-	flowBalanceAdvisory := &usecases.FlowBalanceAdvisory{
-		Wes:           wes,
-		WFM:           wfm,
-		FE:            fe,
-		LP:            lp,
+// newDecisionSupport wires the decision-support use cases over the
+// outbound MCP clients.
+func newDecisionSupport(cfg config.Config, clients outboundClients) decisionSupport {
+	flowBalance := &usecases.FlowBalanceAdvisory{
+		Wes:           clients.wes,
+		WFM:           clients.wfm,
+		FE:            clients.fe,
+		LP:            clients.lp,
 		PathTaskTypes: toPathTaskTypes(cfg.PathTargets),
 	}
-	if err := wireReasoner(rootCtx, cfg, logger, flowBalanceAdvisory); err != nil {
-		return err
+	dailyBrief := &usecases.DailyBrief{
+		Facility: clients.facility,
+		Wes:      clients.wes,
+		Fe:       clients.fe,
+		Wfm:      clients.wfm,
+		Targets:  toUseCaseTargets(cfg.PathTargets),
 	}
-
-	explainTravelFactor := &usecases.ExplainTravelFactor{Facility: facility}
 
 	// StrandedReservation is the E2 correlation use case: read-only,
 	// consuming the already-wired fulfillment-execution and
 	// inventory-storage clients above. It only ever recommends a
 	// revoke_reservation; it never calls one.
 	strandedReservation := &usecases.DetectStrandedReservation{
-		FulfillmentExecution: fe,
-		InventoryStorage:     inv,
+		FulfillmentExecution: clients.fe,
+		InventoryStorage:     clients.inv,
 	}
 
-	// console-bff order-lifecycle: separate REST clients from the MCP
-	// clients above (see internal/ports/order_lifecycle_clients.go's doc
-	// comment for why these are a deliberately distinct port shape).
+	return decisionSupport{
+		dailyBrief:          dailyBrief,
+		flowBalance:         flowBalance,
+		explainTravelFactor: &usecases.ExplainTravelFactor{Facility: clients.facility},
+		strandedReservation: strandedReservation,
+	}
+}
+
+// newOrderLifecycle wires the console-bff order-lifecycle use case. Its
+// REST clients are separate from the MCP clients above (see
+// internal/ports/order_lifecycle_clients.go's doc comment for why these
+// are a deliberately distinct port shape).
+func newOrderLifecycle(cfg config.Config) *usecases.OrderLifecycle {
 	var orderMgmtClient ports.OrderManagementClient = restclient.NewOrderManagement(cfg.OrderManagementRESTURL, 5*time.Second)
-	orderLifecycle := &usecases.OrderLifecycle{
+	return &usecases.OrderLifecycle{
 		OrderManagement: &orderMgmtClient,
 		Inventory:       restclient.NewInventoryReservations(cfg.InventoryStorageRESTURL, 5*time.Second),
 		WorkUnits:       restclient.NewWorkUnits(cfg.WesWorkPlanningRESTURL, 5*time.Second),
 		Tasks:           restclient.NewTasksByOrder(cfg.FulfillmentExecutionRESTURL, 5*time.Second),
 	}
+}
 
-	// console-bff WMS/WES dashboards: a THIRD set of clients, pointed at
-	// each context's *-reports READER binary rather than its OLTP API
-	// (different process, different analytical database, different base
-	// URL) -- see internal/ports/console_reports_clients.go.
-	consoleReports := &usecases.ConsoleReports{
+// newConsoleReports wires the console-bff WMS/WES dashboards: a THIRD set
+// of clients, pointed at each context's *-reports READER binary rather
+// than its OLTP API (different process, different analytical database,
+// different base URL) -- see internal/ports/console_reports_clients.go.
+func newConsoleReports(cfg config.Config) *usecases.ConsoleReports {
+	return &usecases.ConsoleReports{
 		OrderFunnel:           restclient.NewOrderFunnelReports(cfg.OrderManagementReportsRESTURL, 5*time.Second),
 		InventoryFlowAccuracy: restclient.NewFlowAccuracyReports(cfg.InventoryStorageReportsRESTURL, 5*time.Second),
 		CatalogGrowth:         restclient.NewCatalogGrowthReports(cfg.FacilityLayoutReportsRESTURL, 5*time.Second),
@@ -167,19 +224,26 @@ func run() error {
 		Labor:                 restclient.NewLaborReports(cfg.WorkforceManagementReportsRESTURL, 5*time.Second),
 		LaborPerformance:      restclient.NewLaborPerformanceReports(cfg.LaborPerformanceReportsRESTURL, 5*time.Second),
 	}
+}
 
-	handlers := &inboundhttp.Handlers{
-		DailyBrief:          dailyBrief,
-		FlowBalanceAdvisory: flowBalanceAdvisory,
-		ExplainTravelFactor: explainTravelFactor,
-		OrderLifecycle:      orderLifecycle,
-		ConsoleReports:      consoleReports,
-		RuntimeSignals:      runtimeSignals,
+// newRuntimeSignals wires the runtime-signals report over the telemetry
+// (Prometheus) and log (Loki) readers, with a 10-minute rolling window.
+func newRuntimeSignals(cfg config.Config, telemetryReader ports.TelemetryReader, logReader ports.LogReader) *usecases.RuntimeSignals {
+	return &usecases.RuntimeSignals{
+		Telemetry:     telemetryReader,
+		Logs:          logReader,
+		Services:      cfg.RuntimeSignalsServices,
+		Namespace:     cfg.RuntimeSignalsNamespace,
+		WindowMinutes: 10,
 	}
-	router := inboundhttp.NewRouter(handlers, serviceName)
+}
 
-	mcpServer := inboundmcp.NewServer(inboundmcp.Deps{DailyBrief: dailyBrief, FlowBalanceAdvisory: flowBalanceAdvisory, ExplainTravelFactor: explainTravelFactor, StrandedReservation: strandedReservation})
-	mcpHandler := inboundmcp.Handler(mcpServer)
+// serveAgent mounts the REST router and this agent's own MCP server on one
+// mux, serves until SIGINT/SIGTERM, then drains in-flight requests for up
+// to 10 seconds.
+func serveAgent(cfg config.Config, logger *slog.Logger, serviceName string, handlers *inboundhttp.Handlers, mcpDeps inboundmcp.Deps) error {
+	router := inboundhttp.NewRouter(handlers, serviceName)
+	mcpHandler := inboundmcp.Handler(inboundmcp.NewServer(mcpDeps))
 
 	mux := http.NewServeMux()
 	mux.Handle("/", router)

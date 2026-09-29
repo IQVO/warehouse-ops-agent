@@ -123,3 +123,27 @@ unrecognized `LLM_MODE` is a **startup error**, never a silent fallback to
 error. See
 [ADR 0004](docs/docs/adr/0004-llm-reasoner-behind-the-policy-layer.md) for
 the full design and rationale.
+
+### Reasoner-path resilience (ADR 0011)
+
+The outbound Anthropic Messages API call inside
+`internal/adapters/outbound/llm/anthropic`'s `Reasoner.call` (one HTTP
+request per tool-use turn, not the whole `Reason` loop) is wrapped in a
+per-dependency `sony/gobreaker` circuit breaker
+(`ReadyToTrip`: 5 consecutive failures, or >50% failure rate once at
+least 10 requests have been seen), a `resilience.CallTimeout`-derived
+timeout capped at 12s per call, and a bounded `cenkalti/backoff/v4`
+jittered retry (max 3 attempts, transient errors only — a 5xx or a
+transport failure, never a 4xx). `internal/resilience` is a fresh,
+repo-local package mirroring order-management's ADR-0025 shape (never
+imported across repos — see the "no cross-context Go imports" guardrail
+above, which applies fleet-wide, not just to the five sibling bounded
+contexts). A breaker-OPEN rejection surfaces as an ordinary `Reasoner`
+error, so it flows through the SAME existing
+`policy.Arbitrate`/`LLMOn`-mode fallback ADR-0004 already specified —
+formalizing, not replacing, that fallback. State transitions publish
+`circuit_breaker_state{dependency="anthropic-llm"}` via
+`internal/adapters/outbound/telemetry.CircuitBreakerMetrics`, reusing the
+same OTel meter `ArbitrationMetrics` already uses. See
+[ADR 0011](docs/docs/adr/0011-reasoner-path-circuit-breaker-timeout-retry.md)
+for the full design and the numbers' rationale.
