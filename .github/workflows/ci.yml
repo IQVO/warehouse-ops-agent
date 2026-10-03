@@ -318,7 +318,10 @@ jobs:
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: .
-          platforms: linux/amd64
+          # amd64 for CI/cloud, arm64 for the arm64 kind cluster that pulls
+          # :latest straight from GHCR (warehouse-infra terraform/ops-agent.tf).
+          # An amd64-only manifest failed there with "no match for platform".
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: |
             ghcr.io/claudioed/warehouse-ops-agent:latest
