@@ -22,49 +22,49 @@ check a design decision against this fleet's standing architecture.
    `go test ./internal/architecture/... -v` first — if it's already red,
    report that and stop; don't hand-review what a fitness test already
    caught.
-2. **Customer/Supplier direction, per `.claude/rules/bounded-context-boundary.md`
-   (or this repo's equivalent doc).** A new outbound call to a sibling
-   context must go the direction ADRs already established — check
-   `docs/docs/adr/` for the relevant context-mapping ADR before assuming
-   a new integration is fine. Flag any outbound call added to a context
-   this repo doesn't already integrate with; that's a new architectural
+2. **Customer direction toward upstream contexts, per
+   `.claude/rules/architecture-guardrails.md` and
+   `docs/docs/ecosystem/context-map.md`.** A new outbound call must go
+   the direction the ADRs already established — check `docs/docs/adr/`
+   (ADR 0001 placement, ADR 0007 second-wave clients) before assuming a
+   new integration is fine. Flag any outbound call added to a context
+   this repo doesn't already integrate with; that is a new architectural
    decision that needs its own ADR, not a code change slipped in
    silently.
-3. **MCP additive-boundary rule (ADR-0008 fleet-wide).** A change under
-   `internal/adapters/inbound/mcp/` must depend only on
-   application/domain, and nothing else in the codebase may depend on
-   it. If this repo has a `TestMCPAdapterDependencyRule` fitness test,
-   confirm it's green; if not, check by eye.
-2b. **Zero-write guardrails, where applicable.** If this repo has a
-   documented zero-write constraint (e.g. warehouse-ops-agent v1), check
-   no mutating HTTP method or MCP tool without `ReadOnlyHint: true` was
-   added to an outbound/inbound surface bound by that constraint.
-4. **Analytics isolation (ADR-0006-style, where this repo has an
-   `internal/analytics/` read side).** The OLTP domain/application layers
-   must never import the analytics store or read model; the analytics
-   side must depend on nothing internal except itself. This is a real,
-   already-fitness-tested rule in most repos — confirm the test exists
-   and is green rather than re-deriving it by eye if possible.
-5. **Kafka consumer-group pattern correctness.** A new Kafka consumer
-   must use either (a) a named long-lived constant for a genuinely
-   single-instance consumer, or (b) a per-process-unique generated group
-   id for an event-sourced local-cache consumer that replays full
-   history on every start. Flag any new consumer whose pattern doesn't
-   match its actual replay behavior — this is a correctness bug, not a
-   style issue (see this repo's `.claude/skills/how-to-add-an-integration-event/SKILL.md`
-   for the two patterns and the incident that taught this fleet the
-   difference).
-6. **A new bounded-context integration with no companion documentation.**
-   If this change introduces or changes a cross-repo contract (a new
-   REST call, a new Kafka topic subscription, a new MCP tool consumed by
-   a sibling), check whether an ADR documents the decision — and whether
-   a companion ADR should exist in the OTHER repo too, per this fleet's
-   companion-ADR convention (see `.claude/skills/how-to-write-an-adr/SKILL.md`).
-7. **Auth-reintroduction and sibling-call bans**, same as `/code-review`
-   items 6-8, but reasoned about more thoroughly here — check not just
+3. **Zero-write guardrail (this repo's hard rule, v1).** No mutating HTTP
+   method literal in `internal/adapters/outbound/{restclient,mcpclient}`
+   and no MCP tool registered without `ReadOnlyHint: true` in
+   `internal/adapters/inbound/mcp/tools.go`. Confirm
+   `internal/architecture/zerowrite/zerowrite_test.go` is green (it runs
+   under `make arch-test`); also flag by eye any new outbound method
+   named like an action (`Assign...`, `Release...`, `Revoke...`) — see
+   `docs/docs/mcp/governance-note.md` for the two guardrails a future
+   write slice must satisfy first.
+4. **MCP adapter boundary.** A change under `internal/adapters/inbound/mcp/`
+   must depend only on application/domain, and nothing else in the
+   codebase may depend on it. `TestMCPAdapterDependencyRule`
+   (`internal/architecture/fitness_test.go`) enforces it — confirm it is
+   green.
+5. **No aggregate, no invariant, no persisted state (ADR 0001).** This
+   agent holds no database and owns no aggregate. A change that adds a
+   store, a cache that outlives a request, or a domain invariant means the
+   work belongs in a bounded-context repo, not here.
+6. **No Kafka I/O today.** This service neither produces nor consumes
+   Kafka. A change that adds a Kafka client is a new architectural
+   decision: it needs its own ADR, a row in the fleet subdomain table, and
+   CloudEvents 1.0 structured mode (see CLAUDE.md, "Events"). Flag it even
+   if the code itself is correct.
+7. **A new cross-repo contract with no companion documentation.** If this
+   change introduces or changes a cross-repo contract (a new REST call, a
+   new MCP tool consumed from a sibling), check whether an ADR documents
+   the decision — and whether a companion ADR should exist in the OTHER
+   repo too, per this fleet's companion-ADR convention (see
+   `.claude/skills/how-to-write-an-adr/SKILL.md`).
+8. **Auth-reintroduction and sibling-call bans**, same as `/code-review`
+   items 6-7, but reasoned about more thoroughly here — check not just
    "is there a Bearer literal" but "does this change's INTENT require
-   re-litigating the fleet-wide auth-removal decision," which would need
-   its own ADR, not a silent code change.
+   re-litigating the fleet-wide auth-removal decision (ADR 0006)," which
+   would need its own ADR, not a silent code change.
 
 ## Output format
 

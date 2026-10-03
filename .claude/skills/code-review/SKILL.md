@@ -17,10 +17,11 @@ linter already catches.
 ## What to look for, in priority order
 
 1. **Domain logic leaking into the wrong layer.** Business rules belong
-   in `internal/domain/`, not in an HTTP handler, a Kafka consumer, or a
-   repository adapter. If a handler in `internal/adapters/inbound/http/`
-   does anything beyond decode -> call use case -> encode, flag it — that
-   logic likely belongs in the use case or the aggregate itself.
+   in `internal/domain/policy/`, not in an HTTP handler, an MCP tool handler,
+   or an outbound client. If a handler in `internal/adapters/inbound/http/`
+   or `internal/adapters/inbound/mcp/` does anything beyond decode -> call
+   use case -> encode, flag it — that logic likely belongs in the use case
+   or a pure policy function.
 2. **A new use case with no failing-path test.** Check
    `internal/application/usecases/` — every new/changed `Execute` method
    needs a test for its domain-rule failure path, not just the happy
@@ -32,29 +33,30 @@ linter already catches.
    `internal/domain/` is a boundary violation `internal/architecture/`'s
    fitness tests won't catch (they check import direction, not tag
    presence) — flag it by eye.
-4. **A driven port (`internal/application/ports/`) that isn't a pure
-   interface**, or a use case constructing a concrete adapter directly
-   instead of depending on a port. Ports contain interfaces only.
-5. **Error handling that swallows or over-wraps.** Check that domain/
-   application errors map cleanly to RFC 7807 problem details at the
-   HTTP boundary (`internal/adapters/inbound/http/errors.go`'s existing
-   mapping table) rather than being stringified/re-wrapped repeatedly on
-   the way out.
-6. **A new Kafka `GroupID` assigned an inline string literal** rather
-   than a named const/var/function call — this fleet has a real incident
-   (wes-work-planning#67) from exactly this pattern; the
-   `TestKafkaConsumerGroupNeverHardcodedInline` fitness test catches it
-   in CI if present, but flag it here too since not every repo has that
-   test yet.
+4. **A driven port (`internal/ports/`) that carries behaviour**, or a use
+   case constructing a concrete adapter directly instead of depending on a
+   port. Ports contain interfaces and plain DTO structs (`dto.go`) only.
+5. **Error handling that swallows, over-wraps, or defaults.** An upstream
+   failure must degrade to a partial result (reported, never a panic or a
+   whole-response 500); an unknown enum value (MCP tool arg, REST query
+   param, LLM `submit_plan` output) must be rejected explicitly, never
+   defaulted. Handlers in `internal/adapters/inbound/http/router.go` answer
+   `400` for bad input and `503` for an unconfigured use case — flag
+   anything that stringifies or re-wraps errors repeatedly on the way out.
+6. **A mutating call or a non-read-only tool.** Any new outbound method
+   that writes, or any MCP tool registered without `ReadOnlyHint: true`,
+   violates the zero-write rule; `make arch-test` catches the literal
+   forms, flag the rest by eye. Also flag any new Kafka client — this
+   service has no Kafka I/O (see CLAUDE.md, "Events").
 7. **A newly reintroduced auth/bearer/JWT check.** Every REST/MCP
    endpoint in this fleet is deliberately unauthenticated (2026-09-11
    fleet-wide revert) — a reintroduced auth check is very likely
    accidental (an agent "helpfully" adding back something that looks
    missing) and should be flagged even if the code itself looks correct.
-8. **Anything that would surprise the sibling-context boundary.** If this
-   repo's `AGENTS.md`/`CLAUDE.md` documents a stricter rule (e.g. "no
-   outbound calls to sibling contexts"), check the diff doesn't
-   reintroduce exactly that.
+8. **Anything that would surprise the sibling-context boundary.** A Go
+   import of an upstream bounded-context module, or a hand-mirrored type
+   that is now type-shared, breaks `.claude/rules/architecture-guardrails.md`;
+   check the diff doesn't reintroduce exactly that.
 
 ## Output format
 

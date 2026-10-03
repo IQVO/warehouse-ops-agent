@@ -1,6 +1,6 @@
 ---
 name: how-to-add-a-rest-endpoint
-description: Add or change a REST endpoint in this service in the fleet's hexagonal order (domain invariant, use case, port, HTTP adapter, apis/openapi.yaml, generated docs, godog scenario). Use when touching internal/adapters/inbound/http, apis/openapi.yaml, or exposing a use case over HTTP.
+description: Add or change a REST endpoint in this service in the fleet's hexagonal order (policy rule, use case, port, HTTP adapter, hand-maintained docs/docs/api-surface.md, httptest). Use when touching internal/adapters/inbound/http or exposing a use case over HTTP.
 ---
 
 # How to add a REST endpoint
@@ -11,10 +11,10 @@ adapter. **Adapted from inventory-storage's `.claude/skills/` reference
 not a bounded context — it owns no aggregate and enforces no domain
 invariant (ADR 0001), so there is no "domain first" step here the way
 inventory-storage's guide has one. Every route here is either (a) a
-read-only correlation over facts gathered from the five upstream
+read-only correlation over facts gathered from the eight upstream
 contexts' MCP tools, or (b) a console-bff fan-out over plain REST reads
 (ADR 0002/0003) — never a place a write can be introduced. This repo also
-has **no `apis/openapi.yaml`**: its REST surface is hand-documented in
+has **no OpenAPI spec**: its REST surface is hand-documented in
 `docs/docs/api-surface.md`, not generated, so the contract step below is
 "edit the markdown by hand," not "regenerate from a spec."
 
@@ -35,7 +35,7 @@ existing methods on that same interface for ADR 0009), then implement it
 in `internal/adapters/outbound/mcpclient/<context>.go` (calling the
 upstream's published MCP tool via `session.callTool`) or
 `internal/adapters/outbound/restclient/` (for a console-bff REST fan-out
-route). **Never add a Go import of one of the five upstream repos** —
+route). **Never add a Go import of any upstream bounded-context repo** —
 `internal/architecture/architecture_test.go`'s
 `TestNoDirectDependencyOnBoundedContexts` fails the build the moment
 `go.mod`/`go.sum` references any of them. Hand-mirror the response shape
@@ -62,7 +62,7 @@ package usecases
 // deliberately never infers an input the caller must supply (see
 // ExplainTravelFactor's doc comment on fromLocationCode/toLocationCode
 // — this agent's "never fabricate a fact you don't have evidence for"
-// rule, stated in AGENTS.md, applies to every new use case here).
+// rule, applies to every new use case here).
 type <Verb><Noun> struct {
     Upstream ports.<Context>Client   // outbound port(s) only, never a concrete adapter
     Logger   *slog.Logger            // structured warning on upstream failure; defaults to slog.Default()

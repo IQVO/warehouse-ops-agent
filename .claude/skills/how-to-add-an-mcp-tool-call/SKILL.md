@@ -8,7 +8,7 @@ description: Add a read-only MCP tool call to this agent following the fleet zer
 **Renamed and rescoped from inventory-storage's `.claude/skills/
 how-to-add-an-integration-event.md` (PR #75).** That guide covers
 publishing/consuming Kafka integration events — this repo has **no Kafka
-consumer or publisher of its own, and no `apis/asyncapi.yaml`**. This
+consumer or publisher of its own, and no AsyncAPI spec**. This
 repo's actual cross-context integration mechanism is different in kind:
 it is an MCP **Customer** of sibling contexts' published Open Host
 Services (ADR 0001; eight outbound clients since ADR 0007), calling their read-only tools over Streamable HTTP.
@@ -85,7 +85,7 @@ compile error.
 
 ## 4. The additive/read-only guardrail — this is the part that matters here
 
-**Every outbound call this repo makes to any of the five upstreams must
+**Every outbound call this repo makes to any upstream context must
 stay `GET`/read-only.** There is no Kafka-style "which consumer-group
 pattern" decision to make here (this repo has no Kafka at all) — the
 decision that matters is narrower and stricter: this repo has **zero

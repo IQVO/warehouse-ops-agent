@@ -46,7 +46,7 @@ contradict ADR 0001 and ADR 0002's explicit division of responsibility.
   report-dashboard extension of the same pattern.
 - `docs/docs/api-surface.md` — this agent's own hand-documented REST
   surface, including the three console-bff routes.
-- `how-to-add-a-rest-endpoint.md` (this skill directory) — the actual
+- `.claude/skills/how-to-add-a-rest-endpoint/SKILL.md` — the actual
   how-to for adding a NEW route here, including a console-bff route.
 
 ## Where the shell-side half of this pattern is documented
@@ -70,5 +70,5 @@ If a future task genuinely needs this agent to ship its OWN Module
 Federation remote (a plausible-sounding but currently nonexistent ask —
 e.g. an embeddable "daily brief" widget), that would be a new
 architecturally significant decision requiring its own ADR (see
-`how-to-write-an-adr.md`) before any `web/` directory gets created here,
+`.claude/skills/how-to-write-an-adr/SKILL.md`) before any `web/` directory gets created here,
 not a mechanical application of inventory-storage's guide.

@@ -6,7 +6,7 @@ description: Write an Architecture Decision Record in this repo's numbering and 
 # How to write an ADR
 
 Use when a change is architecturally significant for this repo — a new
-outbound MCP tool call to one of the five upstream contexts, a new
+outbound MCP tool call to one of the eight upstream contexts, a new
 console-bff fan-out capability, a change to the ADR-0004 reasoner's
 design, a reversal of a prior decision, or anything a future reader would
 otherwise have to reverse-engineer from the diff. Not every change needs
@@ -21,9 +21,8 @@ only the worked examples are this repo's own.**
 `docs/docs/adr/NNNN-kebab-case-title.md`, four-digit zero-padded,
 sequential — check the highest existing number
 (`git ls-tree --name-only origin/develop -- docs/docs/adr/` and pick the
-next integer, never reuse or guess). As of this writing the highest is
-`0010-standard-metrics-convention.md` — the next ADR here is `0011`, but
-always re-check rather than trusting this number, since new ADRs land often.
+next integer, never reuse or guess; new ADRs land often, so always
+re-check on the branch you are merging into).
 `docs/docs/adr/index.md` explains the format to readers AND carries the
 table of every record — unlike some sibling repos, this repo's index has
 no separate `about.md`; you must add your new ADR's row to `index.md`'s
@@ -101,16 +100,16 @@ new ADR referencing it — see ADR-0006's own frontmatter/intro
 for the exact wording pattern, and note ADR-0005 itself was left
 unedited, only marked superseded in the index table.
 
-## Cross-repo decisions: this repo touches all five upstream contexts by design
+## Cross-repo decisions: this repo touches all eight upstream contexts by design
 
-Because this repo is a Customer of five bounded contexts at once (unlike
+Because this repo is a Customer of eight bounded contexts at once (unlike
 a typical sibling repo, which has at most one or two cross-context
 neighbors), a decision that changes what this repo reads from an upstream
 context (e.g. ADR 0009's `estimate_travel_distance` addition, which
-depended on facility-layout's own ADR-0017 publishing that tool first)
+depended on facility-layout's own ADR publishing that tool first)
 should reference the upstream's ADR explicitly by number and repo, the
-way ADR-0009's Context section does for facility-layout's ADR 0017 and
-fulfillment-execution's ADR 0024. Don't assume a reader here has also
+way ADR 0009's Context section does for facility-layout and
+fulfillment-execution (their ADR numbers live in those repos, not here). Don't assume a reader here has also
 read the upstream repo's docs site — restate the relevant fact plainly,
 then cite it.
 
@@ -129,7 +128,7 @@ A broken ADR link or malformed frontmatter fails the build with a clear
 Docusaurus error, not a silent 404 — always run this locally before
 opening the PR. Note this repo has **no `docs-api-drift` CI job**
 (there's no OpenAPI/AsyncAPI spec to drift from — see
-`how-to-add-a-rest-endpoint.md`'s intro), so a broken docs build here is
+`.claude/skills/how-to-add-a-rest-endpoint/SKILL.md`'s intro), so a broken docs build here is
 only caught by whatever CI job does run the docs build, or by you running
 it locally; don't skip this step assuming CI has your back the way it
 might in a bounded-context repo.

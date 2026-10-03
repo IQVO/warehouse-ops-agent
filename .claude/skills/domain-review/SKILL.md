@@ -1,15 +1,16 @@
 ---
 name: domain-review
-description: Ubiquitous-language drift review of a change against .claude/rules/domain-model.md: renamed or invented terms, aggregate-invariant leaks. Invoke explicitly: /domain-review [range].
+description: Ubiquitous-language drift review of a change against docs/docs/business-context/ubiquitous-language.md: renamed or invented terms, policy-layer purity leaks. Invoke explicitly: /domain-review [range].
 disable-model-invocation: true
 argument-hint: "[git range]"
 ---
 
 Perform a ubiquitous-language drift review of the current changes (or
 `$ARGUMENTS` if given), comparing new/changed code against
-`.claude/rules/domain-model.md` (or this repo's equivalent doc — check
-`AGENTS.md`/`CLAUDE.md` for where the ubiquitous language lives if that
-file doesn't exist here).
+`docs/docs/business-context/ubiquitous-language.md` (terms this agent coins,
+terms it borrows unredefined, words it deliberately does not use). This
+repo owns no aggregate (ADR 0001): its "domain" is the pure decision-policy
+layer in `internal/domain/policy/`.
 
 Ubiquitous language drift is the quiet failure mode DDD is supposed to
 prevent: code that technically works but silently renames, reshapes, or
@@ -27,29 +28,29 @@ readers can no longer map code to domain conversation.
    domain terms.** `internal/domain/` code should read like the ubiquitous
    language, not like database/HTTP vocabulary — a method called
    `UpdateRow` or `PatchState` where the domain-model doc would call the
-   equivalent operation `Stow`/`Revoke`/`RunCycleCount` is drift, and the
+   equivalent operation `Decide`/`Arbitrate`/`CorrelateTravelFactor` is drift, and the
    fitness-test suite won't catch this because it's a naming problem, not
    an import-direction problem.
-3. **An invariant enforced in code that the domain-model doc doesn't
-   mention, or vice versa.** If a new domain rule was added to the code
-   (a new validation, a new state-transition guard), the domain-model doc
-   should be updated in the SAME PR — an undocumented invariant is
-   invisible to the next person who touches that aggregate and may
-   accidentally remove it thinking it's dead code.
-4. **A value object that should be closed but was implemented open (or
-   vice versa).** A categorical field that carries real regulatory/
-   physical meaning usually wants a deliberately closed enum, while an
-   open extensible tag set is right for something genuinely open-ended —
-   check any new categorical field against which the domain actually
-   wants, and flag a mismatch either direction.
-5. **A cross-aggregate rule implemented as a cross-aggregate call instead
-   of an explicit local check, or vice versa**, per whatever this repo's
-   own domain-model doc says about which invariants are local vs. which
-   legitimately need external state (e.g. this repo's DOT segregation
-   check is explicitly documented as "purely LOCAL... no cross-context
-   call" — a change that quietly makes it call out to another service
-   would be a real regression worth flagging even if functionally it
-   still "works").
+3. **A policy rule or threshold in code that the docs don't mention, or
+   vice versa.** If a new classification rule or threshold was added (see
+   `policy/runtime_signals.go`, `policy/travel_factor.go`), the
+   ubiquitous-language doc or the relevant ADR should be updated in the
+   SAME PR — an undocumented rule is invisible to the next person and may
+   be removed thinking it's dead code. Also flag any attempt to model an
+   aggregate or an invariant here (ADR 0001: this agent owns neither).
+4. **A vocabulary that should be closed but was implemented open (or
+   vice versa).** `RebalanceAction`/`TaskType` in `internal/domain/policy`
+   are deliberately closed, hand-mirrored copies of the upstream
+   vocabulary, rejected when unknown (`ParseRebalanceAction`,
+   `policy.ValidatePlan`). Check any new categorical field the same way and
+   flag a mismatch in either direction — especially a silent default for
+   an out-of-vocabulary value.
+5. **A policy function that reaches outside itself.** Functions in
+   `internal/domain/policy` are pure over facts the use case passes in; a
+   change that makes one call out to a port, an upstream, or the LLM
+   (the model is consulted behind `policy.Arbitrate`, never inside
+   `Decide`) would be a real regression worth flagging even if it
+   functionally still "works".
 6. **New terminology introduced without updating the domain-model doc.**
    If new code introduces a genuinely new domain concept the doc doesn't
    yet name, that's not necessarily wrong — but the doc needs a new entry

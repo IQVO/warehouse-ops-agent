@@ -44,7 +44,7 @@ test.
    `internal/architecture/...`) — this repo's nearest analogue to a
    bounded-context repo's `bdd`/godog layer, but structurally different:
    there is no `features/` directory or end-to-end HTTP behaviour suite
-   here (see `how-to-add-a-rest-endpoint.md`'s step 5 for why). Instead,
+   here (see `.claude/skills/how-to-add-a-rest-endpoint/SKILL.md`'s step 5 for why). Instead,
    `arch-test` proves two static invariants that matter MORE here than
    behaviour tests would: no cross-context Go import
    (`TestNoDirectDependencyOnBoundedContexts`) and zero write capability
@@ -74,7 +74,7 @@ LLM reasoner inside it). Two tests:
   and that `readOnly` is never reassigned `false` anywhere in the file.
 
 When adding a new outbound port method or a new MCP tool (see
-`how-to-add-an-mcp-tool-call.md`), run `make arch-test` locally before
+`.claude/skills/how-to-add-an-mcp-tool-call/SKILL.md`), run `make arch-test` locally before
 opening the PR — this is the sensor that catches an accidental write
 capability creeping in, and it fails fast/cheap (source-level, no running
 process) the same way `TestNoDirectDependencyOnBoundedContexts` does.
