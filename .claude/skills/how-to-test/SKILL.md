@@ -1,8 +1,13 @@
+---
+name: how-to-test
+description: Write or review tests and diagnose a failing coverage, mutation, bdd or integration CI job: the four test layers, the 90% gate, gremlins threshold semantics, the testcontainers rule. Use when adding tests, killing a surviving mutant, or fixing a red check.
+---
+
 # How to test
 
 Use when writing or reviewing tests in this repo, or diagnosing a failing
 `coverage`/`mutation-fast`/`arch-test` CI job. **Adapted from
-inventory-storage's `.claude/skills/how-to-test.md` (PR #75)** — the
+inventory-storage's `.claude/skills/how-to-test/SKILL.md` (PR #75)** — the
 four-layer mutation-testing discipline below is fleet-wide and applies
 here largely unchanged, with two repo-specific differences called out:
 this repo's mutation scope is deliberately narrower than a

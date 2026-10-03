@@ -1,7 +1,12 @@
+---
+name: how-to-add-a-frontend-remote
+description: Add or change a micro-frontend remote under web/ (vite federation config in object form, /mfes/<context>/ base, remoteEntry, Docker/nginx packaging, console integration). Use when touching web/.
+---
+
 # How to add a frontend remote — does not apply to this repo
 
 **This file is a deliberate redirect, not a how-to.** inventory-storage's
-`.claude/skills/how-to-add-a-frontend-remote.md` (PR #75) documents adding
+`.claude/skills/how-to-add-a-frontend-remote/SKILL.md` (PR #75) documents adding
 a Vite/React Module Federation remote under a bounded-context repo's own
 `web/` directory. `warehouse-ops-agent` has **no `web/` directory and no
 frontend remote of its own, by design** — it is not a bounded context

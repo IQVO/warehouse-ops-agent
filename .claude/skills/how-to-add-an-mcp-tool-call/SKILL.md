@@ -1,3 +1,8 @@
+---
+name: how-to-add-an-mcp-tool-call
+description: Add a read-only MCP tool call to this agent following the fleet zero-write rule. Use when touching the outbound MCP client adapters.
+---
+
 # How to add an MCP tool call
 
 **Renamed and rescoped from inventory-storage's `.claude/skills/

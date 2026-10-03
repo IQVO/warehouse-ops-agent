@@ -3,3 +3,4 @@ bin/
 coverage.out
 /agent
 /warehouse-ops-agent
+.claude/settings.local.json
