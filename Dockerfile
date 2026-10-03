@@ -1,7 +1,12 @@
 # syntax=docker/dockerfile:1.7
 
 # --- build stage ---
-FROM golang:1.26-alpine@sha256:ce864e7223ac17b1775e6fd0b4c0db580c2eb50e7953a427916379e4b92a1628 AS build
+# The build stage runs natively on the BUILDER's platform and cross-compiles
+# for each requested TARGET platform (multi-arch: linux/amd64 + linux/arm64),
+# so no QEMU emulation is needed for the Go build.
+FROM --platform=$BUILDPLATFORM golang:1.26-alpine@sha256:ce864e7223ac17b1775e6fd0b4c0db580c2eb50e7953a427916379e4b92a1628 AS build
+ARG TARGETOS
+ARG TARGETARCH
 WORKDIR /src
 
 # Cache go.mod/go.sum download separately from source so editing source
@@ -16,7 +21,7 @@ COPY . .
 # builds in CI without baking the cache into the image layers.
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/agent ./cmd/agent
+    CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/agent ./cmd/agent
 
 # --- runtime stage ---
 FROM alpine:3.24@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b
