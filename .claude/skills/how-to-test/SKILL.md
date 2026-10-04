@@ -1,8 +1,13 @@
+---
+name: how-to-test
+description: Write or review tests and diagnose a failing coverage, mutation, bdd or integration CI job: the four test layers, the 90% gate, gremlins threshold semantics, the testcontainers rule. Use when adding tests, killing a surviving mutant, or fixing a red check.
+---
+
 # How to test
 
 Use when writing or reviewing tests in this repo, or diagnosing a failing
 `coverage`/`mutation-fast`/`arch-test` CI job. **Adapted from
-inventory-storage's `.claude/skills/how-to-test.md` (PR #75)** — the
+inventory-storage's `.claude/skills/how-to-test/SKILL.md` (PR #75)** — the
 four-layer mutation-testing discipline below is fleet-wide and applies
 here largely unchanged, with two repo-specific differences called out:
 this repo's mutation scope is deliberately narrower than a
@@ -39,7 +44,7 @@ test.
    `internal/architecture/...`) — this repo's nearest analogue to a
    bounded-context repo's `bdd`/godog layer, but structurally different:
    there is no `features/` directory or end-to-end HTTP behaviour suite
-   here (see `how-to-add-a-rest-endpoint.md`'s step 5 for why). Instead,
+   here (see `.claude/skills/how-to-add-a-rest-endpoint/SKILL.md`'s step 5 for why). Instead,
    `arch-test` proves two static invariants that matter MORE here than
    behaviour tests would: no cross-context Go import
    (`TestNoDirectDependencyOnBoundedContexts`) and zero write capability
@@ -69,7 +74,7 @@ LLM reasoner inside it). Two tests:
   and that `readOnly` is never reassigned `false` anywhere in the file.
 
 When adding a new outbound port method or a new MCP tool (see
-`how-to-add-an-mcp-tool-call.md`), run `make arch-test` locally before
+`.claude/skills/how-to-add-an-mcp-tool-call/SKILL.md`), run `make arch-test` locally before
 opening the PR — this is the sensor that catches an accidental write
 capability creeping in, and it fails fast/cheap (source-level, no running
 process) the same way `TestNoDirectDependencyOnBoundedContexts` does.

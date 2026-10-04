@@ -1,4 +1,28 @@
+---
+paths:
+  - "internal/**"
+  - "cmd/**"
+---
+
 # Architecture — package layout, adapter families, LLM reasoner design
+
+## Three driving-use-case families in one process
+
+1. The **MCP-Customer / decision-support** path (daily brief, E1
+   flow-balance correlation with the ADR-0008 utilization overlay, ADR-0009
+   explain-travel-factor) — the "agentic" surface.
+2. The **console-bff** REST fan-out (ADR 0002/0003) backing
+   `warehouse-console`'s Order Lifecycle screen and WMS/WES report
+   dashboards — a separate concern with a separate outbound adapter family
+   and separate REST clients.
+3. The **runtime-signals** report (`GET /runtime-signals`) — Istio
+   error-rate / p99 latency from Prometheus plus error-log counts from Loki,
+   classified by `policy.ClassifyErrorRate` / `policy.ClassifyLatencyP99`.
+
+No persisted state: every fact is re-derived from upstream reads at request
+time. Listens on `AGENT_ADDR` (default `:8095`): REST at `/` (chi, all
+`GET`) and this agent's own MCP server (Streamable HTTP) at `/mcp`, all
+read-only.
 
 ## Architecture
 
@@ -135,7 +159,7 @@ least 10 requests have been seen), a `resilience.CallTimeout`-derived
 timeout capped at 12s per call, and a bounded `cenkalti/backoff/v4`
 jittered retry (max 3 attempts, transient errors only — a 5xx or a
 transport failure, never a 4xx). `internal/resilience` is a fresh,
-repo-local package mirroring order-management's ADR-0025 shape (never
+repo-local package mirroring order-management's own circuit-breaker ADR shape (never
 imported across repos — see the "no cross-context Go imports" guardrail
 above, which applies fleet-wide, not just to the five sibling bounded
 contexts). A breaker-OPEN rejection surfaces as an ordinary `Reasoner`
