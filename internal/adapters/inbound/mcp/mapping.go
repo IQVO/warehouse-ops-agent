@@ -15,6 +15,8 @@
 package mcp
 
 import (
+	"time"
+
 	"github.com/claudioed/warehouse-ops-agent/internal/domain/policy"
 )
 
@@ -68,6 +70,10 @@ type pathBriefDTO struct {
 	Stuck       *stuckTasksFactDTO `json:"stuck,omitempty"`
 	Unavailable []string           `json:"unavailable,omitempty"`
 	Exceptions  []openExceptionDTO `json:"exceptions,omitempty"`
+
+	// CapacityOutlook is present only when warehouse-planning is configured
+	// (ADR 0013); absent otherwise, so the brief is unchanged.
+	CapacityOutlook *capacityOutlookDTO `json:"capacityOutlook,omitempty"`
 }
 
 type siteBriefDTO struct {
@@ -123,6 +129,53 @@ func toPathBriefDTO(p policy.PathBrief) pathBriefDTO {
 	}
 	if p.Stuck != nil {
 		dto.Stuck = &stuckTasksFactDTO{Count: p.Stuck.Count}
+	}
+	dto.CapacityOutlook = toCapacityOutlookDTO(p.CapacityOutlook)
+	return dto
+}
+
+// capacityOutlookDTO is the optional warehouse-planning capacity section of
+// a path brief (ADR 0013). Either OmittedReason is set (the section could not
+// be produced; no capacity figure is present) or the rate/bottleneck fields
+// are. NormalizedRate is ORDER per hour.
+type capacityOutlookDTO struct {
+	PlanningPathId    string            `json:"planningPathId,omitempty"`
+	WindowStart       time.Time         `json:"windowStart"`
+	WindowEnd         time.Time         `json:"windowEnd"`
+	NormalizedRate    *float64          `json:"normalizedRate,omitempty"`
+	BottleneckStep    string            `json:"bottleneckStep,omitempty"`
+	BindingConstraint string            `json:"bindingConstraint,omitempty"`
+	Steps             []capacityStepDTO `json:"steps,omitempty"`
+	Warnings          []string          `json:"warnings,omitempty"`
+	OmittedReason     string            `json:"omittedReason,omitempty"`
+}
+
+type capacityStepDTO struct {
+	Step              string  `json:"step"`
+	NormalizedRate    float64 `json:"normalizedRate"`
+	BindingConstraint string  `json:"bindingConstraint,omitempty"`
+}
+
+func toCapacityOutlookDTO(o *policy.CapacityOutlook) *capacityOutlookDTO {
+	if o == nil {
+		return nil
+	}
+	dto := &capacityOutlookDTO{
+		PlanningPathId: o.PlanningPathId,
+		WindowStart:    o.WindowStart,
+		WindowEnd:      o.WindowEnd,
+		OmittedReason:  o.OmittedReason,
+	}
+	if o.OmittedReason != "" {
+		return dto
+	}
+	rate := o.NormalizedRate
+	dto.NormalizedRate = &rate
+	dto.BottleneckStep = o.BottleneckStep
+	dto.BindingConstraint = o.BindingConstraint
+	dto.Warnings = o.Warnings
+	for _, s := range o.Steps {
+		dto.Steps = append(dto.Steps, capacityStepDTO{Step: s.Step, NormalizedRate: s.NormalizedRate, BindingConstraint: s.BindingConstraint})
 	}
 	return dto
 }

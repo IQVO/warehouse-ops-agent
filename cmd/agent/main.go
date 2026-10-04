@@ -93,14 +93,32 @@ func run() error {
 // interface at compile time (see the var _ assertions in
 // internal/adapters/outbound/mcpclient/*.go).
 type outboundClients struct {
-	wes       ports.WesWorkPlanningClient
-	fe        ports.FulfillmentExecutionClient
-	wfm       ports.WorkforceManagementClient
-	facility  ports.FacilityLayoutClient
-	inv       ports.InventoryStorageClient
-	lp        ports.LaborPerformanceClient
+	wes      ports.WesWorkPlanningClient
+	fe       ports.FulfillmentExecutionClient
+	wfm      ports.WorkforceManagementClient
+	facility ports.FacilityLayoutClient
+	inv      ports.InventoryStorageClient
+	lp       ports.LaborPerformanceClient
+	// planning is nil when WAREHOUSE_PLANNING_MCP_ENDPOINT is unset: the
+	// capacity outlook is then not wired at all (ADR 0013). Unlike its
+	// siblings it is assigned only when configured, so a nil check on this
+	// interface is a genuine "not configured".
+	planning  ports.WarehousePlanningClient
 	telemetry ports.TelemetryReader
 	logs      ports.LogReader
+}
+
+// newPlanningClient builds the warehouse-planning MCP client (read tools
+// only), or returns a nil interface when no endpoint is configured so boot
+// never depends on it and the capacity outlook degrades to "absent".
+func newPlanningClient(cfg config.Config) ports.WarehousePlanningClient {
+	if cfg.WarehousePlanning.Endpoint == "" {
+		return nil
+	}
+	return mcpclient.NewWarehousePlanning(mcpclient.Config{
+		Name:     "warehouse-planning",
+		Endpoint: cfg.WarehousePlanning.Endpoint,
+	})
 }
 
 // newOutboundClients builds every outbound MCP client (one per upstream
@@ -146,7 +164,8 @@ func newOutboundClients(cfg config.Config) outboundClients {
 			Name:     "labor-performance",
 			Endpoint: cfg.LaborPerformance.Endpoint,
 		}),
-		logs: newLogReader(cfg.LokiURL),
+		logs:     newLogReader(cfg.LokiURL),
+		planning: newPlanningClient(cfg),
 	}
 }
 
@@ -177,6 +196,15 @@ func newDecisionSupport(cfg config.Config, clients outboundClients) decisionSupp
 		Fe:       clients.fe,
 		Wfm:      clients.wfm,
 		Targets:  toUseCaseTargets(cfg.PathTargets),
+	}
+	// Capacity outlook (ADR 0013): only wired when warehouse-planning is
+	// configured. A nil Outlook leaves the daily brief byte-for-byte as it
+	// was; a configured one is fail-open per path.
+	if clients.planning != nil {
+		dailyBrief.Outlook = &usecases.CapacityOutlook{
+			Planning: clients.planning,
+			Horizon:  cfg.CapacityOutlookHorizon,
+		}
 	}
 
 	// StrandedReservation is the E2 correlation use case: read-only,
@@ -261,6 +289,7 @@ func serveAgent(cfg config.Config, logger *slog.Logger, serviceName string, hand
 			"inventory_storage_endpoint_configured", cfg.InventoryStorage.Endpoint != "",
 			"workforce_management_endpoint_configured", cfg.WorkforceManagement.Endpoint != "",
 			"facility_layout_endpoint_configured", cfg.FacilityLayout.Endpoint != "",
+			"warehouse_planning_endpoint_configured", cfg.WarehousePlanning.Endpoint != "",
 			"path_targets", len(cfg.PathTargets),
 		)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -291,6 +320,10 @@ func toUseCaseTargets(targets []config.PathTarget) []usecases.PathTarget {
 			ProcessPath: t.ProcessPath,
 			BuildingId:  t.BuildingId,
 			ShiftId:     t.ShiftId,
+
+			PlanningPathId:   t.PlanningPathId,
+			UnitsPerOrder:    t.UnitsPerOrder,
+			PackagesPerOrder: t.PackagesPerOrder,
 		})
 	}
 	return out

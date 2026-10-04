@@ -114,6 +114,12 @@ type PathBrief struct {
 	Stuck       *StuckTasksFact
 	Unavailable []string
 	Exceptions  []OpenException
+
+	// CapacityOutlook is warehouse-planning's capacity for this path over
+	// the next N hours (ADR 0013). nil means the outlook is not configured
+	// (the DTOs then omit it entirely); a non-nil outlook with an
+	// OmittedReason means it was configured but could not be produced.
+	CapacityOutlook *CapacityOutlook
 }
 
 // SynthesizePathBrief assembles one path's facts into a PathBrief and
