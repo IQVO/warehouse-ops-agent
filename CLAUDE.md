@@ -85,5 +85,13 @@ Fleet-wide rules: `.claude/rules/fleet/*.md` (canonical in IQVO/warehouse-docs `
 
 Claude Code loads each rule below automatically when you touch the matching paths. OpenCode and Codex do NOT: read the rule BEFORE editing matching files.
 
+| When touching | Read |
+|---|---|
+| `internal/**`, `cmd/**` | `.claude/rules/architecture.md` |
+| `internal/config/**`, `cmd/**`, `charts/**` | `.claude/rules/configuration-and-running.md` |
+| `docs/**`, `.github/workflows/docs.yml` | `.claude/rules/docs-site.md` |
+| `go.mod`, `internal/adapters/**/kafka/**`, `internal/adapters/outbound/events/**` | `.claude/rules/events-cloudevents.md` |
+| `**/*_test.go`, `Makefile`, `.gremlins.yaml` ... | `.claude/rules/testing.md` |
+
 Hooks (`scripts/harness/hook.py`, wired for Claude Code, Codex and OpenCode) block pushes to develop/main, `--no-verify`, bare `rm -rf`, and edits to generated files, and feed gofmt/vet findings back after each edit. Before saying "done" run `make check-fast`; the full gate is `make check-all`. `HARNESS_OFF=1` disables the hooks when debugging the harness itself.
 <!-- harness:scoped-rules:end -->
