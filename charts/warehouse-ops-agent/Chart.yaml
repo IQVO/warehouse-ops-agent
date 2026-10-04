@@ -4,7 +4,7 @@ description: Warehouse Ops Agent — stateless MCP-client aggregator that reads 
 type: application
 version: 0.1.0
 appVersion: "0.1.0"
-home: https://github.com/claudioed/warehouse-ops-agent
+home: https://github.com/IQVO/warehouse-ops-agent
 keywords:
   - ddd
   - hexagonal-architecture
