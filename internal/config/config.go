@@ -32,6 +32,22 @@ type PathTarget struct {
 	ProcessPath string `json:"processPath"`
 	BuildingId  string `json:"buildingId"`
 	ShiftId     string `json:"shiftId"`
+
+	// PlanningPathId, UnitsPerOrder and PackagesPerOrder are OPTIONAL and
+	// only used by the warehouse-planning capacity outlook (ADR 0013).
+	// PlanningPathId is the process-path id registered in
+	// warehouse-planning (a multi-step path such as PICK→REBIN→PACK; it is
+	// not wes-work-planning's PathId, and the site code above is what
+	// warehouse-planning calls `location`). UnitsPerOrder / PackagesPerOrder
+	// are the workload conversion factors planning needs for UNIT / PACKAGE
+	// steps. They are operational facts only the operator knows: there is
+	// deliberately NO default for any of the three. An absent factor is not
+	// sent, and planning's own missing-conversion-factor error then shows up
+	// as the outlook's omitted reason. A pointer distinguishes "unset" from
+	// an explicit (invalid) 0, which planning rejects.
+	PlanningPathId   string   `json:"planningPathId,omitempty"`
+	UnitsPerOrder    *float64 `json:"unitsPerOrder,omitempty"`
+	PackagesPerOrder *float64 `json:"packagesPerOrder,omitempty"`
 }
 
 // defaultPathTargets mirrors the e2s-tests bootstrap scenario's single
@@ -63,6 +79,18 @@ type Config struct {
 	OrderManagement       UpstreamConfig
 	LaborPerformance      UpstreamConfig
 	ProcessPathManagement UpstreamConfig
+
+	// WarehousePlanning is the third-wave upstream (ADR 0013). An empty
+	// endpoint means "not configured": the composition root then builds no
+	// client and no capacity outlook, and the daily brief is unchanged.
+	WarehousePlanning UpstreamConfig
+
+	// CapacityOutlookHorizon is how far ahead the daily brief's
+	// warehouse-planning capacity window extends from now
+	// (CAPACITY_OUTLOOK_HORIZON, a Go duration; default 8h). It is a time
+	// window, not a workload input; only meaningful when WarehousePlanning
+	// is configured.
+	CapacityOutlookHorizon time.Duration
 
 	// OrderManagementRESTURL, InventoryStorageRESTURL,
 	// WesWorkPlanningRESTURL, FulfillmentExecutionRESTURL are each
@@ -192,6 +220,10 @@ func Load() Config {
 		ProcessPathManagement: UpstreamConfig{
 			Endpoint: getenv("PROCESS_PATH_MANAGEMENT_MCP_ENDPOINT", ""),
 		},
+		WarehousePlanning: UpstreamConfig{
+			Endpoint: getenv("WAREHOUSE_PLANNING_MCP_ENDPOINT", ""),
+		},
+		CapacityOutlookHorizon: loadDuration("CAPACITY_OUTLOOK_HORIZON", defaultCapacityOutlookHorizon),
 
 		OrderManagementRESTURL:      getenv("ORDER_MANAGEMENT_REST_URL", "http://localhost:8086"),
 		InventoryStorageRESTURL:     getenv("INVENTORY_STORAGE_REST_URL", "http://localhost:8082"),
@@ -224,6 +256,10 @@ func Load() Config {
 		},
 	}
 }
+
+// defaultCapacityOutlookHorizon is one shift: the capacity outlook looks
+// 8 hours ahead unless CAPACITY_OUTLOOK_HORIZON says otherwise.
+const defaultCapacityOutlookHorizon = 8 * time.Hour
 
 // defaultLLMToolAllowList is exactly the read surface the deterministic
 // flow-balance path consults, so shadow mode compares like with like.

@@ -87,6 +87,12 @@ spec:
               value: {{ .Values.upstreams.laborPerformance.endpoint | quote }}
             - name: PROCESS_PATH_MANAGEMENT_MCP_ENDPOINT
               value: {{ .Values.upstreams.processPathManagement.endpoint | quote }}
+            - name: WAREHOUSE_PLANNING_MCP_ENDPOINT
+              value: {{ .Values.upstreams.warehousePlanning.endpoint | quote }}
+            {{- if .Values.config.capacityOutlookHorizon }}
+            - name: CAPACITY_OUTLOOK_HORIZON
+              value: {{ .Values.config.capacityOutlookHorizon | quote }}
+            {{- end }}
             - name: PROMETHEUS_URL
               value: {{ .Values.prometheus.url | quote }}
             {{- if ne .Values.llm.mode "off" }}
