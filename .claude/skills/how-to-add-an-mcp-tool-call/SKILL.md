@@ -19,8 +19,9 @@ repo's distinctive addition to the fleet's integration story.
 
 Use when asked to consume a NEW published tool from wes-work-planning,
 fulfillment-execution, inventory-storage, workforce-management,
-facility-layout, labor-performance, order-management, or
-process-path-management. This repo never publishes an integration event and never
+facility-layout, labor-performance, order-management,
+process-path-management, or warehouse-planning (read tools only — its server
+also has write tools; the zero-write scan rejects any write verb, ADR 0013). This repo never publishes an integration event and never
 consumes Kafka at all — if a task genuinely needs that, it belongs in one
 of the upstream repos, not here.
 
@@ -47,7 +48,8 @@ payloads.
 Every upstream context has exactly one `ports.<Context>Client` interface
 in `internal/ports/clients.go` (or `clients_phase2.go` for the
 second-wave clients — order-management, labor-performance,
-process-path-management, per ADR 0007). Add the new method there first:
+process-path-management, per ADR 0007; `clients_planning.go` for
+warehouse-planning, per ADR 0013). Add the new method there first:
 
 ```go
 // FacilityLayoutClient is the outbound port for facility-layout's published

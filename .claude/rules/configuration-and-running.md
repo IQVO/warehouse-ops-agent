@@ -26,6 +26,7 @@ One Streamable-HTTP endpoint per upstream MCP context:
 | labor-performance | `LABOR_PERFORMANCE_MCP_ENDPOINT` |
 | order-management | `ORDER_MANAGEMENT_MCP_ENDPOINT` |
 | process-path-management | `PROCESS_PATH_MANAGEMENT_MCP_ENDPOINT` |
+| warehouse-planning | `WAREHOUSE_PLANNING_MCP_ENDPOINT` (unset = no client and no capacity outlook; read tools only, ADR 0013) |
 
 Plus `AGENT_ADDR` (default `:8095`), `PROMETHEUS_URL` / `LOKI_URL`
 (runtime-signals sources; unset Prometheus → stub reader, unset Loki →
@@ -33,7 +34,10 @@ reported in `unavailableSources`), `RUNTIME_SIGNALS_NAMESPACE` (default
 `warehouse-systems`), `RUNTIME_SIGNALS_SERVICES` (comma-separated, default
 the eight backend contexts), `DAILY_BRIEF_PATH_TARGETS` (optional JSON
 array overriding the process paths the daily brief monitors — defaults to
-the single path the e2e-tests bootstrap scenario seeds), and the
+the single path the e2e-tests bootstrap scenario seeds; each target may also
+carry optional `planningPathId` / `unitsPerOrder` / `packagesPerOrder` for the
+ADR 0013 capacity outlook, never defaulted), `CAPACITY_OUTLOOK_HORIZON` (Go
+duration, default `8h`; only used when warehouse-planning is configured), and the
 console-bff's own separate REST base URLs (`ORDER_MANAGEMENT_REST_URL`,
 `INVENTORY_STORAGE_REST_URL`, `WES_WORK_PLANNING_REST_URL`,
 `FULFILLMENT_EXECUTION_REST_URL`, plus seven `*_REPORTS_REST_URL` vars for

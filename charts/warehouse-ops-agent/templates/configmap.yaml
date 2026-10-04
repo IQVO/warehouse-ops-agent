@@ -10,11 +10,15 @@ data:
   {{- if .Values.config.dailyBriefPathTargets }}
   DAILY_BRIEF_PATH_TARGETS: {{ .Values.config.dailyBriefPathTargets | quote }}
   {{- end }}
+  {{- if .Values.config.capacityOutlookHorizon }}
+  CAPACITY_OUTLOOK_HORIZON: {{ .Values.config.capacityOutlookHorizon | quote }}
+  {{- end }}
   WES_WORK_PLANNING_MCP_ENDPOINT: {{ .Values.upstreams.wesWorkPlanning.endpoint | quote }}
   FULFILLMENT_EXECUTION_MCP_ENDPOINT: {{ .Values.upstreams.fulfillmentExecution.endpoint | quote }}
   INVENTORY_STORAGE_MCP_ENDPOINT: {{ .Values.upstreams.inventoryStorage.endpoint | quote }}
   WORKFORCE_MANAGEMENT_MCP_ENDPOINT: {{ .Values.upstreams.workforceManagement.endpoint | quote }}
   FACILITY_LAYOUT_MCP_ENDPOINT: {{ .Values.upstreams.facilityLayout.endpoint | quote }}
+  WAREHOUSE_PLANNING_MCP_ENDPOINT: {{ .Values.upstreams.warehousePlanning.endpoint | quote }}
   {{- if .Values.restUrls.orderManagement }}
   ORDER_MANAGEMENT_REST_URL: {{ .Values.restUrls.orderManagement | quote }}
   {{- end }}

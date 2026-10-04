@@ -37,6 +37,9 @@ internal/
                                                           Decision + optional LLM
                                                           Plan (ADR 0004)
                                         dailybrief.go  — E3 daily brief correlation
+                                        capacity_outlook.go — ADR 0013 shaping of
+                                                          warehouse-planning's path
+                                                          capacity (informational)
                                         flow_balance.go — E1 flow-balance correlation
                                         utilization_correlation.go — ADR 0008
                                                           overlay on E1
@@ -51,14 +54,18 @@ internal/
                                         explain_travel_factor.go,
                                         runtime_signals.go,
                                         stranded_reservation.go, order_lifecycle.go
-                                        (console-bff), console_reports*.go
+                                        (console-bff), capacity_outlook.go (ADR 0013,
+                                        fail-open section of the daily brief),
+                                        console_reports*.go
                                         (console-bff WMS/WES dashboards)
   ports/                             OUT: one client interface per upstream
                                       context (clients.go: WesWorkPlanning,
                                       FulfillmentExecution, InventoryStorage,
                                       WorkforceManagement, FacilityLayout;
                                       clients_phase2.go: OrderManagementMCP,
-                                      LaborPerformance, ProcessPathManagement)
+                                      LaborPerformance, ProcessPathManagement;
+                                      clients_planning.go: WarehousePlanning,
+                                      read tools only — ADR 0013)
                                       + TelemetryReader, LogReader, Reasoner,
                                       ArbitrationMetrics + console-bff's
                                       separate REST port shapes
@@ -78,7 +85,8 @@ internal/
                       (facility_layout.go, fulfillment_execution.go,
                       inventory_storage.go, wes_work_planning.go,
                       workforce_management.go, labor_performance.go,
-                      order_management.go, process_path_management.go),
+                      order_management.go, process_path_management.go,
+                      warehouse_planning.go),
                       plus tool_invoker.go / session.go used by the LLM
                       reasoner's tool-use loop
       restclient/     console-bff's REST clients — a SEPARATE family from

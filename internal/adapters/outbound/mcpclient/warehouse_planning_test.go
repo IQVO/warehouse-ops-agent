@@ -144,6 +144,12 @@ func TestWarehousePlanning_GetProcessPathCapacity(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetProcessPathCapacity: %v", err)
 	}
+	assertPathCapacityDecoded(t, out)
+	assertPathCapacityArgs(t, up.lastReq)
+}
+
+func assertPathCapacityDecoded(t *testing.T, out ports.ProcessPathCapacity) {
+	t.Helper()
 	if out.NormalizedRate != 120 || out.NormalizedUnit != "ORDER" || out.BottleneckStep != "PACK" {
 		t.Fatalf("unexpected capacity: %+v", out)
 	}
@@ -153,10 +159,15 @@ func TestWarehousePlanning_GetProcessPathCapacity(t *testing.T) {
 	if len(out.Warnings) != 1 {
 		t.Fatalf("unexpected warnings: %+v", out.Warnings)
 	}
+}
 
-	got := up.lastReq
-	if got.ID != "tote-path" || got.Location != "SIM1" || got.WindowStart != "2026-10-05T08:00:00Z" || got.WindowEnd != "2026-10-05T16:00:00Z" {
-		t.Fatalf("tool received unexpected arguments: %+v", got)
+func assertPathCapacityArgs(t *testing.T, got planningPathCapacityTestIn) {
+	t.Helper()
+	if got.ID != "tote-path" || got.Location != "SIM1" {
+		t.Fatalf("tool received unexpected id/location: %+v", got)
+	}
+	if got.WindowStart != "2026-10-05T08:00:00Z" || got.WindowEnd != "2026-10-05T16:00:00Z" {
+		t.Fatalf("tool received unexpected window: %+v", got)
 	}
 	if got.UnitsPerOrder == nil || *got.UnitsPerOrder != 2.5 || got.PackagesPerOrder == nil || *got.PackagesPerOrder != 1.2 {
 		t.Fatalf("conversion factors must be passed through unchanged: %+v", got)
@@ -290,8 +301,11 @@ func TestWarehousePlanning_RespectsCallerContext(t *testing.T) {
 	cancel()
 	c := NewWarehousePlanning(Config{Endpoint: up.URL})
 	_, err := c.GetStorageCapacity(ctx, "SIM1")
-	if err == nil || !(errors.Is(err, context.Canceled) || strings.Contains(err.Error(), "canceled")) {
-		t.Fatalf("a cancelled context must abort the call, got %v", err)
+	if err == nil {
+		t.Fatal("a cancelled context must abort the call")
+	}
+	if !errors.Is(err, context.Canceled) && !strings.Contains(err.Error(), "canceled") {
+		t.Fatalf("expected a cancellation error, got %v", err)
 	}
 }
 

@@ -38,6 +38,8 @@ var boundedContextModules = []string{
 	"github.com/claudioed/workforce-management",
 	"github.com/claudioed/inventory-storage",
 	"github.com/claudioed/facility-layout",
+	// Third wave (ADR 0013): the same rule applies to the newer contexts.
+	"github.com/claudioed/warehouse-planning",
 }
 
 // TestNoDirectDependencyOnBoundedContexts asserts that no package in this

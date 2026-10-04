@@ -92,10 +92,17 @@ func TestCapacityOutlook_Success_AsksPlanningForTheNextNHours(t *testing.T) {
 	if got.NormalizedRate != 120 || got.BottleneckStep != "PACK" || got.BindingConstraint != "STATION" || len(got.Warnings) != 1 || len(got.Steps) != 2 {
 		t.Errorf("unexpected outlook: %+v", got)
 	}
+	if !got.WindowStart.Equal(time.Date(2026, 10, 5, 8, 0, 0, 0, time.UTC)) || !got.WindowEnd.Equal(time.Date(2026, 10, 5, 16, 0, 0, 0, time.UTC)) {
+		t.Errorf("outlook window = [%v, %v)", got.WindowStart, got.WindowEnd)
+	}
 	if len(planning.reqs) != 1 || planning.otherCall != 0 {
 		t.Fatalf("expected exactly one get_process_path_capacity call and no other tool, got reqs=%d other=%d", len(planning.reqs), planning.otherCall)
 	}
-	r := planning.reqs[0]
+	assertOutlookRequest(t, planning.reqs[0])
+}
+
+func assertOutlookRequest(t *testing.T, r ports.ProcessPathCapacityRequest) {
+	t.Helper()
 	if r.PathId != "tote-path" {
 		t.Errorf("path id = %q, want the configured PLANNING path id (not the wes PathId)", r.PathId)
 	}
@@ -107,9 +114,6 @@ func TestCapacityOutlook_Success_AsksPlanningForTheNextNHours(t *testing.T) {
 	}
 	if r.UnitsPerOrder == nil || *r.UnitsPerOrder != 2.5 || r.PackagesPerOrder == nil || *r.PackagesPerOrder != 1.2 {
 		t.Errorf("configured factors must be passed through: %+v", r)
-	}
-	if !got.WindowStart.Equal(time.Date(2026, 10, 5, 8, 0, 0, 0, time.UTC)) || !got.WindowEnd.Equal(time.Date(2026, 10, 5, 16, 0, 0, 0, time.UTC)) {
-		t.Errorf("outlook window = [%v, %v)", got.WindowStart, got.WindowEnd)
 	}
 }
 

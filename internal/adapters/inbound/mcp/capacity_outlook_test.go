@@ -29,44 +29,58 @@ func (f *fakePlanning) ListStationStandards(context.Context, string) (ports.Stat
 	return ports.StationStandardList{}, errors.New("not used")
 }
 
-func TestGetDailyBrief_CapacityOutlook(t *testing.T) {
+func plannedDeps() Deps {
 	deps := newTestDeps(true)
 	deps.DailyBrief.Targets[0].PlanningPathId = "tote-path"
+	return deps
+}
 
-	// Unconfigured: the DTO carries no outlook.
+func firstPathOutlook(t *testing.T, deps Deps) (*capacityOutlookDTO, dailyBriefOutput) {
+	t.Helper()
 	out, err := deps.getDailyBrief(context.Background(), dailyBriefInput{})
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("a planning outage must never fail the brief: %v", err)
 	}
-	if out.Sites[0].Paths[0].CapacityOutlook != nil {
-		t.Fatalf("an unconfigured outlook must be absent: %+v", out.Sites[0].Paths[0].CapacityOutlook)
-	}
+	return out.Sites[0].Paths[0].CapacityOutlook, out
+}
 
-	// Configured and healthy.
+func TestGetDailyBrief_CapacityOutlook_UnconfiguredIsAbsent(t *testing.T) {
+	o, _ := firstPathOutlook(t, plannedDeps())
+	if o != nil {
+		t.Fatalf("an unconfigured outlook must be absent: %+v", o)
+	}
+}
+
+func TestGetDailyBrief_CapacityOutlook_Populated(t *testing.T) {
+	deps := plannedDeps()
 	deps.DailyBrief.Outlook = &usecases.CapacityOutlook{Horizon: 8 * time.Hour, Planning: &fakePlanning{capacity: ports.ProcessPathCapacity{
 		NormalizedRate: 120, NormalizedUnit: "ORDER", BottleneckStep: "PACK",
 		StepBreakdown: []ports.PlanningStepBreakdown{{Step: "PACK", NormalizedRate: 120, BindingConstraint: "STATION"}},
 		Warnings:      []string{"w"},
 	}}}
-	out, err = deps.getDailyBrief(context.Background(), dailyBriefInput{})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	o := out.Sites[0].Paths[0].CapacityOutlook
-	if o == nil || o.NormalizedRate == nil || *o.NormalizedRate != 120 || o.BottleneckStep != "PACK" || o.BindingConstraint != "STATION" || len(o.Steps) != 1 || len(o.Warnings) != 1 || o.OmittedReason != "" {
+
+	o, out := firstPathOutlook(t, deps)
+
+	if o == nil || o.NormalizedRate == nil || *o.NormalizedRate != 120 {
 		t.Fatalf("unexpected outlook DTO: %+v", o)
 	}
+	if o.BottleneckStep != "PACK" || o.BindingConstraint != "STATION" || o.OmittedReason != "" {
+		t.Errorf("unexpected outlook DTO: %+v", o)
+	}
+	if len(o.Steps) != 1 || len(o.Warnings) != 1 {
+		t.Errorf("steps/warnings: %+v", o)
+	}
 	if len(out.OpenExceptions) != 1 {
-		t.Fatalf("the outlook must not change exceptions, got %d", len(out.OpenExceptions))
+		t.Errorf("the outlook must not change exceptions, got %d", len(out.OpenExceptions))
 	}
+}
 
-	// Configured but planning is down: omitted with a reason, no rate.
-	deps.DailyBrief.Outlook.Planning = &fakePlanning{err: errors.New("boom")}
-	out, err = deps.getDailyBrief(context.Background(), dailyBriefInput{})
-	if err != nil {
-		t.Fatalf("a planning outage must not fail the brief: %v", err)
-	}
-	o = out.Sites[0].Paths[0].CapacityOutlook
+func TestGetDailyBrief_CapacityOutlook_PlanningDownIsOmittedWithReason(t *testing.T) {
+	deps := plannedDeps()
+	deps.DailyBrief.Outlook = &usecases.CapacityOutlook{Horizon: 8 * time.Hour, Planning: &fakePlanning{err: errors.New("boom")}}
+
+	o, _ := firstPathOutlook(t, deps)
+
 	if o == nil || o.NormalizedRate != nil || !strings.Contains(o.OmittedReason, "boom") {
 		t.Fatalf("expected an omitted outlook DTO with the reason, got %+v", o)
 	}

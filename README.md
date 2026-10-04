@@ -17,7 +17,7 @@ and persists no domain state; its "domain" layer is decision **policy**
 (correlation rules over facts read from the upstream contexts, plus a
 runtime-signals classifier over Prometheus/Loki telemetry).
 
-It holds an outbound MCP client for eight contexts: the five original ones
+It holds an outbound MCP client for nine contexts: the five original ones
 (`wes-work-planning`, `fulfillment-execution`, `workforce-management`,
 `facility-layout`, `inventory-storage`) and three second-wave ones
 (`labor-performance`, `order-management`, `process-path-management`,
@@ -25,7 +25,10 @@ It holds an outbound MCP client for eight contexts: the five original ones
 `labor-performance` is consumed by the flow-balance utilization overlay
 ([ADR 0008](./docs/docs/adr/0008-labor-utilization-advisory-correlation.md));
 `order-management` and `process-path-management` are wired but not yet
-consumed by any use case. Separately, it hosts the `console-bff` REST
+consumed by any use case. `warehouse-planning` (read tools only; its MCP
+server is read+write) feeds an optional, fail-open capacity outlook in the
+daily brief and has three more read tools wired but unconsumed
+([ADR 0013](./docs/docs/adr/0013-warehouse-planning-mcp-client-and-capacity-outlook.md)). Separately, it hosts the `console-bff` REST
 fan-out for `warehouse-console` (ADR 0002/0003).
 
 See [ADR 0001](./docs/docs/adr/0001-warehouse-ops-agent-placement.md) for
@@ -119,6 +122,7 @@ unauthenticated; an empty endpoint means that client is skipped):
 | labor-performance | `LABOR_PERFORMANCE_MCP_ENDPOINT` |
 | order-management | `ORDER_MANAGEMENT_MCP_ENDPOINT` |
 | process-path-management | `PROCESS_PATH_MANAGEMENT_MCP_ENDPOINT` |
+| warehouse-planning | `WAREHOUSE_PLANNING_MCP_ENDPOINT` |
 
 Plus:
 
@@ -126,7 +130,14 @@ Plus:
   REST at `/` and its MCP server at `/mcp`.
 - `DAILY_BRIEF_PATH_TARGETS` — optional JSON array overriding which process
   paths the daily brief monitors; defaults to the single `pick-zone-a` path
-  the e2e-tests bootstrap scenario seeds.
+  the e2e-tests bootstrap scenario seeds. Each target may also carry
+  optional `planningPathId`, `unitsPerOrder`, `packagesPerOrder` (ADR 0013):
+  the warehouse-planning process-path id and workload conversion factors for
+  the capacity outlook. There is no default for any of them.
+- `CAPACITY_OUTLOOK_HORIZON` (Go duration, default `8h`) — how far ahead the
+  daily brief's warehouse-planning capacity window extends; only meaningful
+  when `WAREHOUSE_PLANNING_MCP_ENDPOINT` is set (unset = no outlook, no
+  client, brief unchanged).
 - `PROMETHEUS_URL`, `LOKI_URL` — back `GET /runtime-signals`. An unset
   `LOKI_URL` (or a failing Loki query) lists `loki` in `unavailableSources`;
   an unset `PROMETHEUS_URL` falls back to a no-op stub reader, so metrics
