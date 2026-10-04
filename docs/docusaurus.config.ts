@@ -12,10 +12,10 @@ const config: Config = {
     v4: true,
   },
 
-  url: 'https://claudioed.github.io',
+  url: 'https://iqvo.github.io',
   baseUrl: '/warehouse-ops-agent/',
 
-  organizationName: 'claudioed',
+  organizationName: 'IQVO',
   projectName: 'warehouse-ops-agent',
   deploymentBranch: 'gh-pages',
   trailingSlash: false,
@@ -44,7 +44,7 @@ const config: Config = {
           sidebarPath: './sidebars.ts',
           routeBasePath: 'docs',
           editUrl:
-            'https://github.com/claudioed/warehouse-ops-agent/tree/main/docs/',
+            'https://github.com/IQVO/warehouse-ops-agent/tree/main/docs/',
         },
         blog: false,
         theme: {
@@ -85,7 +85,7 @@ const config: Config = {
           position: 'left',
         },
         {
-          href: 'https://github.com/claudioed/warehouse-ops-agent',
+          href: 'https://github.com/IQVO/warehouse-ops-agent',
           label: 'GitHub',
           position: 'right',
         },
@@ -109,23 +109,23 @@ const config: Config = {
             {label: 'Context map', to: '/docs/ecosystem/context-map'},
             {
               label: 'inventory-storage',
-              href: 'https://github.com/claudioed/inventory-storage',
+              href: 'https://github.com/IQVO/inventory-storage',
             },
             {
               label: 'wes-work-planning',
-              href: 'https://github.com/claudioed/wes-work-planning',
+              href: 'https://github.com/IQVO/wes-work-planning',
             },
             {
               label: 'fulfillment-execution',
-              href: 'https://github.com/claudioed/fulfillment-execution',
+              href: 'https://github.com/IQVO/fulfillment-execution',
             },
             {
               label: 'workforce-management',
-              href: 'https://github.com/claudioed/workforce-management',
+              href: 'https://github.com/IQVO/workforce-management',
             },
             {
               label: 'facility-layout',
-              href: 'https://github.com/claudioed/facility-layout',
+              href: 'https://github.com/IQVO/facility-layout',
             },
           ],
         },
@@ -134,7 +134,7 @@ const config: Config = {
           items: [
             {
               label: 'warehouse-ops-agent on GitHub',
-              href: 'https://github.com/claudioed/warehouse-ops-agent',
+              href: 'https://github.com/IQVO/warehouse-ops-agent',
             },
           ],
         },

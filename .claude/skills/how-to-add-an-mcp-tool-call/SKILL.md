@@ -1,9 +1,14 @@
+---
+name: how-to-add-an-mcp-tool-call
+description: Add a read-only MCP tool call to this agent following the fleet zero-write rule. Use when touching the outbound MCP client adapters.
+---
+
 # How to add an MCP tool call
 
 **Renamed and rescoped from inventory-storage's `.claude/skills/
 how-to-add-an-integration-event.md` (PR #75).** That guide covers
 publishing/consuming Kafka integration events — this repo has **no Kafka
-consumer or publisher of its own, and no `apis/asyncapi.yaml`**. This
+consumer or publisher of its own, and no AsyncAPI spec**. This
 repo's actual cross-context integration mechanism is different in kind:
 it is an MCP **Customer** of sibling contexts' published Open Host
 Services (ADR 0001; eight outbound clients since ADR 0007), calling their read-only tools over Streamable HTTP.
@@ -14,8 +19,9 @@ repo's distinctive addition to the fleet's integration story.
 
 Use when asked to consume a NEW published tool from wes-work-planning,
 fulfillment-execution, inventory-storage, workforce-management,
-facility-layout, labor-performance, order-management, or
-process-path-management. This repo never publishes an integration event and never
+facility-layout, labor-performance, order-management,
+process-path-management, or warehouse-planning (read tools only — its server
+also has write tools; the zero-write scan rejects any write verb, ADR 0013). This repo never publishes an integration event and never
 consumes Kafka at all — if a task genuinely needs that, it belongs in one
 of the upstream repos, not here.
 
@@ -42,7 +48,8 @@ payloads.
 Every upstream context has exactly one `ports.<Context>Client` interface
 in `internal/ports/clients.go` (or `clients_phase2.go` for the
 second-wave clients — order-management, labor-performance,
-process-path-management, per ADR 0007). Add the new method there first:
+process-path-management, per ADR 0007; `clients_planning.go` for
+warehouse-planning, per ADR 0013). Add the new method there first:
 
 ```go
 // FacilityLayoutClient is the outbound port for facility-layout's published
@@ -80,7 +87,7 @@ compile error.
 
 ## 4. The additive/read-only guardrail — this is the part that matters here
 
-**Every outbound call this repo makes to any of the five upstreams must
+**Every outbound call this repo makes to any upstream context must
 stay `GET`/read-only.** There is no Kafka-style "which consumer-group
 pattern" decision to make here (this repo has no Kafka at all) — the
 decision that matters is narrower and stricter: this repo has **zero

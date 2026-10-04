@@ -38,6 +38,8 @@ var boundedContextModules = []string{
 	"github.com/claudioed/workforce-management",
 	"github.com/claudioed/inventory-storage",
 	"github.com/claudioed/facility-layout",
+	// Third wave (ADR 0013): the same rule applies to the newer contexts.
+	"github.com/claudioed/warehouse-planning",
 }
 
 // TestNoDirectDependencyOnBoundedContexts asserts that no package in this
@@ -182,7 +184,7 @@ func assertPasses(t *testing.T, result *archgo.Result) {
 	t.Helper()
 
 	if !result.Pass {
-		t.Fatalf("architecture rule violated:\n%s", describeViolations(result))
+		t.Fatalf("%s", archViolation("dependency", "architecture", describeViolations(result)))
 	}
 }
 

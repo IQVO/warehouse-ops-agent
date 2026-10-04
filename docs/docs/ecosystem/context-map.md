@@ -2,7 +2,7 @@
 id: context-map
 title: Context map
 sidebar_label: Context map
-description: Where warehouse-ops-agent sits relative to the warehouse-systems bounded contexts — an MCP Customer of eight of them, a console-bff REST fan-out host over their OLTP and analytics APIs, and a reader of the fleet's Prometheus/Loki telemetry.
+description: Where warehouse-ops-agent sits relative to the warehouse-systems bounded contexts — an MCP Customer of nine of them, a console-bff REST fan-out host over their OLTP and analytics APIs, and a reader of the fleet's Prometheus/Loki telemetry.
 ---
 
 # Context map
@@ -14,11 +14,15 @@ of the fleet, added in different phases and never merged into one:
    [ADR 0007](../adr/0007-second-wave-outbound-mcp-clients.md)) — the
    daily-brief, flow-balance-exception and explain-travel-factor use cases
    read each context's published MCP Open Host Service, synchronously, at
-   request time. Clients exist for eight contexts: the five original ones
+   request time. Clients exist for nine contexts: the five original ones
    plus `labor-performance` (consumed by the
    [ADR 0008](../adr/0008-labor-utilization-advisory-correlation.md)
    utilization overlay), `order-management` and `process-path-management`
-   (wired, not yet consumed by any use case).
+   (wired, not yet consumed by any use case), and `warehouse-planning`
+   ([ADR 0013](../adr/0013-warehouse-planning-mcp-client-and-capacity-outlook.md):
+   read tools only; `get_process_path_capacity` feeds the daily brief's
+   optional capacity outlook, the other three read tools are wired but
+   unconsumed).
 2. **REST fan-out host for `console-bff`** ([ADR
    0002](../adr/0002-micro-frontend-console-architecture.md), [ADR
    0003](../adr/0003-console-bff-report-dashboards.md)) — a *separate*
@@ -95,6 +99,7 @@ context.
 | `facility-layout` | Customer — site structure, travel distance | reports `/reports/catalog-growth` (WMS) |
 | `labor-performance` | Customer — task-type utilization (ADR 0008) | reports `/reports/performance` (WES) |
 | `process-path-management` | client wired (`get_process_path`, `list_process_paths`), no consumer yet | none |
+| `warehouse-planning` | Customer, **read tools only** (its MCP server is read+write): `get_process_path_capacity` → daily-brief capacity outlook; `get_capacity_plan`, `get_storage_capacity`, `list_station_standards` wired, no consumer yet (ADR 0013) | none |
 
 Every `*-reports` read also calls that report's `/freshness` endpoint. MCP
 and REST calls carry no credentials — the fleet's auth was removed

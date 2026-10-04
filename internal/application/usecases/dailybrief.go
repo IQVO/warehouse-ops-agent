@@ -24,6 +24,17 @@ type PathTarget struct {
 	ProcessPath string
 	BuildingId  string
 	ShiftId     string
+
+	// PlanningPathId, UnitsPerOrder and PackagesPerOrder bind this path to
+	// warehouse-planning for the optional capacity outlook (ADR 0013). All
+	// three are operator-supplied deployment facts: PlanningPathId is the
+	// id warehouse-planning's register_process_path knows (a multi-step
+	// path such as PICK→REBIN→PACK, NOT wes-work-planning's PathId), and the
+	// two factors are the workload conversions it needs for UNIT/PACKAGE
+	// steps. Unset means "not configured": never defaulted.
+	PlanningPathId   string
+	UnitsPerOrder    *float64
+	PackagesPerOrder *float64
 }
 
 // DailyBrief orchestrates the five outbound MCP-client ports (built in T1)
@@ -44,6 +55,11 @@ type DailyBrief struct {
 	Targets    []PathTarget
 	Now        func() time.Time
 	WithinSecs int // window passed to diagnose_stuck_tasks; 0 = only already-expired leases.
+
+	// Outlook is the optional warehouse-planning capacity section (ADR
+	// 0013). nil means "not configured": no section is added and the brief
+	// is identical to one produced before the outlook existed.
+	Outlook *CapacityOutlook
 }
 
 // now returns the injected clock, defaulting to time.Now so production
@@ -160,7 +176,11 @@ func (uc *DailyBrief) synthesizeOne(ctx context.Context, target PathTarget) poli
 		BuildingId:  target.BuildingId,
 		ShiftId:     target.ShiftId,
 	}
-	return policy.SynthesizePathBrief(pathTarget, backlog, staffing, queue, stuck, unavailable)
+	pb := policy.SynthesizePathBrief(pathTarget, backlog, staffing, queue, stuck, unavailable)
+	// Informational only: never feeds the exception rules and never adds an
+	// `unavailable` entry (a nil outlook leaves pb untouched).
+	pb.CapacityOutlook = uc.Outlook.Execute(ctx, target, uc.now())
+	return pb
 }
 
 // countForPath filters diagnose_stuck_tasks' flat task list down to the

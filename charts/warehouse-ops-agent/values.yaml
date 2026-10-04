@@ -3,7 +3,7 @@
 replicaCount: 1
 
 image:
-  repository: ghcr.io/claudioed/warehouse-ops-agent
+  repository: ghcr.io/iqvo/warehouse-ops-agent
   pullPolicy: IfNotPresent
   tag: ""
 
@@ -101,6 +101,14 @@ config:
   # (see internal/config/config.go) so an unset override still produces a
   # working brief rather than an empty one.
   dailyBriefPathTargets: ""
+  # capacityOutlookHorizon overrides CAPACITY_OUTLOOK_HORIZON (a Go
+  # duration, e.g. "8h"): how far ahead the daily brief's warehouse-planning
+  # capacity window extends. Left empty the binary uses its own 8h default.
+  # Only has an effect when upstreams.warehousePlanning.endpoint is set. The
+  # per-path planning binding (planningPathId, optional unitsPerOrder /
+  # packagesPerOrder -- no defaults, operator-supplied only) lives in the
+  # dailyBriefPathTargets JSON above.
+  capacityOutlookHorizon: ""
 
 # The console-bff order-lifecycle fan-out's own plain REST base URLs — a
 # SEPARATE concern from the MCP `upstreams` block below (that block backs
@@ -160,6 +168,15 @@ upstreams:
   laborPerformance:
     endpoint: ""
   processPathManagement:
+    endpoint: ""
+  # warehouse-planning (ADR 0013): its MCP server is read+write, but this
+  # agent calls ONLY its four read tools. Empty = not configured: the
+  # binary builds no client, the daily brief gets no capacityOutlook
+  # section and nothing else changes. When set, the section is fail-open
+  # per path (planning unreachable / no covering capacity window / path
+  # not mapped via planningPathId in dailyBriefPathTargets = the section
+  # carries an omittedReason, never a failed brief).
+  warehousePlanning:
     endpoint: ""
 
 # warehouse-infra Prometheus base URL, for the telemetry-reader port's real

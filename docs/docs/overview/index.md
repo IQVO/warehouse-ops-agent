@@ -20,7 +20,9 @@ contexts — originally five (`inventory-storage`, `wes-work-planning`,
 `fulfillment-execution`, `workforce-management`, `facility-layout`), plus
 three second-wave MCP clients (`labor-performance`, `order-management`,
 `process-path-management`; see
-[ADR 0007](../adr/0007-second-wave-outbound-mcp-clients.md)). It is a
+[ADR 0007](../adr/0007-second-wave-outbound-mcp-clients.md)), plus
+`warehouse-planning` (read tools only,
+[ADR 0013](../adr/0013-warehouse-planning-mcp-client-and-capacity-outlook.md)). It is a
 **Customer** of those contexts' published MCP Open Host Services — it owns
 no aggregate, enforces no new business invariant, and persists no domain
 state. Its "domain" layer is decision **policy**: pure correlation rules
@@ -52,6 +54,7 @@ import of any sibling's internal packages:
 | `labor-performance` | `get_associate_scorecard`, `get_task_type_performance`, `get_labor_standard`, `get_task_type_utilization` | flow-balance utilization overlay (`get_task_type_utilization`, [ADR 0008](../adr/0008-labor-utilization-advisory-correlation.md)) |
 | `order-management` | `get_order` | nothing yet (wired, unconsumed) |
 | `process-path-management` | `get_process_path`, `list_process_paths` | nothing yet (wired, unconsumed) |
+| `warehouse-planning` | `get_process_path_capacity`, `get_capacity_plan`, `get_storage_capacity`, `list_station_standards` (read tools only; its write tools are never called) | daily brief capacity outlook (`get_process_path_capacity`, [ADR 0013](../adr/0013-warehouse-planning-mcp-client-and-capacity-outlook.md)); the other three wired, unconsumed |
 
 Beyond MCP, the agent also reads Prometheus and Loki for its
 [runtime-signals report](../api-surface.md), and fans out over plain REST
