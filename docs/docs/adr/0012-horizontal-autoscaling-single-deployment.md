@@ -13,6 +13,8 @@ Accepted — implemented in the same change that introduces this record.
 This is Phase 3 (scalability) of the fleet production-readiness plan for
 `warehouse-ops-agent`, following the SAME pattern shape
 `order-management`'s [ADR 0026](https://claudioed.github.io/order-management/docs/adr/0026-horizontal-autoscaling-and-pgxpool-tuning)
+(still `claudioed.github.io`: that repo's docs site has not migrated to
+the IQVO org yet, unlike this repo's own — checked directly, not assumed)
 established for that repo's Phase 3 — but scoped down to this repo's
 actual architecture, not copied wholesale.
 

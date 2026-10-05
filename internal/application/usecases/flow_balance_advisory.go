@@ -159,6 +159,7 @@ func (uc *FlowBalanceAdvisory) arbitrate(ctx context.Context, logger *slog.Logge
 		mode = policy.LLMOff
 	}
 	if mode == policy.LLMOff || uc.Reasoner == nil {
+		det.Source = policy.SourceDeterministic
 		return det
 	}
 
@@ -203,7 +204,9 @@ func (uc *FlowBalanceAdvisory) arbitrate(ctx context.Context, logger *slog.Logge
 	if uc.Metrics != nil {
 		uc.Metrics.RecordArbitration(ctx, "flow_balance_advisory", string(mode), string(arb.Source), arb.Agree)
 	}
-	return arb.Decision
+	result := arb.Decision
+	result.Source = arb.Source
+	return result
 }
 
 // flowBalanceFacts renders the gathered signals as the Reasoner's facts,

@@ -24,11 +24,15 @@ type ArbitrationMetrics struct {
 // NewArbitrationMetrics registers the instruments on the global meter.
 func NewArbitrationMetrics() (*ArbitrationMetrics, error) {
 	meter := otel.Meter("warehouse-ops-agent/llm")
-	arb, err := meter.Int64Counter("ops_agent_llm_arbitrations_total", metric.WithDescription("Decisions that went through policy.Arbitrate, by mode and winning source."))
+	arb, err := meter.Int64Counter("ops_agent_llm_arbitrations_total",
+		metric.WithDescription("Decisions that went through policy.Arbitrate, by mode and winning source."),
+		metric.WithUnit("{arbitration}"))
 	if err != nil {
 		return nil, err
 	}
-	agree, err := meter.Int64Counter("ops_agent_llm_agreement_total", metric.WithDescription("Valid model plans compared with the deterministic decision, by agreement."))
+	agree, err := meter.Int64Counter("ops_agent_llm_agreement_total",
+		metric.WithDescription("Valid model plans compared with the deterministic decision, by agreement."),
+		metric.WithUnit("{agreement}"))
 	if err != nil {
 		return nil, err
 	}

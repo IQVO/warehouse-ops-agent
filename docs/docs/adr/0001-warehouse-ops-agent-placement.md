@@ -7,8 +7,11 @@ description: Why warehouse-ops-agent is a new, independently-deployable reposito
 
 # ADR 0001: warehouse-ops-agent placement as a new, thin read-side repo
 
-- Status: Accepted
-- Date: 2026-08-25
+## Status
+
+Accepted
+
+**Date:** 2026-08-25
 
 ## Context
 

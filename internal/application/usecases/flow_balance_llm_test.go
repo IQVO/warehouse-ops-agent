@@ -51,6 +51,9 @@ func TestFlowBalanceAdvisory_LLMArbitration(t *testing.T) {
 		if r.calls != 0 || got.RecommendedAction != policy.ActionAssignLabor {
 			t.Fatalf("calls=%d action=%s", r.calls, got.RecommendedAction)
 		}
+		if got.Source != policy.SourceDeterministic {
+			t.Fatalf("Source = %q, want deterministic", got.Source)
+		}
 	})
 	t.Run("zero-value mode with a reasoner wired is still off", func(t *testing.T) {
 		assertZeroModeIsOff(t)
@@ -103,6 +106,9 @@ func assertShadowArbitration(t *testing.T) {
 	if got.RecommendedAction != policy.ActionAssignLabor || got.ProposedHeads != 4 || got.Rationale == "model says hold" {
 		t.Fatalf("shadow must return the deterministic decision, got %+v", got)
 	}
+	if got.Source != policy.SourceDeterministic {
+		t.Fatalf("Source = %q, want deterministic", got.Source)
+	}
 	if r.calls != 1 {
 		t.Fatalf("reasoner calls = %d", r.calls)
 	}
@@ -151,6 +157,9 @@ func assertOnAdoptsValidLLMPlan(t *testing.T) {
 	if got.RecommendedAction != policy.ActionAssignLabor || got.ProposedHeads != 2 || got.Rationale != "two is enough" || len(got.Evidence) != 3 {
 		t.Fatalf("got %+v", got)
 	}
+	if got.Source != policy.SourceLLM {
+		t.Fatalf("Source = %q, want llm", got.Source)
+	}
 	if m.source != "llm" || m.agree == nil || !*m.agree {
 		t.Fatalf("metrics %+v", m)
 	}
@@ -167,6 +176,9 @@ func assertOnFallsBackOnReasonerError(t *testing.T) {
 	got, err := uc.Execute(context.Background(), "b", "s", "pick")
 	if err != nil || got.RecommendedAction != policy.ActionAssignLabor || got.ProposedHeads != 4 {
 		t.Fatalf("fallback must be the deterministic decision, got %+v err=%v", got, err)
+	}
+	if got.Source != policy.SourceFallback {
+		t.Fatalf("Source = %q, want fallback", got.Source)
 	}
 	if m.source != "fallback" || m.agree != nil {
 		t.Fatalf("metrics %+v", m)

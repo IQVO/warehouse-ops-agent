@@ -7,8 +7,11 @@ description: The fleet-wide Tier 1 / Tier 2 metrics convention (mandatory runtim
 
 # ADR 0010: Standard metrics convention across the fleet
 
-- Status: Accepted
-- Date: 2026-09-05
+## Status
+
+Accepted
+
+**Date:** 2026-09-05
 
 ## Context
 
@@ -135,10 +138,24 @@ require:
 requirement by design: it is a read-only decision-support Customer of the
 other bounded contexts' analytics/report endpoints (see ADR-0001 and
 ADR-0003), holds no database of its own, and owns no domain aggregate that
-a business counter could be measured against. Its metrics surface stops at
-Tier 1 — `telemetry.Setup` and the Go-runtime metrics it already emits are
-the whole of its compliance obligation under this ADR, with no Tier-2
-counter to add now or later unless its architecture changes.
+a business counter could be measured against. Its Tier-1 baseline (this
+section) is fully in place — `telemetry.Setup`, the Go-runtime metrics,
+and `otelchi`/`otelchimetric` RED instrumentation covering BOTH REST and
+`/mcp` (mounted on the same chi router; see ADR-0010's own cross-reference
+in `internal/adapters/inbound/http/router.go`). Past Tier 1 it does carry
+real instruments of its own, ADR-0004's — not a Tier-2 business counter in
+this ADR's sense (they measure the LLM arbitration mechanism, not a
+domain event), but worth naming here so "stops at Tier 1" is not read as
+"has no other instruments":
+
+- `ops_agent_llm_arbitrations_total{use_case,mode,source}` (unit
+  `{arbitration}`)
+- `ops_agent_llm_agreement_total{use_case,mode,agree}` (unit
+  `{agreement}`)
+- `circuit_breaker_state{dependency}` gauge (ADR-0011, the Anthropic
+  Messages API breaker)
+
+No Tier-2 counter is owed now or later unless its architecture changes.
 
 ## Consequences
 

@@ -34,6 +34,8 @@ behavior — this formalizes what ADR-0004 already conceptually requires
 but doesn't yet implement as breaker+metrics."*
 
 `order-management`'s [ADR-0025](https://claudioed.github.io/order-management/docs/adr/0025-resilience-circuit-breakers-retry-dlq-shutdown)
+(still `claudioed.github.io`: `order-management`'s own docs site has not
+migrated to the IQVO org yet, unlike this repo's own — checked directly)
 solved the equivalent problem for that service's own outbound
 dependencies (`inventory-storage`, `product-classification`) with a
 shared `internal/resilience` package (a trip-condition helper, a
