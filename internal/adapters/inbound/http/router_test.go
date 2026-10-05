@@ -1,9 +1,11 @@
 package http_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -645,5 +647,63 @@ func TestGetDashboards_NotConfigured_Returns503(t *testing.T) {
 		if rec.Code != http.StatusServiceUnavailable {
 			t.Fatalf("%s: expected 503, got %d", target, rec.Code)
 		}
+	}
+}
+
+// --- /mcp mounted on the chi router (ADR-0010) --------------------------
+
+// TestMCPHandler_MountedOnSameChiRouter_GetsFullMiddlewareChain is the
+// regression test for the ADR-0010 BUG this fixes: /mcp used to be mounted
+// on a raw http.ServeMux OUTSIDE the chi router (main.go), so it got no
+// otelchi trace, no otelchimetric RED duration, and no RequestLogger line.
+// It must now go through the exact same chi.Mux as every REST route,
+// which this test proves two ways: (1) a request to /mcp reaches the
+// handler and its response passes through, and (2) RequestLogger — which
+// only ever runs inside the chi middleware chain — logs it.
+func TestMCPHandler_MountedOnSameChiRouter_GetsFullMiddlewareChain(t *testing.T) {
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&logs, nil))
+
+	mcpCalled := false
+	mcpHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mcpCalled = true
+		w.WriteHeader(http.StatusAccepted)
+	})
+
+	router := inboundhttp.NewRouter(&inboundhttp.Handlers{MCPHandler: mcpHandler, Logger: logger}, "warehouse-ops-agent-test")
+
+	req := httptest.NewRequest(http.MethodPost, "/mcp", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if !mcpCalled {
+		t.Fatal("the /mcp handler was never invoked")
+	}
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, want 202 (from the MCP handler, echoed through the chi chain)", rec.Code)
+	}
+
+	var logged struct {
+		Msg  string `json:"msg"`
+		Path string `json:"path"`
+	}
+	if err := json.Unmarshal(logs.Bytes(), &logged); err != nil {
+		t.Fatalf("RequestLogger must have logged the /mcp request (proof it ran inside the chi chain): decode: %v; raw: %s", err, logs.String())
+	}
+	if logged.Msg != "http request" || logged.Path != "/mcp" {
+		t.Fatalf("unexpected log entry: %+v", logged)
+	}
+}
+
+// TestMCPHandler_Nil_NotRegistered checks that a nil MCPHandler (the
+// zero value every other test in this file uses) leaves /mcp simply
+// unregistered rather than panicking.
+func TestMCPHandler_Nil_NotRegistered(t *testing.T) {
+	router := inboundhttp.NewRouter(&inboundhttp.Handlers{}, "warehouse-ops-agent-test")
+	req := httptest.NewRequest(http.MethodPost, "/mcp", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404 with no MCPHandler wired", rec.Code)
 	}
 }

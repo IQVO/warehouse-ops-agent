@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
@@ -54,6 +55,20 @@ type Handlers struct {
 	// Nil is a valid value (same 503-not-panic convention as the fields
 	// above) for any deployment that hasn't wired it.
 	RuntimeSignals *usecases.RuntimeSignals
+
+	// MCPHandler is this agent's own inbound MCP server
+	// (internal/adapters/inbound/mcp), mounted at /mcp on this SAME chi
+	// router (ADR-0010) so MCP traffic gets the identical otelchi trace,
+	// otelchimetric RED duration, and RequestLogger line every REST
+	// route already gets — rather than a second http.ServeMux outside
+	// this middleware chain. Nil is a valid value: /mcp is simply not
+	// registered (e.g. in tests that only exercise REST routes).
+	MCPHandler http.Handler
+
+	// Logger receives the RequestLogger middleware's structured
+	// "http request" line for every call, including /mcp. Defaults to
+	// slog.Default() when nil.
+	Logger *slog.Logger
 }
 
 // NewRouter wires every operational REST route. All routes are open; the
@@ -62,12 +77,18 @@ type Handlers struct {
 func NewRouter(h *Handlers, serviceName string) *chi.Mux {
 	r := chi.NewRouter()
 
+	logger := h.Logger
+	if logger == nil {
+		logger = slog.Default()
+	}
+
 	metricCfg := otelchimetric.NewBaseConfig(serviceName)
 
 	r.Use(middleware.RequestID)
 	r.Use(otelchi.Middleware(serviceName, otelchi.WithChiRoutes(r)))
 	r.Use(otelchimetric.NewServerRequestDuration(metricCfg))
 	r.Use(otelchimetric.NewServerActiveRequests(metricCfg))
+	r.Use(RequestLogger(logger))
 	r.Use(middleware.Recoverer)
 	r.Use(corsMiddleware())
 
@@ -79,6 +100,15 @@ func NewRouter(h *Handlers, serviceName string) *chi.Mux {
 	r.Get("/console/reports/wms", h.getWMSDashboard)
 	r.Get("/console/reports/wes", h.getWESDashboard)
 	r.Get("/runtime-signals", h.getRuntimeSignals)
+
+	// /mcp: same router, same middleware chain as every REST route above
+	// (ADR-0010) — NOT a second handler mounted outside it on a raw
+	// ServeMux. chi.Mux.Handle matches every HTTP method at this exact
+	// path, which is what Streamable HTTP needs (POST for messages, GET
+	// for the SSE stream).
+	if h.MCPHandler != nil {
+		r.Handle("/mcp", h.MCPHandler)
+	}
 
 	return r
 }

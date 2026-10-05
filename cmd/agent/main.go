@@ -70,6 +70,14 @@ func run() error {
 		return err
 	}
 
+	mcpDeps := inboundmcp.Deps{
+		DailyBrief:          decision.dailyBrief,
+		FlowBalanceAdvisory: decision.flowBalance,
+		ExplainTravelFactor: decision.explainTravelFactor,
+		StrandedReservation: decision.strandedReservation,
+	}
+	mcpHandler := inboundmcp.Handler(inboundmcp.NewServer(mcpDeps))
+
 	handlers := &inboundhttp.Handlers{
 		DailyBrief:          decision.dailyBrief,
 		FlowBalanceAdvisory: decision.flowBalance,
@@ -77,15 +85,14 @@ func run() error {
 		OrderLifecycle:      newOrderLifecycle(cfg),
 		ConsoleReports:      newConsoleReports(cfg),
 		RuntimeSignals:      newRuntimeSignals(cfg, clients.telemetry, clients.logs),
-	}
-	mcpDeps := inboundmcp.Deps{
-		DailyBrief:          decision.dailyBrief,
-		FlowBalanceAdvisory: decision.flowBalance,
-		ExplainTravelFactor: decision.explainTravelFactor,
-		StrandedReservation: decision.strandedReservation,
+		// MCPHandler mounts /mcp on the SAME chi router as every REST
+		// route (ADR-0010): otelchi trace, otelchimetric RED duration,
+		// and RequestLogger all apply to MCP traffic too, not just REST.
+		MCPHandler: mcpHandler,
+		Logger:     logger,
 	}
 
-	return serveAgent(cfg, logger, serviceName, handlers, mcpDeps)
+	return serveAgent(cfg, logger, serviceName, handlers)
 }
 
 // outboundClients bundles every outbound adapter the use cases consume,
@@ -266,18 +273,14 @@ func newRuntimeSignals(cfg config.Config, telemetryReader ports.TelemetryReader,
 	}
 }
 
-// serveAgent mounts the REST router and this agent's own MCP server on one
-// mux, serves until SIGINT/SIGTERM, then drains in-flight requests for up
-// to 10 seconds.
-func serveAgent(cfg config.Config, logger *slog.Logger, serviceName string, handlers *inboundhttp.Handlers, mcpDeps inboundmcp.Deps) error {
+// serveAgent serves the REST router (which also carries this agent's own
+// MCP server, mounted at /mcp with the same otelchi+otelchimetric+
+// RequestLogger middleware chain every REST route gets — ADR-0010) until
+// SIGINT/SIGTERM, then drains in-flight requests for up to 10 seconds.
+func serveAgent(cfg config.Config, logger *slog.Logger, serviceName string, handlers *inboundhttp.Handlers) error {
 	router := inboundhttp.NewRouter(handlers, serviceName)
-	mcpHandler := inboundmcp.Handler(inboundmcp.NewServer(mcpDeps))
 
-	mux := http.NewServeMux()
-	mux.Handle("/", router)
-	mux.Handle("/mcp", mcpHandler)
-
-	srv := &http.Server{Addr: cfg.Addr, Handler: mux, ReadHeaderTimeout: 5 * time.Second}
+	srv := &http.Server{Addr: cfg.Addr, Handler: router, ReadHeaderTimeout: 5 * time.Second}
 
 	go func() {
 		logger.Info("warehouse-ops-agent listening",
