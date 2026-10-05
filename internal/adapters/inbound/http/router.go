@@ -250,6 +250,10 @@ type flowBalanceExceptionDTO struct {
 	MissingSignals    []string                   `json:"missingSignals,omitempty"`
 	Evidence          []flowBalanceEvidenceDTO   `json:"evidence"`
 	Utilization       *utilizationCorrelationDTO `json:"utilization,omitempty"`
+	// Source is the ADR-0004 arbitration source that produced this
+	// Decision: deterministic, llm, or fallback. Omitted when empty
+	// (tests/paths that never went through FlowBalanceAdvisory.arbitrate).
+	Source string `json:"source,omitempty"`
 }
 
 func toFlowBalanceExceptionDTO(d policy.Decision) flowBalanceExceptionDTO {
@@ -265,6 +269,7 @@ func toFlowBalanceExceptionDTO(d policy.Decision) flowBalanceExceptionDTO {
 		Partial:           d.Partial,
 		MissingSignals:    d.MissingSignals,
 		Evidence:          evidence,
+		Source:            string(d.Source),
 	}
 	if d.Utilization != nil {
 		dto.Utilization = &utilizationCorrelationDTO{

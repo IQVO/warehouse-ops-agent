@@ -125,6 +125,15 @@ type Decision struct {
 	// null utilization signal degrades to the pre-existing behavior,
 	// never a crash or a guessed-at advisory).
 	Utilization *UtilizationCorrelation
+
+	// Source records which path produced this Decision (ADR 0004):
+	// "deterministic" (LLM_MODE=off, or shadow/on with no Reasoner
+	// wired), "llm" (LLM_MODE=on with a valid, timely Plan), or
+	// "fallback" (LLM_MODE=on but the Reasoner errored, timed out, or
+	// produced an invalid Plan — the deterministic Decision was used
+	// instead). Empty only for a Decision built directly by tests that
+	// bypass FlowBalanceAdvisory.arbitrate.
+	Source DecisionSource
 }
 
 // Decide correlates the three upstream signals into one ranked

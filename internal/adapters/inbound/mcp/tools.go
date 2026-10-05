@@ -134,6 +134,9 @@ type flowBalanceExceptionOutput struct {
 	MissingSignals    []string                   `json:"missingSignals,omitempty"`
 	Evidence          []evidenceEntryDTO         `json:"evidence"`
 	Utilization       *utilizationCorrelationDTO `json:"utilization,omitempty"`
+	// Source is the ADR-0004 arbitration source that produced this
+	// Decision: deterministic, llm, or fallback.
+	Source string `json:"source,omitempty"`
 }
 
 func (d Deps) getFlowBalanceException(ctx context.Context, in flowBalanceExceptionInput) (flowBalanceExceptionOutput, error) {
@@ -150,6 +153,7 @@ func (d Deps) getFlowBalanceException(ctx context.Context, in flowBalanceExcepti
 		MissingSignals:    decision.MissingSignals,
 		Evidence:          toFlowBalanceEvidenceDTOs(decision.Evidence),
 		Utilization:       toUtilizationCorrelationDTO(decision.Utilization),
+		Source:            string(decision.Source),
 	}, nil
 }
 

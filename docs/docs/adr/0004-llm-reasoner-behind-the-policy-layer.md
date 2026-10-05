@@ -7,7 +7,7 @@ description: Why this agent gains a model-backed Reasoner port that proposes pla
 
 # ADR 0004: A real LLM reasoner behind the policy layer, with MCP tools as its only actuators
 
-- Status: Accepted — implemented for the flow-balance use case (PR #38, 2026-09-07); shadow-mode rollout pending an ANTHROPIC_API_KEY in warehouse-infra
+- Status: Accepted — implemented for the flow-balance use case (PR #38, 2026-09-07; tool-call safety hardened in a later ADR-conformance pass — schema validation, enum re-check, `llm.tool_call` span and args-hash audit logging). DailyBrief (E3) reasoner coverage is a documented next phase, not yet implemented.
 - Date: 2026-09-07
 
 ## Context
@@ -52,10 +52,14 @@ type Reasoner interface {
   `ActionReleaseNextWork` / `FlowBalanceActionHold` vocabulary,
   `ProposedHeads` is bounded, `Rationale` is free text, `Evidence` lists
   the tool calls the model actually made. Anything outside the vocabulary
-  fails `Plan.Validate()` and the whole plan is discarded.
+  fails `policy.ValidatePlan` and the whole plan is discarded.
 - The domain `policy` package does not import the port. It gains one pure
-  function, `policy.Arbitrate(det Decision, llm *Plan, mode Mode) Decision`,
-  which is the only place the two sources meet.
+  function, `policy.Arbitrate(det Decision, plan *PlanProposal, planErr error, mode LLMMode) Arbitration`,
+  which is the only place the two sources meet. `Arbitration.Decision`
+  carries a `Source` field (`deterministic` / `llm` / `fallback`) that the
+  application layer copies onto the returned `Decision.Source` — surfaced
+  on both the REST (`GET /flow-balance/{pathId}`) and MCP
+  (`get_flow_balance_exception`) responses.
 
 ### 2. The model can only act through MCP
 
@@ -63,20 +67,28 @@ The Anthropic adapter (`internal/adapters/outbound/llm/anthropic`) uses
 the Messages API with **tool use**. The tools it offers the model are
 generated 1:1 from the `mcpclient` sessions this service already holds —
 `get_rebalance_recommendation`, `get_staffing_gap`,
-`diagnose_stuck_tasks`, `check_availability`, `get_site_layout`, … and,
-once wired, the write tools `assign_labor`, `release_next_work`,
-`revoke_reservation`. The model never sees an HTTP client, a database, or
-a shell. Every tool invocation:
+`diagnose_stuck_tasks`, `check_availability`, `get_site_layout`, … all
+read tools; the model has no write tools today (see "Negative / accepted"
+below). The model never sees an HTTP client, a database, or a shell.
+Every tool invocation:
 
-- goes through the same `mcpclient` session with the same bearer key and
-  scope the deterministic code uses (read key in `shadow`/`on` for read
-  tools; the read-write key only for tools on an explicit allow-list
-  `LLM_WRITE_TOOLS`, default empty);
+- is restricted to the explicit `LLM_TOOL_ALLOWLIST` (env var, default:
+  exactly the read tools `FlowBalanceAdvisory` already consults —
+  `wes-work-planning/get_backlog_telemetry`,
+  `wes-work-planning/get_rebalance_recommendation`,
+  `workforce-management/get_staffing_gap`,
+  `fulfillment-execution/get_queue_status`,
+  `fulfillment-execution/diagnose_stuck_tasks` — so shadow mode compares
+  like with like) — never a bearer-scope distinction, since REST and MCP
+  are unauthenticated fleet-wide (ADR 0006);
 - is validated against the tool's JSON schema *before* the MCP call and
-  its enum fields re-validated *after* — the same "reject, never default"
-  rule already applied to human input;
-- emits one structured audit log line (`llm.tool_call` with tool, args
-  hash, latency, outcome) and one OTel span under the request's trace.
+  its enum-constrained properties re-checked *again*, independently, by a
+  small targeted pass — the same "reject, never default" rule already
+  applied to human input;
+- emits one structured audit log line (`llm.tool_call` with tool, a
+  sha256 hash of the canonical JSON-encoded args — never the raw args —
+  latency, outcome) and one OTel span (`llm.tool_call`) under the
+  request's trace.
 
 ### 3. The deterministic policy remains the arbiter
 
@@ -85,7 +97,7 @@ a shell. Every tool invocation:
 | mode     | behaviour |
 |----------|-----------|
 | `off`    | Reasoner never called; today's behaviour, byte-for-byte. Default. |
-| `shadow` | Reasoner called with a timeout; its Plan is logged and compared to the deterministic Decision (`ops_agent_llm_agreement{usecase,agree}` counter). The deterministic Decision is returned. |
+| `shadow` | Reasoner called with a timeout; its Plan is logged and compared to the deterministic Decision (`ops_agent_llm_agreement_total{use_case,mode,agree}` counter; every arbitration also increments `ops_agent_llm_arbitrations_total{use_case,mode,source}`). The deterministic Decision is returned. |
 | `on`     | If the Plan validates and arrived within `LLM_TIMEOUT` (default 8s), it is returned with `Source=llm`; otherwise the deterministic Decision is returned with `Source=fallback` and the reason logged. A Plan may never widen the action vocabulary or exceed `ProposedHeads` bounds. |
 
 `shadow` is the rollout gate: the cluster runs it until the agreement
@@ -97,8 +109,10 @@ metric and the logged disagreements have been reviewed, then flips to
 `ANTHROPIC_API_KEY` (Kubernetes Secret, never in Terraform state or git —
 supplied via `TF_VAR_anthropic_api_key` / a git-ignored tfvars),
 `LLM_MODEL` (default `claude-sonnet-4-5`), `LLM_MODE`, `LLM_TIMEOUT`,
-`LLM_WRITE_TOOLS`. A missing key with `LLM_MODE≠off` fails startup
-loudly rather than silently degrading to `off`.
+`LLM_TOOL_ALLOWLIST` (comma-separated `upstream/tool` entries; defaults to
+the read-only set listed in §2 above — there is no write-tool allow-list,
+since the model has no write tools). A missing key with `LLM_MODE≠off`
+fails startup loudly rather than silently degrading to `off`.
 
 ## Consequences
 
@@ -117,7 +131,7 @@ loudly rather than silently degrading to `off`.
   are decision-support, not operational hot paths.
 - Cost per call. `shadow` doubles inference cost during the rollout
   window; acceptable for a study project, tracked via the
-  `ops_agent_llm_calls_total` counter.
+  `ops_agent_llm_arbitrations_total` counter.
 - Testing a hosted model cannot use testcontainers. Unit tests use a
   fake `Reasoner` and recorded API responses (no network in CI); a
   single `-tags=integration` test hits the real API **only** when
@@ -138,11 +152,15 @@ loudly rather than silently degrading to `off`.
 - **Local model (Ollama).** Deferred: the adapter is behind a port, so a
   second implementation is additive. Hosted first, for tool-use quality.
 
-## Prerequisite recorded here so it is not forgotten
+## Prerequisite (historical — resolved)
 
-As of this ADR **no MCP server is deployed in the cluster**: no context's
-Dockerfile builds `cmd/mcp`, no chart has an MCP deployment, and this
-service's `*_MCP_ENDPOINT` values are all empty (its startup log says so).
-Batch 4 therefore begins with five Dockerfile+chart PRs (FE, WES, INV,
-WFM, FL) and a warehouse-infra change wiring endpoints and keys — before a
-single line of the Reasoner is useful.
+As of this ADR's authoring date **no MCP server was deployed in the
+cluster**: no context's Dockerfile built `cmd/mcp`, no chart had an MCP
+deployment, and this service's `*_MCP_ENDPOINT` values were all empty.
+That prerequisite batch (Dockerfile+chart PRs for FE, WES, INV, WFM, FL,
+plus the warehouse-infra endpoint/key wiring) has since landed: every one
+of those contexts now ships `cmd/mcp`, and this service holds nine
+outbound MCP-client adapters (`internal/config/config.go`'s
+`*_MCP_ENDPOINT` list), not five. The Reasoner's tool catalogue is
+therefore real today, gated only by `LLM_MODE` and `LLM_TOOL_ALLOWLIST`,
+not by missing upstream servers.

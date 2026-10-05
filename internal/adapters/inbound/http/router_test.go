@@ -204,6 +204,7 @@ func TestGetFlowBalanceException_Returns200WithDecision(t *testing.T) {
 		PathId            string `json:"pathId"`
 		RecommendedAction string `json:"recommendedAction"`
 		ProposedHeads     int    `json:"proposedHeads"`
+		Source            string `json:"source"`
 		Evidence          []struct {
 			Source string `json:"source"`
 			Detail string `json:"detail"`
@@ -220,6 +221,11 @@ func TestGetFlowBalanceException_Returns200WithDecision(t *testing.T) {
 	}
 	if len(body.Evidence) != 3 {
 		t.Errorf("len(evidence) = %d, want 3: %+v", len(body.Evidence), body.Evidence)
+	}
+	// ADR-0004: with no Reasoner wired (LLM_MODE=off implied), Source
+	// must round-trip as "deterministic", never empty.
+	if body.Source != "deterministic" {
+		t.Errorf("source = %q, want deterministic", body.Source)
 	}
 }
 

@@ -226,6 +226,12 @@ func TestGetFlowBalanceException_AllSignalsHealthy_AssignsLabor(t *testing.T) {
 	if len(out.Evidence) != 3 {
 		t.Errorf("len(Evidence) = %d, want 3: %+v", len(out.Evidence), out.Evidence)
 	}
+	// ADR-0004: with no LLM reasoner wired, Source must round-trip as
+	// "deterministic", never empty — mirrors the REST handler's
+	// TestGetFlowBalanceException_Returns200WithDecision assertion.
+	if out.Source != "deterministic" {
+		t.Errorf("Source = %q, want deterministic", out.Source)
+	}
 }
 
 // fbToolFakeLP is a minimal ports.LaborPerformanceClient fake that only
