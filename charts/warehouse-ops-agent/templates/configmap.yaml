@@ -53,6 +53,15 @@ data:
   LABOR_PERFORMANCE_REPORTS_REST_URL: {{ .Values.reportsUrls.laborPerformance | quote }}
   {{- end }}
   PROMETHEUS_URL: {{ .Values.prometheus.url | quote }}
+  {{- if .Values.runtimeSignals.lokiUrl }}
+  LOKI_URL: {{ .Values.runtimeSignals.lokiUrl | quote }}
+  {{- end }}
+  {{- if .Values.runtimeSignals.namespace }}
+  RUNTIME_SIGNALS_NAMESPACE: {{ .Values.runtimeSignals.namespace | quote }}
+  {{- end }}
+  {{- if .Values.runtimeSignals.services }}
+  RUNTIME_SIGNALS_SERVICES: {{ join "," .Values.runtimeSignals.services | quote }}
+  {{- end }}
   LLM_MODE: {{ .Values.llm.mode | quote }}
   {{- if .Values.llm.model }}
   LLM_MODEL: {{ .Values.llm.model | quote }}

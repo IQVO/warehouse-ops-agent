@@ -179,10 +179,26 @@ upstreams:
   warehousePlanning:
     endpoint: ""
 
-# warehouse-infra Prometheus base URL, for the telemetry-reader port's real
-# implementation (not yet wired — safe to leave empty).
+# warehouse-infra Prometheus base URL, for the telemetry-reader port's
+# REAL implementation (already wired: cmd/agent's newTelemetryReader picks
+# telemetry.NewPrometheusReader when this is set, telemetry.NewStubReader
+# -- safe degrade, not an error -- when left empty).
 prometheus:
   url: ""
+
+# Observability reader wiring for GET /runtime-signals (Phase 5 Task 5.3):
+# the Loki base URL for recent-error log sampling, plus the
+# namespace/service-list the Prometheus+Loki queries are scoped to.
+# Leaving lokiUrl empty keeps this agent's CURRENT behaviour byte-for-byte
+# (newLogReader returns nil, RuntimeSignals reports the log source
+# unavailable rather than guessing a URL) -- this chart never invents one
+# on its behalf. namespace/services default to the binary's own built-in
+# defaults (internal/config/config.go's "warehouse-systems" namespace and
+# 8-service fleet list) when left empty/unset here.
+runtimeSignals:
+  lokiUrl: ""
+  namespace: ""
+  services: []
 
 # Static credentials. All lands in one generated Secret unless
 # existingSecret names a Secret you manage yourself (its key names must
