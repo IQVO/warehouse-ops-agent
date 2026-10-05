@@ -7,8 +7,11 @@ description: A new read-only MCP tool + REST endpoint that calls facility-layout
 
 # ADR 0009: explain_travel_factor — travel-distance advisory correlation
 
-- Status: Accepted
-- Date: 2026-09-13
+## Status
+
+Accepted
+
+**Date:** 2026-09-13
 
 ## Context
 

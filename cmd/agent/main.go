@@ -1,11 +1,11 @@
 // Command agent is the composition root for warehouse-ops-agent: it wires
-// env config to the five outbound MCP-client adapters (one per upstream
+// env config to the nine outbound MCP-client adapters (one per upstream
 // bounded context) and the telemetry-reader stub, then wires those into
 // the DailyBrief (E3) use case and serves it over BOTH an inbound HTTP
-// endpoint and this agent's own inbound MCP server (get_daily_brief,
-// list_open_exceptions) — a single process, two driving adapters over the
-// same use case, exactly the pattern the five bounded contexts use for
-// their own HTTP+MCP pair.
+// endpoint and this agent's own inbound MCP server (five tools: see
+// internal/adapters/inbound/mcp/server.go) — a single process, two
+// driving adapters over the same use case, exactly the pattern the five
+// bounded contexts use for their own HTTP+MCP pair.
 package main
 
 import (

@@ -7,8 +7,11 @@ description: Adding three outbound MCP-client adapters for order-management, lab
 
 # ADR 0007: Second-wave outbound MCP clients — order-management, labor-performance, process-path-management wired but unconsumed
 
-- Status: Accepted
-- Date: 2026-09-11
+## Status
+
+Accepted
+
+**Date:** 2026-09-11
 
 ## Context
 

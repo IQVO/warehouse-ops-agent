@@ -7,8 +7,11 @@ description: The fleet-wide Tier 1 / Tier 2 metrics convention (mandatory runtim
 
 # ADR 0010: Standard metrics convention across the fleet
 
-- Status: Accepted
-- Date: 2026-09-05
+## Status
+
+Accepted
+
+**Date:** 2026-09-05
 
 ## Context
 

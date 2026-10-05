@@ -89,10 +89,14 @@ autoscaling:
   # targetMemoryUtilizationPercentage: 0  # uncomment + set to also gate on memory
 
 # This agent is a stateless MCP-client aggregator: no database, no Kafka.
-# config.agentAddr is its own listen address, serving BOTH the inbound HTTP
-# routes (/healthz, /daily-brief, /flow-balance/{pathId}) and the inbound
-# MCP server (/mcp) on the SAME http.Server/mux — one containerPort covers
-# both (see cmd/agent/main.go).
+# config.agentAddr is its own listen address, serving BOTH every inbound
+# HTTP route (/healthz, /daily-brief, /flow-balance/{pathId},
+# /explain-travel-factor, /console/orders/{id}/lifecycle,
+# /console/reports/wms, /console/reports/wes, /runtime-signals) and the
+# inbound MCP server (/mcp) on the SAME chi.Mux -- one containerPort
+# covers both, and /mcp gets the identical otelchi/otelchimetric/
+# RequestLogger middleware chain every REST route does (ADR 0010; see
+# cmd/agent/main.go and internal/adapters/inbound/http/router.go).
 config:
   agentAddr: ":8095"
   logLevel: "info"
@@ -217,7 +221,8 @@ credentials:
 #   on     - use a valid plan, fall back to deterministic on error/timeout/
 #            out-of-vocabulary
 # The model's ONLY actuators are the MCP read tools in toolAllowList
-# (<upstream>/<tool>), invoked with this agent's read keys above.
+# (<upstream>/<tool>) -- REST and MCP are unauthenticated fleet-wide
+# (ADR 0006), so this allow-list is what bounds the model, not a key/scope.
 # ---------------------------------------------------------------------------
 llm:
   mode: "off"

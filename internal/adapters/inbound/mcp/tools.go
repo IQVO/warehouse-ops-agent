@@ -296,8 +296,12 @@ func (d Deps) detectStrandedReservation(ctx context.Context, in strandedReservat
 // --- registration -----------------------------------------------------------
 
 // registerTools adds every tool to the server, each wrapped so its handler
-// runs inside an OTel span named "mcp.tool <name>". Both tools are
-// read-only — this agent has no write tool at all.
+// runs inside an OTel span named "mcp.tool <name>". get_daily_brief and
+// list_open_exceptions are always registered; get_flow_balance_exception,
+// explain_travel_factor, and detect_stranded_reservation are registered
+// only when their use case is wired (see each one's own nil check below)
+// — up to five tools total, every one of them read-only. This agent has
+// no write tool at all.
 func (d Deps) registerTools(server *mcp.Server) {
 	readOnly := true
 

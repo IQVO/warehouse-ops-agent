@@ -13,10 +13,12 @@ import (
 
 // ToolInvoker is the ports.ToolInvoker the LLM reasoner is handed (ADR
 // 0004): a map of upstream name -> Session, exposing ONLY the tools on an
-// explicit allow-list per upstream. The model can therefore reach nothing
-// but curated MCP read tools, each authenticated with that context's read
-// key, and every call flows through the same Session.callTool path (same
-// timeout, same error mapping) the deterministic use cases use.
+// explicit allow-list (LLM_TOOL_ALLOWLIST) per upstream. The model can
+// therefore reach nothing but curated MCP read tools — REST and MCP are
+// unauthenticated fleet-wide (ADR 0006), so the allow-list, not a bearer
+// scope, is what bounds it — and every call flows through the same
+// Session.callTool path (same timeout, same error mapping) the
+// deterministic use cases use.
 type ToolInvoker struct {
 	sessions map[string]*Session
 	allowed  map[string]map[string]struct{}

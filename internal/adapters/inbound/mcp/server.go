@@ -6,8 +6,10 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// NewServer builds warehouse-ops-agent's own MCP server: get_daily_brief
-// and list_open_exceptions, both read-only.
+// NewServer builds warehouse-ops-agent's own MCP server: five read-only
+// tools (get_daily_brief, list_open_exceptions, get_flow_balance_exception,
+// explain_travel_factor, detect_stranded_reservation — the last three
+// registered only when their use case is wired; see registerTools).
 func NewServer(deps Deps) *mcp.Server {
 	server := mcp.NewServer(
 		&mcp.Implementation{Name: "warehouse-ops-agent-mcp", Version: "1.0.0"},

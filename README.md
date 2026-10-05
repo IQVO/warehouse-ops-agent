@@ -35,7 +35,7 @@ See [ADR 0001](./docs/docs/adr/0001-warehouse-ops-agent-placement.md) for
 the placement decision this repo embodies. The full documentation
 site (business context, DDD placement, API surface, governance note, and
 every ADR) is published from `docs/` — see
-[claudioed.github.io/warehouse-ops-agent](https://claudioed.github.io/warehouse-ops-agent/)
+[iqvo.github.io/warehouse-ops-agent](https://iqvo.github.io/warehouse-ops-agent/)
 once the `Docs` GitHub Actions workflow has deployed it, or run it locally
 with `cd docs && npm install && npm start`.
 

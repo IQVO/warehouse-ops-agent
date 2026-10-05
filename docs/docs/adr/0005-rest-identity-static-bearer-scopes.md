@@ -12,9 +12,13 @@ description: The fleet-wide decision to protect every REST surface with the same
 > kept in place as the historical record of why it existed. Do not follow
 > this record's Decision/Rollout sections for new work.
 
-- Status: Superseded by [ADR 0006](./0006-fleet-wide-auth-removal.md)
-- Date: 2026-09-07
-- Scope: **fleet-wide.** Recorded here because this service is the fleet's
+## Status
+
+Superseded by [ADR 0006](./0006-fleet-wide-auth-removal.md)
+
+**Date:** 2026-09-07
+
+**Scope:** **fleet-wide.** Recorded here because this service is the fleet's
   cross-context Customer and already documents the console/BFF and MCP
   posture (ADR 0002, ADR 0003). Each context records a one-paragraph
   adoption ADR pointing back to this one.

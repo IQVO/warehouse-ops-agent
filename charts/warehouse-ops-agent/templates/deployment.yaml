@@ -39,10 +39,12 @@ spec:
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
-            # A single containerPort: the inbound HTTP routes (/healthz,
-            # /daily-brief, /flow-balance/{pathId}) and the inbound MCP
-            # server (/mcp) are both served off the same http.Server/mux
-            # on AGENT_ADDR (see cmd/agent/main.go) -- no second port.
+            # A single containerPort: every inbound HTTP route
+            # (/healthz, /daily-brief, /flow-balance/{pathId},
+            # /explain-travel-factor, /console/..., /runtime-signals) and
+            # the inbound MCP server (/mcp) are both served off the same
+            # chi.Mux on AGENT_ADDR (see cmd/agent/main.go) -- no second
+            # port.
             - name: http
               containerPort: {{ .Values.service.targetPort }}
               protocol: TCP

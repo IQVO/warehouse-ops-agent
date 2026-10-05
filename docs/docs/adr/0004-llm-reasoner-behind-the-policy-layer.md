@@ -7,8 +7,11 @@ description: Why this agent gains a model-backed Reasoner port that proposes pla
 
 # ADR 0004: A real LLM reasoner behind the policy layer, with MCP tools as its only actuators
 
-- Status: Accepted — implemented for the flow-balance use case (PR #38, 2026-09-07; tool-call safety hardened in a later ADR-conformance pass — schema validation, enum re-check, `llm.tool_call` span and args-hash audit logging). DailyBrief (E3) reasoner coverage is a documented next phase, not yet implemented.
-- Date: 2026-09-07
+## Status
+
+Accepted — implemented for the flow-balance use case (PR #38, 2026-09-07; tool-call safety hardened in a later ADR-conformance pass — schema validation, enum re-check, `llm.tool_call` span and args-hash audit logging). DailyBrief (E3) reasoner coverage is a documented next phase, not yet implemented.
+
+**Date:** 2026-09-07
 
 ## Context
 

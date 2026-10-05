@@ -7,8 +7,11 @@ description: Why the WMS and WES chart dashboards are assembled by a fan-out in 
 
 # ADR 0003: Console-BFF report dashboards aggregating every context's analytics endpoint
 
-- Status: Accepted
-- Date: 2026-09-05
+## Status
+
+Accepted
+
+**Date:** 2026-09-05
 
 ## Context
 
