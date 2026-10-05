@@ -69,6 +69,8 @@ const sidebars: SidebarsConfig = {
         'adr/0011-reasoner-path-circuit-breaker-timeout-retry',
         'adr/0012-horizontal-autoscaling-single-deployment',
         'adr/0013-warehouse-planning-mcp-client-and-capacity-outlook',
+        'adr/0014-runtime-signals-and-stranded-reservation-adoption',
+        'adr/0015-core-flow-balance-and-daily-brief-adoption',
       ],
     },
   ],
