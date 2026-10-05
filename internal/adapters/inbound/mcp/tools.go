@@ -126,13 +126,14 @@ type flowBalanceExceptionInput struct {
 }
 
 type flowBalanceExceptionOutput struct {
-	PathId            string             `json:"pathId"`
-	RecommendedAction string             `json:"recommendedAction"`
-	ProposedHeads     int                `json:"proposedHeads,omitempty"`
-	Rationale         string             `json:"rationale"`
-	Partial           bool               `json:"partial"`
-	MissingSignals    []string           `json:"missingSignals,omitempty"`
-	Evidence          []evidenceEntryDTO `json:"evidence"`
+	PathId            string                     `json:"pathId"`
+	RecommendedAction string                     `json:"recommendedAction"`
+	ProposedHeads     int                        `json:"proposedHeads,omitempty"`
+	Rationale         string                     `json:"rationale"`
+	Partial           bool                       `json:"partial"`
+	MissingSignals    []string                   `json:"missingSignals,omitempty"`
+	Evidence          []evidenceEntryDTO         `json:"evidence"`
+	Utilization       *utilizationCorrelationDTO `json:"utilization,omitempty"`
 }
 
 func (d Deps) getFlowBalanceException(ctx context.Context, in flowBalanceExceptionInput) (flowBalanceExceptionOutput, error) {
@@ -148,6 +149,7 @@ func (d Deps) getFlowBalanceException(ctx context.Context, in flowBalanceExcepti
 		Partial:           decision.Partial,
 		MissingSignals:    decision.MissingSignals,
 		Evidence:          toFlowBalanceEvidenceDTOs(decision.Evidence),
+		Utilization:       toUtilizationCorrelationDTO(decision.Utilization),
 	}, nil
 }
 

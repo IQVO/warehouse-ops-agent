@@ -35,6 +35,21 @@ func toFlowBalanceEvidenceDTOs(entries []policy.FlowBalanceEvidenceEntry) []evid
 	return out
 }
 
+// utilizationCorrelationDTO is the tool-boundary shape of the additive
+// labor-utilization correlation overlay (ADR 0008's Decision.Utilization),
+// mirroring internal/adapters/inbound/http's own utilizationCorrelationDTO.
+type utilizationCorrelationDTO struct {
+	Kind      string `json:"kind"`
+	Rationale string `json:"rationale"`
+}
+
+func toUtilizationCorrelationDTO(u *policy.UtilizationCorrelation) *utilizationCorrelationDTO {
+	if u == nil {
+		return nil
+	}
+	return &utilizationCorrelationDTO{Kind: string(u.Kind), Rationale: u.Rationale}
+}
+
 // mapping.go holds the tool-boundary DTOs mirroring
 // internal/adapters/inbound/http's DTOs, kept as a separate, independent
 // mapping rather than shared types so the HTTP and MCP surfaces can evolve
