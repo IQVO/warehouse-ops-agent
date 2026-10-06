@@ -86,7 +86,8 @@ logical links are prose-only:
 
 - `CONFIG` holds a list of `PATH_TARGET` entries (`DAILY_BRIEF_PATH_TARGETS`,
   a JSON array; one default target `WH1` / `pick-zone-a` / `PICK` /
-  `wh1` / `shift-1` when unset or unparseable) and one `LLM_CONFIG`.
+  `wh1` / `shift-1` when unset; a set but unparseable value is a startup
+  error, not a silent fallback) and one `LLM_CONFIG`.
 - `TOOL_SPEC_CACHE` is filled once per process by `ToolInvoker.Specs`, and
   only when `LLM_MODE` is not `off`.
 - `CIRCUIT_BREAKER` exists only when the Anthropic reasoner is wired.

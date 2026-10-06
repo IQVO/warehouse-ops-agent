@@ -34,6 +34,7 @@ accepted.
 | [0013](./0013-warehouse-planning-mcp-client-and-capacity-outlook.md) | warehouse-planning MCP client (read tools only) and the fail-open capacity outlook in the daily brief | Accepted |
 | [0014](./0014-runtime-signals-and-stranded-reservation-adoption.md) | Adoption record: GET /runtime-signals and detect_stranded_reservation (E2) | Accepted (adoption record) |
 | [0015](./0015-core-flow-balance-and-daily-brief-adoption.md) | Adoption record: E1 flow-balance correlation and E3 daily brief (core use cases) | Accepted (adoption record) |
+| [0016](./0016-rest-error-mapping-cors-and-strict-path-target-config.md) | REST error mapping for explain-travel-factor, GET-only CORS, and strict DAILY_BRIEF_PATH_TARGETS config | Accepted |
 
 ## Proposing a new one
 

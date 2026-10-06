@@ -2,6 +2,7 @@ package http_test
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -76,5 +77,26 @@ func TestGetExplainTravelFactor_MissingLocationCode_Returns400(t *testing.T) {
 
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400; body: %s", rec.Code, rec.Body.String())
+	}
+}
+
+// An unreachable / failing facility-layout is an upstream degradation, not
+// a caller mistake: it must surface as 502, never as the 400 reserved for
+// invalid input.
+func TestGetExplainTravelFactor_UpstreamFailure_Returns502(t *testing.T) {
+	handlers := &inboundhttp.Handlers{
+		DailyBrief: newTestDailyBrief(),
+		ExplainTravelFactor: &usecases.ExplainTravelFactor{
+			Facility: &fakeFacility{err: errors.New("facility-layout unreachable")},
+		},
+	}
+	router := inboundhttp.NewRouter(handlers, "warehouse-ops-agent-test")
+
+	req := httptest.NewRequest(http.MethodGet, "/explain-travel-factor?pathId=pick-a&fromLocationCode=WH1-STOR-AMB-A07-01-01-A&toLocationCode=WH1-STOR-AMB-A09-03-01-A", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("status = %d, want 502; body: %s", rec.Code, rec.Body.String())
 	}
 }

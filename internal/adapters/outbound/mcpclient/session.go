@@ -31,17 +31,19 @@ type Config struct {
 	Timeout time.Duration
 }
 
-// Session is a thin wrapper over one connected MCP client session to a
-// single upstream server, shared by every typed client in this package. Each
-// typed client (WesWorkPlanning, FulfillmentExecution, ...) embeds a Session
-// and adds one method per tool it calls.
+// Session holds the connection config for a single upstream MCP server and
+// opens a short-lived client session per tool call (it does not keep a
+// connected session). It is shared by every typed client in this package:
+// each typed client (WesWorkPlanning, FulfillmentExecution, ...) embeds a
+// Session and adds one method per tool it calls.
 type Session struct {
 	cfg Config
 }
 
 // New builds a Session for the given upstream server config. It does not
-// connect eagerly: connection happens lazily on the first tool call and the
-// resulting client session is reused for subsequent calls.
+// connect eagerly: every tool call opens its own fresh client session (see
+// connect) and closes it when the call returns. Nothing is cached or reused
+// between calls.
 func New(cfg Config) *Session {
 	if cfg.Timeout <= 0 {
 		cfg.Timeout = 10 * time.Second

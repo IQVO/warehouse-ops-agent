@@ -92,6 +92,7 @@ const sidebars: SidebarsConfig = {
         'adr/0013-warehouse-planning-mcp-client-and-capacity-outlook',
         'adr/0014-runtime-signals-and-stranded-reservation-adoption',
         'adr/0015-core-flow-balance-and-daily-brief-adoption',
+        'adr/0016-rest-error-mapping-cors-and-strict-path-target-config',
       ],
     },
   ],

@@ -57,7 +57,7 @@ These reject untrusted input; none guards a stored state.
 | `LLM_MODE` is `off`, `shadow` or `on` | `policy.ParseLLMMode` | an unknown mode — a startup error in `cmd/agent/reasoner.go` |
 | An LLM plan uses the closed action vocabulary, `0 ≤ proposedHeads ≤ 50`, heads only with `assign_labor`, non-empty rationale | `policy.ValidatePlan` (wraps `policy.ErrInvalidPlan`) | an out-of-vocabulary or out-of-bounds plan; `Arbitrate` falls back to the deterministic decision |
 | A capacity reading is in `ORDER` units and non-negative | `policy.SummarizeCapacityOutlook` | any other unit or a negative rate, turned into an `OmittedReason` |
-| Both location codes are supplied | `usecases.ExplainTravelFactor.Execute` | a missing `fromLocationCode` / `toLocationCode` (HTTP 400) |
+| Both location codes are supplied | `usecases.ExplainTravelFactor.Execute` | a missing `fromLocationCode` / `toLocationCode` (error wrapping `usecases.ErrInvalidInput`, HTTP 400); an upstream facility-layout failure is not input validation and is HTTP 502 |
 
 ## Decision objects and read models (listed separately)
 
