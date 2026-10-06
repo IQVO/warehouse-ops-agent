@@ -104,8 +104,12 @@ func rank(s SignalSeverity) int {
 // GeneratedAt and the per-service breakdown are all this type carries —
 // it is a plain read model, no behaviour beyond the severity helpers
 // above.
+//
+// It carries no serialisation tags: the wire shape of GET /runtime-signals
+// is owned by the inbound HTTP adapter's runtimeSignalsDTO
+// (internal/adapters/inbound/http/router.go), pinned by golden tests.
 type RuntimeSignalsReport struct {
-	GeneratedAt        string          `json:"generatedAt"`
-	Services           []ServiceSignal `json:"services"`
-	UnavailableSources []string        `json:"unavailableSources,omitempty"`
+	GeneratedAt        string
+	Services           []ServiceSignal
+	UnavailableSources []string
 }

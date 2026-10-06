@@ -85,6 +85,9 @@ func assertTravelFactorUpstreamError(t *testing.T, wantErr error) {
 	if !errors.Is(err, wantErr) {
 		t.Errorf("err = %v, want %v", err, wantErr)
 	}
+	if errors.Is(err, usecases.ErrInvalidInput) {
+		t.Errorf("an upstream failure must not be classified as invalid input: %v", err)
+	}
 	if got.Reading != nil || got.Correlation != nil {
 		t.Errorf("expected a zero-value result on error, got %+v", got)
 	}
@@ -113,10 +116,10 @@ func assertTravelFactorMissingLocationCodes(t *testing.T) {
 	facility := &fakeFacility{travel: ports.TravelDistance{MetresM: 90.0}}
 	uc := &usecases.ExplainTravelFactor{Facility: facility}
 
-	if _, err := uc.Execute(context.Background(), "PICK-PATH-1", "", "WH1-STOR-AMB-A09-03-01-A"); err == nil {
-		t.Error("expected an error for an empty fromLocationCode")
+	if _, err := uc.Execute(context.Background(), "PICK-PATH-1", "", "WH1-STOR-AMB-A09-03-01-A"); !errors.Is(err, usecases.ErrInvalidInput) {
+		t.Errorf("empty fromLocationCode: err = %v, want ErrInvalidInput", err)
 	}
-	if _, err := uc.Execute(context.Background(), "PICK-PATH-1", "WH1-STOR-AMB-A07-01-01-A", ""); err == nil {
-		t.Error("expected an error for an empty toLocationCode")
+	if _, err := uc.Execute(context.Background(), "PICK-PATH-1", "WH1-STOR-AMB-A07-01-01-A", ""); !errors.Is(err, usecases.ErrInvalidInput) {
+		t.Errorf("empty toLocationCode: err = %v, want ErrInvalidInput", err)
 	}
 }

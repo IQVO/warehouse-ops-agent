@@ -4,12 +4,14 @@
 // bearer-key pair to configure), plus this agent's own listen address and
 // the set of process paths the daily brief (E3) monitors. It is
 // deliberately dumb (env-var reads, defaults, no validation beyond
-// presence) — the composition root (cmd/agent) decides what to do with a
+// presence, except that a malformed DAILY_BRIEF_PATH_TARGETS is a load
+// error) — the composition root (cmd/agent) decides what to do with a
 // missing value.
 package config
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -194,8 +196,14 @@ type LLMConfig struct {
 // Load reads Config from the environment. Every field defaults to an empty
 // string when its env var is unset; the composition root is responsible for
 // deciding whether an empty endpoint/key means "skip this client" or "fail
-// closed" for its use case.
-func Load() Config {
+// closed" for its use case. The one exception is a malformed
+// DAILY_BRIEF_PATH_TARGETS, which is returned as an error so the process
+// fails at startup instead of silently running with the default target.
+func Load() (Config, error) {
+	pathTargets, err := loadPathTargets()
+	if err != nil {
+		return Config{}, err
+	}
 	return Config{
 		Addr: getenv("AGENT_ADDR", ":8095"),
 
@@ -247,7 +255,7 @@ func Load() Config {
 		RuntimeSignalsNamespace: getenv("RUNTIME_SIGNALS_NAMESPACE", "warehouse-systems"),
 		RuntimeSignalsServices:  loadRuntimeSignalsServices(),
 
-		PathTargets: loadPathTargets(),
+		PathTargets: pathTargets,
 
 		LLM: LLMConfig{
 			Mode:          getenv("LLM_MODE", "off"),
@@ -257,7 +265,7 @@ func Load() Config {
 			Timeout:       loadDuration("LLM_TIMEOUT", 8*time.Second),
 			ToolAllowList: loadList("LLM_TOOL_ALLOWLIST", defaultLLMToolAllowList),
 		},
-	}
+	}, nil
 }
 
 // defaultCapacityOutlookHorizon is one shift: the capacity outlook looks
@@ -304,19 +312,24 @@ func loadList(key string, fallback []string) []string {
 }
 
 // loadPathTargets parses DAILY_BRIEF_PATH_TARGETS as a JSON array of
-// PathTarget, falling back to defaultPathTargets when the env var is unset
-// or fails to parse. A malformed override must never silently produce an
-// empty (and therefore useless) daily brief.
-func loadPathTargets() []PathTarget {
+// PathTarget. Unset (or an explicitly empty array) uses defaultPathTargets.
+// A set value that is not valid JSON for []PathTarget is an operator error
+// and is returned as a config error so startup fails loudly: silently
+// falling back to the default would hide the misconfiguration and brief
+// the wrong paths.
+func loadPathTargets() ([]PathTarget, error) {
 	raw := os.Getenv("DAILY_BRIEF_PATH_TARGETS")
 	if raw == "" {
-		return defaultPathTargets
+		return defaultPathTargets, nil
 	}
 	var targets []PathTarget
-	if err := json.Unmarshal([]byte(raw), &targets); err != nil || len(targets) == 0 {
-		return defaultPathTargets
+	if err := json.Unmarshal([]byte(raw), &targets); err != nil {
+		return nil, fmt.Errorf("config: DAILY_BRIEF_PATH_TARGETS is not a valid JSON array of path targets: %w", err)
 	}
-	return targets
+	if len(targets) == 0 {
+		return defaultPathTargets, nil
+	}
+	return targets, nil
 }
 
 // defaultRuntimeSignalsServices is the fleet's 8 backend bounded contexts

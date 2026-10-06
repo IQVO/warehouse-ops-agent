@@ -14,7 +14,7 @@ func NewServer(deps Deps) *mcp.Server {
 	server := mcp.NewServer(
 		&mcp.Implementation{Name: "warehouse-ops-agent-mcp", Version: "1.0.0"},
 		&mcp.ServerOptions{
-			Instructions: "Read-only access to warehouse-ops-agent's synthesized daily operational brief: per-site/per-path backlog, staffing, and stuck-task facts, plus correlated open exceptions ranked by severity. This agent never writes to any bounded context.",
+			Instructions: "Read-only access to warehouse-ops-agent's synthesized operational advice. Always available: get_daily_brief (per-site/per-path backlog, staffing, and stuck-task facts plus correlated open exceptions ranked by severity) and list_open_exceptions (those exceptions, optionally filtered by minimum severity). Available only when the deployment wires them: get_flow_balance_exception (correlated rebalance/staffing/stuck-task recommendation for one process path), explain_travel_factor (travel-distance significance between two caller-supplied location codes) and detect_stranded_reservation (stranded-reservation recommendation for one SKU; it only recommends, never revokes). This agent never writes to any bounded context.",
 		},
 	)
 

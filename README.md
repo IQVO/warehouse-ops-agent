@@ -138,7 +138,9 @@ Plus:
   REST at `/` and its MCP server at `/mcp`.
 - `DAILY_BRIEF_PATH_TARGETS` — optional JSON array overriding which process
   paths the daily brief monitors; defaults to the single `pick-zone-a` path
-  the e2e-tests bootstrap scenario seeds. Each target may also carry
+  the e2e-tests bootstrap scenario seeds when unset. A set value that is not
+  a valid JSON array of targets aborts startup with a config error (it never
+  silently falls back to the default). Each target may also carry
   optional `planningPathId`, `unitsPerOrder`, `packagesPerOrder` (ADR 0013):
   the warehouse-planning process-path id and workload conversion factors for
   the capacity outlook. There is no default for any of them.
