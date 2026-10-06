@@ -6,6 +6,7 @@ package usecases
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 
@@ -14,6 +15,12 @@ import (
 )
 
 const flSource = "facility-layout.estimate_travel_distance"
+
+// ErrInvalidInput marks a use-case error caused by the caller's own input
+// (e.g. a missing location code), as opposed to an upstream failure. The
+// inbound HTTP adapter maps it to 400; every other error from Execute is an
+// upstream degradation and maps to 502.
+var ErrInvalidInput = errors.New("invalid input")
 
 // ExplainTravelFactor is the ADR-0009 use case: given a pathId (for
 // context/logging only — never used to resolve the location codes, which
@@ -56,8 +63,10 @@ type TravelFactorResult struct {
 // degrades to a Result with both fields nil, mirroring every other
 // upstream-unavailable degradation in this package (ADR-0004 fallback
 // discipline) — the error is returned as well, for the caller to log or
-// surface, but it is never treated as a use-case-level failure that
-// should propagate as a 500.
+// surface. It is never a use-case-level failure that should propagate as
+// a 500: the HTTP adapter reports it as 502 (upstream degradation), while
+// an error wrapping ErrInvalidInput (missing location code) is the
+// caller's mistake and is reported as 400.
 func (uc *ExplainTravelFactor) Execute(ctx context.Context, pathId, fromLocationCode, toLocationCode string) (TravelFactorResult, error) {
 	logger := uc.Logger
 	if logger == nil {
@@ -68,7 +77,7 @@ func (uc *ExplainTravelFactor) Execute(ctx context.Context, pathId, fromLocation
 		return TravelFactorResult{}, nil
 	}
 	if fromLocationCode == "" || toLocationCode == "" {
-		return TravelFactorResult{}, fmt.Errorf("explain_travel_factor: fromLocationCode and toLocationCode are both required")
+		return TravelFactorResult{}, fmt.Errorf("%w: explain_travel_factor: fromLocationCode and toLocationCode are both required", ErrInvalidInput)
 	}
 
 	raw, err := uc.Facility.EstimateTravelDistance(ctx, fromLocationCode, toLocationCode)

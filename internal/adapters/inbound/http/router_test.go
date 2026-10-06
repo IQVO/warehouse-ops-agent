@@ -352,6 +352,42 @@ func TestGetOrderLifecycle_OrderNotFound_Returns404(t *testing.T) {
 	}
 }
 
+// Order-management being down (any non-404 error) degrades that one stage to
+// null per ADR 0002 -- it is NOT an HTTP error. This pins the contract that
+// makes a 502 branch in getOrderLifecycle unreachable.
+func TestGetOrderLifecycle_OrderManagementDown_DegradesTo200WithNullStage(t *testing.T) {
+	var om ports.OrderManagementClient = &fakeOM{err: errors.New("order-management unreachable")}
+	uc := &usecases.OrderLifecycle{
+		OrderManagement: &om,
+		Inventory:       &fakeInv{reservations: []ports.ReservationDTO{{SKU: "SKU-1", Quantity: 2, Status: "CONFIRMED"}}},
+	}
+	handlers := &inboundhttp.Handlers{DailyBrief: newTestDailyBrief(), OrderLifecycle: uc}
+	router := inboundhttp.NewRouter(handlers, "warehouse-ops-agent-test")
+
+	req := httptest.NewRequest(http.MethodGet, "/console/orders/ord-1/lifecycle", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (degraded); body: %s", rec.Code, rec.Body.String())
+	}
+	var body struct {
+		OrderManagement *json.RawMessage `json:"orderManagement"`
+		Inventory       *struct {
+			Reservations []json.RawMessage `json:"reservations"`
+		} `json:"inventory"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if body.OrderManagement != nil {
+		t.Errorf("orderManagement = %s, want null", string(*body.OrderManagement))
+	}
+	if body.Inventory == nil || len(body.Inventory.Reservations) != 1 {
+		t.Errorf("inventory stage should still be reported, got %+v", body.Inventory)
+	}
+}
+
 func TestGetOrderLifecycle_NotConfigured_Returns503(t *testing.T) {
 	handlers := &inboundhttp.Handlers{DailyBrief: newTestDailyBrief()}
 	router := inboundhttp.NewRouter(handlers, "warehouse-ops-agent-test")
