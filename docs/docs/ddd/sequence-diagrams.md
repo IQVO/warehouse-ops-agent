@@ -148,7 +148,7 @@ sequenceDiagram
     else wired
         IN->>UC: Execute
         alt either location code empty
-            UC-->>IN: error both codes required
+            UC-->>IN: ErrInvalidInput both codes required
             IN-->>C: 400, or tool error
         else both supplied
             UC->>MC: EstimateTravelDistance from, to
@@ -156,7 +156,7 @@ sequenceDiagram
             alt upstream error or malformed code
                 FL-->>MC: error
                 UC-->>IN: empty result and error
-                IN-->>C: 400, or tool error
+                IN-->>C: 502, or tool error
             else distance
                 FL-->>MC: metres, estimated
                 UC->>P: CorrelateTravelFactor reading

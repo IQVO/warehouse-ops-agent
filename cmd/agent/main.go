@@ -66,7 +66,10 @@ func run() error {
 		logger.Warn("opentelemetry disabled; traces and metrics will not be exported")
 	}
 
-	cfg := config.Load()
+	cfg, err := config.Load()
+	if err != nil {
+		return err
+	}
 	clients := newOutboundClients(cfg)
 
 	decision := newDecisionSupport(cfg, clients)
