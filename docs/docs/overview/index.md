@@ -2,7 +2,7 @@
 id: index
 title: Warehouse Ops Agent
 sidebar_label: Introduction
-description: The read-side decision-support agent that correlates the fleet's five bounded contexts into one ranked, human-gated recommendation.
+description: The read-side decision-support agent that correlates the fleet's bounded contexts into one ranked, human-gated recommendation.
 ---
 
 # Warehouse Ops Agent
@@ -39,7 +39,7 @@ own, so calling it a "context" would be a domain in name only.
 
 Each upstream context already exposes a curated, intent-level MCP read
 surface (the fleet's
-[MCP Governance Charter](https://claudioed.github.io/fulfillment-execution/docs/mcp/governance-charter)).
+[MCP Governance Charter](https://iqvo.github.io/fulfillment-execution/docs/mcp/governance-charter)).
 This agent's outbound adapters (`internal/adapters/outbound/mcpclient/`)
 are thin, schema-typed clients over exactly those tools — never a Go
 import of any sibling's internal packages:
@@ -50,7 +50,7 @@ import of any sibling's internal packages:
 | `fulfillment-execution` | `get_queue_status`, `find_claimable_work`, `diagnose_stuck_tasks` | daily brief, flow balance |
 | `workforce-management` | `get_staffing_gap`, `propose_path_heads` | daily brief, flow balance (`get_staffing_gap`) |
 | `facility-layout` | `list_sites`, `get_site_layout`, `get_zone_grid`, `estimate_travel_distance` | daily brief (`list_sites`), explain travel factor |
-| `inventory-storage` | `check_availability`, `get_bin_occupancy` | E2 stranded reservation (not yet wired to an inbound adapter) |
+| `inventory-storage` | `check_availability`, `get_bin_occupancy` | E2 stranded reservation (MCP tool `detect_stranded_reservation`) |
 | `labor-performance` | `get_associate_scorecard`, `get_task_type_performance`, `get_labor_standard`, `get_task_type_utilization` | flow-balance utilization overlay (`get_task_type_utilization`, [ADR 0008](../adr/0008-labor-utilization-advisory-correlation.md)) |
 | `order-management` | `get_order` | nothing yet (wired, unconsumed) |
 | `process-path-management` | `get_process_path`, `list_process_paths` | nothing yet (wired, unconsumed) |
@@ -85,7 +85,9 @@ why that degrade-to-hold discipline is the whole point of the design.
   exists the way it does, and the guardrails that keep it that way.
 - [Ubiquitous language](../business-context/ubiquitous-language.md) — the
   exact vocabulary this service uses, including the terms it borrows from
-  its five upstream contexts.
+  its upstream contexts.
+- [DDD artifacts (ddd-crew)](../ddd/ddd-artifacts.md) — core domain chart,
+  bounded context canvas, EventStorming, class / ER / sequence diagrams.
 - [API surface](../api-surface.md) — the REST and MCP tools this agent
   exposes.
 - [Context map](../ecosystem/context-map.md) — how this agent sits among

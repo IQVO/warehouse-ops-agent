@@ -9,7 +9,7 @@ description: warehouse-ops-agent only ever writes through published tools; v1 is
 
 This note records the governance decision specific to
 `warehouse-ops-agent`, on top of the fleet-wide rules in the
-[MCP Governance Charter](https://claudioed.github.io/fulfillment-execution/docs/mcp/governance-charter)
+[MCP Governance Charter](https://iqvo.github.io/fulfillment-execution/docs/mcp/governance-charter)
 (`fulfillment-execution` is the charter's canonical home; every sibling
 context, and this agent, follow it). Read that charter first — this page
 only covers what is specific to being a cross-context *decision-support*

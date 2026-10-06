@@ -4,9 +4,11 @@ import type {SidebarsConfig} from '@docusaurus/plugin-content-docs';
  * The same shared top-level shape every warehouse-systems documentation
  * site uses: Overview, Business Context, Domain-Driven Design, Ecosystem,
  * AI Ecosystem (MCP), Architecture Decision Records. No API Reference
- * category here \u2014 this agent has no OpenAPI spec of its own yet (its two
- * inbound surfaces, GET /daily-brief and its MCP tools, are documented in
- * prose, see docs/api-surface.md).
+ * category here \u2014 this agent has no OpenAPI spec by design (its REST
+ * routes and MCP tools are documented in prose, see docs/api-surface.md).
+ * The ddd-crew DDD artifact pack lives in the Domain-Driven Design
+ * category; its context map and glossary stay under Ecosystem and
+ * Business Context.
  */
 const sidebars: SidebarsConfig = {
   docsSidebar: [
@@ -30,7 +32,26 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'Domain-Driven Design',
       collapsed: false,
-      items: ['ddd/subdomain-classification'],
+      items: [
+        'ddd/subdomain-classification',
+        {
+          type: 'category',
+          label: 'DDD artifacts (ddd-crew)',
+          collapsed: false,
+          link: {type: 'doc', id: 'ddd/ddd-artifacts'},
+          items: [
+            'ddd/core-domain-chart',
+            'ddd/bounded-context-canvas',
+            'ddd/aggregate-design-canvas',
+            'ddd/domain-message-flow',
+            'ddd/eventstorming',
+            'ddd/class-diagram',
+            'ddd/entity-relationship',
+            'ddd/sequence-diagrams',
+            'ddd/domain-events',
+          ],
+        },
+      ],
     },
     {
       type: 'category',
