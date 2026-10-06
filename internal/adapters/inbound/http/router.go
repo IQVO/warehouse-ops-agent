@@ -122,8 +122,10 @@ func healthz(w http.ResponseWriter, r *http.Request) {
 
 // corsMiddleware allows the warehouse-console browser SPA to call this
 // service's API (including the console-bff routes) directly from the
-// browser. CORS_ALLOWED_ORIGINS overrides the local-dev default
-// (comma-separated) for staging/prod deployments.
+// browser. Every route is a read-only GET (plus the OPTIONS preflight), so
+// only those methods are allowed cross-origin. CORS_ALLOWED_ORIGINS
+// overrides the local-dev default (comma-separated) for staging/prod
+// deployments.
 func corsMiddleware() func(http.Handler) http.Handler {
 	origins := []string{"http://localhost:5173"}
 	if v := os.Getenv("CORS_ALLOWED_ORIGINS"); v != "" {
@@ -131,7 +133,7 @@ func corsMiddleware() func(http.Handler) http.Handler {
 	}
 	return cors.Handler(cors.Options{
 		AllowedOrigins:   origins,
-		AllowedMethods:   []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete},
+		AllowedMethods:   []string{http.MethodGet, http.MethodOptions},
 		AllowedHeaders:   []string{"Content-Type", "Authorization"},
 		AllowCredentials: false,
 		MaxAge:           300,
@@ -182,7 +184,14 @@ func (h *Handlers) getExplainTravelFactor(w http.ResponseWriter, r *http.Request
 
 	result, err := h.ExplainTravelFactor.Execute(r.Context(), pathId, from, to)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		// Invalid caller input is a 400; anything else is facility-layout
+		// being unreachable or rejecting the call -- an upstream
+		// degradation, reported as 502 rather than blamed on the caller.
+		status := http.StatusBadGateway
+		if errors.Is(err, usecases.ErrInvalidInput) {
+			status = http.StatusBadRequest
+		}
+		writeJSON(w, status, map[string]string{"error": err.Error()})
 		return
 	}
 	writeJSON(w, http.StatusOK, toTravelFactorDTO(result))
@@ -454,8 +463,11 @@ func toOpenExceptionDTOs(exceptions []policy.OpenException) []openExceptionDTO {
 // panics on an unwired OrderLifecycle (503, matching
 // getFlowBalanceException's convention), and an order-management 404
 // (the order genuinely doesn't exist) is reported as 404 rather than a
-// generic 500 -- everything else, per usecases.OrderLifecycle.Execute's
-// contract, degrades to a partial response rather than an error.
+// generic 500. Everything else, per usecases.OrderLifecycle.Execute's
+// contract and ADR 0002, degrades that one stage to null in a 200
+// response -- Execute's only error return is ports.ErrNotFound, so there
+// is deliberately no upstream-failure (502) branch here; surfacing
+// upstream failures as 502 would contradict the partial-tolerant design.
 func (h *Handlers) getOrderLifecycle(w http.ResponseWriter, r *http.Request) {
 	if h.OrderLifecycle == nil {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "order lifecycle not configured"})
@@ -469,7 +481,10 @@ func (h *Handlers) getOrderLifecycle(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "order not found"})
 			return
 		}
-		writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
+		// Defensive only: Execute does not return any other error today.
+		// If that contract ever widens, fail loudly as an internal error
+		// rather than mislabelling it an upstream (502) failure.
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
 		return
 	}
 	writeJSON(w, http.StatusOK, toOrderLifecycleDTO(result))
