@@ -84,7 +84,7 @@ func (s *Session) callTool(ctx context.Context, tool string, args any, out any) 
 		return fmt.Errorf("%s: call %s: %w", s.cfg.Name, tool, err)
 	}
 	if result.IsError {
-		return fmt.Errorf("%s: tool %s reported an error: %s", s.cfg.Name, tool, contentText(result))
+		return newToolError(s.cfg.Name, tool, contentText(result))
 	}
 	if out == nil {
 		return nil

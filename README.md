@@ -139,8 +139,10 @@ Plus:
 - `DAILY_BRIEF_PATH_TARGETS` — optional JSON array overriding which process
   paths the daily brief monitors; defaults to the single `pick-zone-a` path
   the e2e-tests bootstrap scenario seeds when unset. A set value that is not
-  a valid JSON array of targets aborts startup with a config error (it never
-  silently falls back to the default). Each target may also carry
+  a valid JSON array of targets, or that is an empty array (`[]`), aborts
+  startup with a config error naming the variable (it never silently falls
+  back to the default; unset the variable to get the default, ADR 0017).
+  Each target may also carry
   optional `planningPathId`, `unitsPerOrder`, `packagesPerOrder` (ADR 0013):
   the warehouse-planning process-path id and workload conversion factors for
   the capacity outlook. There is no default for any of them.
@@ -215,7 +217,11 @@ Shipped on `develop` (all read-only, recommendations-only):
   `get_flow_balance_exception`, with the optional ADR-0004 LLM reasoner and
   the ADR-0008 labor-utilization overlay.
 - **explain_travel_factor** (ADR 0009) — `GET /explain-travel-factor`,
-  `explain_travel_factor`.
+  `explain_travel_factor`. A facility-layout tool rejection whose error text
+  starts with a validation slug (`<slug>: <detail>` fleet convention —
+  `malformed-*`, `invalid-*`, `*-required`, `validation-failed`,
+  `missing-location-code`) is a 400; every other rejection, slug-less
+  legacy text included, stays 502 (ADR 0018).
 - **E2 stranded-reservation exception** — `detect_stranded_reservation`:
   correlates fulfillment-execution's expired-lease tasks with
   inventory-storage's usable-stock shortfall for one SKU into a ranked

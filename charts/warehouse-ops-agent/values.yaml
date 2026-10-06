@@ -103,7 +103,8 @@ config:
   # dailyBriefPathTargets overrides DAILY_BRIEF_PATH_TARGETS (a JSON array).
   # Left empty, the binary falls back to its own built-in default target
   # (see internal/config/config.go) so an unset override still produces a
-  # working brief rather than an empty one.
+  # working brief rather than an empty one. Do NOT set it to "[]": an empty
+  # list fails startup with a config error (ADR 0017) -- leave it empty.
   dailyBriefPathTargets: ""
   # capacityOutlookHorizon overrides CAPACITY_OUTLOOK_HORIZON (a Go
   # duration, e.g. "8h"): how far ahead the daily brief's warehouse-planning

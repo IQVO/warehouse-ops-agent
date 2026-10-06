@@ -3,8 +3,10 @@ package http_test
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	inboundhttp "github.com/claudioed/warehouse-ops-agent/internal/adapters/inbound/http"
@@ -84,19 +86,52 @@ func TestGetExplainTravelFactor_MissingLocationCode_Returns400(t *testing.T) {
 // a caller mistake: it must surface as 502, never as the 400 reserved for
 // invalid input.
 func TestGetExplainTravelFactor_UpstreamFailure_Returns502(t *testing.T) {
+	for name, upstreamErr := range map[string]error{
+		"outage":                 errors.New("facility-layout unreachable"),
+		"not-found slug":         errors.New("facility-layout: tool estimate_travel_distance reported an error: site-not-found: nope"),
+		"internal-error slug":    errors.New("facility-layout: tool estimate_travel_distance reported an error: internal-error: boom"),
+		"legacy slug-less error": errors.New("facility-layout: tool estimate_travel_distance reported an error: from and to are both required"),
+	} {
+		t.Run(name, func(t *testing.T) {
+			handlers := &inboundhttp.Handlers{
+				DailyBrief: newTestDailyBrief(),
+				ExplainTravelFactor: &usecases.ExplainTravelFactor{
+					Facility: &fakeFacility{err: upstreamErr},
+				},
+			}
+			router := inboundhttp.NewRouter(handlers, "warehouse-ops-agent-test")
+
+			req := httptest.NewRequest(http.MethodGet, "/explain-travel-factor?pathId=pick-a&fromLocationCode=WH1-STOR-AMB-A07-01-01-A&toLocationCode=WH1-STOR-AMB-A09-03-01-A", nil)
+			rec := httptest.NewRecorder()
+			router.ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusBadGateway {
+				t.Fatalf("status = %d, want 502; body: %s", rec.Code, rec.Body.String())
+			}
+		})
+	}
+}
+
+// facility-layout rejecting the call with a validation slug (ADR 0018) is
+// the caller's bad input: 400, not the 502 reserved for an upstream outage.
+func TestGetExplainTravelFactor_UpstreamValidationRejection_Returns400(t *testing.T) {
+	rejection := fmt.Errorf("facility-layout: tool estimate_travel_distance reported an error: malformed-location-code: bad code: %w", ports.ErrUpstreamInvalidInput)
 	handlers := &inboundhttp.Handlers{
 		DailyBrief: newTestDailyBrief(),
 		ExplainTravelFactor: &usecases.ExplainTravelFactor{
-			Facility: &fakeFacility{err: errors.New("facility-layout unreachable")},
+			Facility: &fakeFacility{err: rejection},
 		},
 	}
 	router := inboundhttp.NewRouter(handlers, "warehouse-ops-agent-test")
 
-	req := httptest.NewRequest(http.MethodGet, "/explain-travel-factor?pathId=pick-a&fromLocationCode=WH1-STOR-AMB-A07-01-01-A&toLocationCode=WH1-STOR-AMB-A09-03-01-A", nil)
+	req := httptest.NewRequest(http.MethodGet, "/explain-travel-factor?pathId=pick-a&fromLocationCode=NOT-A-CODE&toLocationCode=WH1-STOR-AMB-A09-03-01-A", nil)
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusBadGateway {
-		t.Fatalf("status = %d, want 502; body: %s", rec.Code, rec.Body.String())
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400; body: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "malformed-location-code") {
+		t.Errorf("the upstream slug must stay visible to the caller, body: %s", rec.Body.String())
 	}
 }

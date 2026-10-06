@@ -156,14 +156,19 @@ Top terms: **DailyBrief**, **PathBrief**, **OpenException**,
 - **Capacity outlook is informational and fail-open**: it never feeds
   `deriveExceptions` and failures become `omittedReason`.
 - **Each console-bff stage / section degrades independently**; an order
-  not found in order-management is the only 404.
+  not found in order-management is the only 404. Decided 2026-10-06 (kept,
+  ADR 0002): an unreachable order-management leaves its stage `null` in a
+  200 — the agent is an advisory read-side aggregator and one dependency
+  outage must not fail the whole view.
 
 ## Assumptions
 
 - Upstream MCP tool schemas and REST shapes stay stable; the agent mirrors
   them by hand (no shared Go types).
 - `DAILY_BRIEF_PATH_TARGETS` correctly binds each context's own name for
-  the same process path; the agent never infers it.
+  the same process path; the agent never infers it. Decided 2026-10-06
+  (ADR 0017): unset selects the default target; unparseable JSON or an
+  empty array `[]` fails startup with a config error naming the variable.
 - The console is the only consumer of `/console/**`.
 - Per-request re-reading is cheap enough that no cache or store is needed.
 
