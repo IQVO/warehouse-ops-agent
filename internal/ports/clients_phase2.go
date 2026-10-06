@@ -7,11 +7,13 @@
 // keep this addition's diff isolated from the original five-context
 // surface.
 //
-// These clients are wired in cmd/agent/main.go as available
-// dependencies but are NOT consumed by the E3 daily brief or any other
-// existing use case today -- see the "_ = om" / "_ = lp" / "_ = ppm"
-// lines there, mirroring the existing InventoryStorageClient
-// wired-but-unconsumed precedent.
+// Consumption today: LaborPerformanceClient IS consumed -- by
+// FlowBalanceAdvisory's labor-utilization correlation overlay (ADR 0008,
+// via GetTaskTypeUtilization). OrderManagementMCPClient and
+// ProcessPathManagementClient are wired in cmd/agent/main.go as available
+// dependencies but are NOT consumed by any use case yet -- see the
+// "_ = om" / "_ = ppm" lines there, mirroring the existing
+// InventoryStorageClient wired-but-unconsumed precedent (ADR 0007).
 package ports
 
 import "context"

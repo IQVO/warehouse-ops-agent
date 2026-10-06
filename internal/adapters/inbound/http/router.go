@@ -1,6 +1,9 @@
 // Package http is warehouse-ops-agent's inbound REST adapter: chi router,
-// one handler for the daily brief, and DTOs. Domain/application structs
-// never leak across this boundary.
+// the handlers for its eight GET routes (/healthz, /daily-brief,
+// /flow-balance/{pathId}, /explain-travel-factor,
+// /console/orders/{id}/lifecycle, /console/reports/wms,
+// /console/reports/wes, /runtime-signals) plus the optional /mcp mount, and
+// DTOs. Domain/application structs never leak across this boundary.
 package http
 
 import (

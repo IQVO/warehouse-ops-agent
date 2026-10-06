@@ -1,10 +1,14 @@
 // Command agent is the composition root for warehouse-ops-agent: it wires
 // env config to the nine outbound MCP-client adapters (one per upstream
-// bounded context) and the telemetry-reader stub, then wires those into
-// the DailyBrief (E3) use case and serves it over BOTH an inbound HTTP
-// endpoint and this agent's own inbound MCP server (five tools: see
+// bounded context), the REST clients for the console-bff, and the telemetry
+// and log readers (a real Prometheus reader when PROMETHEUS_URL is set, a
+// no-op stub otherwise; a Loki reader when LOKI_URL is set), then wires
+// those into the decision-support use cases (daily brief, flow balance,
+// explain travel factor, stranded reservation) and the console-bff and
+// runtime-signals use cases. It serves them over BOTH an inbound HTTP
+// endpoint and this agent's own inbound MCP server (up to five tools: see
 // internal/adapters/inbound/mcp/server.go) — a single process, two
-// driving adapters over the same use case, exactly the pattern the five
+// driving adapters over the same use cases, exactly the pattern the five
 // bounded contexts use for their own HTTP+MCP pair.
 package main
 
