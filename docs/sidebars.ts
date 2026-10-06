@@ -94,6 +94,7 @@ const sidebars: SidebarsConfig = {
         'adr/0015-core-flow-balance-and-daily-brief-adoption',
         'adr/0016-rest-error-mapping-cors-and-strict-path-target-config',
         'adr/0017-empty-path-targets-is-a-config-error',
+        'adr/0018-mcp-tool-error-slug-classification',
       ],
     },
   ],

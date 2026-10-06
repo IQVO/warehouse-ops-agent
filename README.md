@@ -217,7 +217,11 @@ Shipped on `develop` (all read-only, recommendations-only):
   `get_flow_balance_exception`, with the optional ADR-0004 LLM reasoner and
   the ADR-0008 labor-utilization overlay.
 - **explain_travel_factor** (ADR 0009) — `GET /explain-travel-factor`,
-  `explain_travel_factor`.
+  `explain_travel_factor`. A facility-layout tool rejection whose error text
+  starts with a validation slug (`<slug>: <detail>` fleet convention —
+  `malformed-*`, `invalid-*`, `*-required`, `validation-failed`,
+  `missing-location-code`) is a 400; every other rejection, slug-less
+  legacy text included, stays 502 (ADR 0018).
 - **E2 stranded-reservation exception** — `detect_stranded_reservation`:
   correlates fulfillment-execution's expired-lease tasks with
   inventory-storage's usable-stock shortfall for one SKU into a ranked

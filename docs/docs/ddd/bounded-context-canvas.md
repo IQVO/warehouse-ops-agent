@@ -156,7 +156,10 @@ Top terms: **DailyBrief**, **PathBrief**, **OpenException**,
 - **Capacity outlook is informational and fail-open**: it never feeds
   `deriveExceptions` and failures become `omittedReason`.
 - **Each console-bff stage / section degrades independently**; an order
-  not found in order-management is the only 404.
+  not found in order-management is the only 404. Decided 2026-10-06 (kept,
+  ADR 0002): an unreachable order-management leaves its stage `null` in a
+  200 — the agent is an advisory read-side aggregator and one dependency
+  outage must not fail the whole view.
 
 ## Assumptions
 

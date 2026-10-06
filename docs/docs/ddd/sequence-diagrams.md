@@ -153,8 +153,12 @@ sequenceDiagram
         else both supplied
             UC->>MC: EstimateTravelDistance from, to
             MC->>FL: estimate_travel_distance
-            alt upstream error or malformed code
-                FL-->>MC: error
+            alt upstream rejected a validation slug
+                FL-->>MC: isError text slug-colon-detail, slug malformed-, invalid-, required or validation-failed
+                UC-->>IN: ErrInvalidInput wrapping the upstream error
+                IN-->>C: 400, or tool error
+            else other upstream rejection or outage, slug-less legacy text included
+                FL-->>MC: error, e.g. not-found, internal-error, no slug, unreachable
                 UC-->>IN: empty result and error
                 IN-->>C: 502, or tool error
             else distance
@@ -170,7 +174,14 @@ sequenceDiagram
 
 Source: `internal/application/usecases/explain_travel_factor.go`,
 `internal/domain/policy/travel_factor.go`,
+`internal/adapters/outbound/mcpclient/tool_error.go`,
 `internal/adapters/inbound/http/router.go` (`getExplainTravelFactor`).
+Decided 2026-10-06 ([ADR 0018](../adr/0018-mcp-tool-error-slug-classification.md)):
+the upstream's tool-error text is `<slug>: <detail>` (fleet convention); only
+the explicit validation slugs (`malformed-*`, `invalid-*`, `*-required`,
+`validation-failed`, `missing-location-code`) are classified as invalid input
+(400). Not-found, `internal-error`, any other slug and slug-less text from an
+older facility-layout stay 502.
 Omits: the use case's nil-`Facility` branch, which returns an empty result
 with no error.
 
@@ -271,6 +282,11 @@ Source: `internal/application/usecases/order_lifecycle.go`,
 `internal/adapters/inbound/http/router.go` (`getOrderLifecycle`).
 Omits: the DTO mapping (`packageSealed` / `labelApplied` are derived from a
 completed `SLAM` task).
+
+Decided 2026-10-06: kept — an unreachable order-management leaves the
+order-management stage `null` in a 200 (ADR 0002 degrade-to-null; only a 404
+fails the request). The agent is an advisory read-side aggregator; one
+dependency outage must not fail the whole view.
 
 ## WMS / WES dashboards — `GET /console/reports/wms`, `GET /console/reports/wes`
 

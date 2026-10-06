@@ -3,6 +3,8 @@ package usecases_test
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/claudioed/warehouse-ops-agent/internal/application/usecases"
@@ -11,6 +13,12 @@ import (
 )
 
 func TestExplainTravelFactor_Execute(t *testing.T) {
+	t.Run("a validation rejection from facility-layout is the caller's invalid input, not an outage", func(t *testing.T) {
+		assertTravelFactorUpstreamRejectionIsInvalidInput(t)
+	})
+	t.Run("any other facility-layout rejection stays an upstream failure", func(t *testing.T) {
+		assertTravelFactorOtherRejectionStaysUpstream(t)
+	})
 	t.Run("resolved reading correlates to a non-nil result", func(t *testing.T) {
 		assertResolvedTravelFactorCorrelates(t, &fakeFacility{travel: ports.TravelDistance{MetresM: 90.0, Estimated: false}})
 	})
@@ -70,6 +78,53 @@ func assertNegligibleTravelFactorResult(t *testing.T, facility ports.FacilityLay
 	}
 	if got.Correlation == nil || got.Correlation.Kind != policy.TravelFactorOutcomeNegligible {
 		t.Fatalf("expected TravelFactorOutcomeNegligible, got %+v", got.Correlation)
+	}
+}
+
+// assertTravelFactorUpstreamRejectionIsInvalidInput checks the ADR 0018
+// rule: facility-layout rejecting the call with a validation slug (the
+// mcpclient wraps ports.ErrUpstreamInvalidInput) is classified as
+// ErrInvalidInput, so the HTTP adapter answers 400, while the upstream
+// error stays in the chain for logging.
+func assertTravelFactorUpstreamRejectionIsInvalidInput(t *testing.T) {
+	t.Helper()
+	upstream := fmt.Errorf("facility-layout: tool estimate_travel_distance reported an error: malformed-location-code: bad: %w", ports.ErrUpstreamInvalidInput)
+	uc := &usecases.ExplainTravelFactor{Facility: &fakeFacility{travelErr: upstream}}
+
+	got, err := uc.Execute(context.Background(), "PICK-PATH-1", "BAD", "WH1-STOR-AMB-A09-03-01-A")
+	if !errors.Is(err, usecases.ErrInvalidInput) {
+		t.Fatalf("err = %v, want it to wrap ErrInvalidInput", err)
+	}
+	if !errors.Is(err, upstream) {
+		t.Errorf("the upstream error must stay in the chain, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "malformed-location-code") {
+		t.Errorf("the upstream slug must stay visible to the caller, got %v", err)
+	}
+	if got.Reading != nil || got.Correlation != nil {
+		t.Errorf("expected a zero-value result on error, got %+v", got)
+	}
+}
+
+// assertTravelFactorOtherRejectionStaysUpstream checks the other half of the
+// rule: not-found, internal-error, a legacy slug-less message or an outage
+// never become invalid input.
+func assertTravelFactorOtherRejectionStaysUpstream(t *testing.T) {
+	t.Helper()
+	for _, upstream := range []error{
+		errors.New("facility-layout: tool estimate_travel_distance reported an error: site-not-found: nope"),
+		errors.New("facility-layout: tool estimate_travel_distance reported an error: internal-error: boom"),
+		errors.New("facility-layout: tool estimate_travel_distance reported an error: from and to are both required"),
+		errors.New("facility-layout: connect: connection refused"),
+	} {
+		uc := &usecases.ExplainTravelFactor{Facility: &fakeFacility{travelErr: upstream}}
+		_, err := uc.Execute(context.Background(), "PICK-PATH-1", "A", "B")
+		if !errors.Is(err, upstream) {
+			t.Errorf("err = %v, want %v", err, upstream)
+		}
+		if errors.Is(err, usecases.ErrInvalidInput) {
+			t.Errorf("%v must not be classified as invalid input", upstream)
+		}
 	}
 }
 

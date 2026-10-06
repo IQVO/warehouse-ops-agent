@@ -84,6 +84,12 @@ func (uc *ExplainTravelFactor) Execute(ctx context.Context, pathId, fromLocation
 	if err != nil {
 		logger.Warn("explain_travel_factor: facility-layout unavailable",
 			"pathId", sanitizeForLog(pathId), "from", sanitizeForLog(fromLocationCode), "to", sanitizeForLog(toLocationCode), "error", sanitizeForLog(err.Error()))
+		if errors.Is(err, ports.ErrUpstreamInvalidInput) {
+			// facility-layout rejected the codes with one of the fleet's
+			// validation slugs (ADR 0018): the caller's input, not an
+			// outage. The upstream error stays in the chain.
+			return TravelFactorResult{}, fmt.Errorf("%w: explain_travel_factor: %w", ErrInvalidInput, err)
+		}
 		return TravelFactorResult{}, err
 	}
 
