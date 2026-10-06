@@ -10,7 +10,8 @@ Source of truth: `internal/architecture/architecture_test.go`,
 1. **Never import a Go package from any upstream bounded context.**
    `TestNoDirectDependencyOnBoundedContexts` asserts it for the five
    original contexts (`fulfillment-execution`, `wes-work-planning`,
-   `workforce-management`, `inventory-storage`, `facility-layout`) by
+   `workforce-management`, `inventory-storage`, `facility-layout`) plus the
+   third-wave `warehouse-planning` (ADR 0013) by
    scanning `go.mod`/`go.sum` for those module paths and fails the build if any
    appear — the check runs even if nothing today imports them, so it fails
    loudly the moment one is added. All cross-context integration must go
