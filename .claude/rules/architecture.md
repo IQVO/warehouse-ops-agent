@@ -47,8 +47,8 @@ internal/
                                         runtime_signals.go — ClassifyErrorRate /
                                                           ClassifyLatencyP99
                                                           threshold classifiers
-                                        stranded_reservation.go — E2 (not yet wired
-                                                          to an inbound adapter)
+                                        stranded_reservation.go — E2, exposed as the
+                                                          detect_stranded_reservation MCP tool
   application/usecases/              orchestrates policy over ports:
                                         dailybrief.go, flow_balance_advisory.go,
                                         explain_travel_factor.go,
