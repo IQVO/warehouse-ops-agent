@@ -4,13 +4,14 @@
 // bearer-key pair to configure), plus this agent's own listen address and
 // the set of process paths the daily brief (E3) monitors. It is
 // deliberately dumb (env-var reads, defaults, no validation beyond
-// presence, except that a malformed DAILY_BRIEF_PATH_TARGETS is a load
-// error) — the composition root (cmd/agent) decides what to do with a
+// presence, except that a malformed or empty DAILY_BRIEF_PATH_TARGETS is a
+// load error) — the composition root (cmd/agent) decides what to do with a
 // missing value.
 package config
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -162,9 +163,9 @@ type Config struct {
 
 	// PathTargets is the set of process paths the daily brief (E3)
 	// monitors. Overridable via DAILY_BRIEF_PATH_TARGETS (a JSON array
-	// matching PathTarget's fields); falls back to defaultPathTargets when
-	// unset or unparseable, so an operator error degrades to a working
-	// default rather than an empty, useless brief.
+	// matching PathTarget's fields); falls back to defaultPathTargets only
+	// when unset. A set-but-unparseable or empty (`[]`) value is a Load
+	// error, so an operator mistake can never degrade to a default brief.
 	PathTargets []PathTarget
 
 	// LLM is the ADR 0004 reasoner configuration. LLM.Mode is validated
@@ -196,7 +197,7 @@ type LLMConfig struct {
 // Load reads Config from the environment. Every field defaults to an empty
 // string when its env var is unset; the composition root is responsible for
 // deciding whether an empty endpoint/key means "skip this client" or "fail
-// closed" for its use case. The one exception is a malformed
+// closed" for its use case. The one exception is a malformed or empty
 // DAILY_BRIEF_PATH_TARGETS, which is returned as an error so the process
 // fails at startup instead of silently running with the default target.
 func Load() (Config, error) {
@@ -312,11 +313,11 @@ func loadList(key string, fallback []string) []string {
 }
 
 // loadPathTargets parses DAILY_BRIEF_PATH_TARGETS as a JSON array of
-// PathTarget. Unset (or an explicitly empty array) uses defaultPathTargets.
-// A set value that is not valid JSON for []PathTarget is an operator error
-// and is returned as a config error so startup fails loudly: silently
+// PathTarget. Unset uses defaultPathTargets. A set value that is not valid
+// JSON for []PathTarget, or that is an empty array (or null), is an operator
+// error and is returned as a config error so startup fails loudly: silently
 // falling back to the default would hide the misconfiguration and brief
-// the wrong paths.
+// the wrong paths (audit decision 2026-10-06, ADR 0017).
 func loadPathTargets() ([]PathTarget, error) {
 	raw := os.Getenv("DAILY_BRIEF_PATH_TARGETS")
 	if raw == "" {
@@ -327,7 +328,7 @@ func loadPathTargets() ([]PathTarget, error) {
 		return nil, fmt.Errorf("config: DAILY_BRIEF_PATH_TARGETS is not a valid JSON array of path targets: %w", err)
 	}
 	if len(targets) == 0 {
-		return defaultPathTargets, nil
+		return nil, errors.New("config: DAILY_BRIEF_PATH_TARGETS is set but lists no path targets (an empty array monitors nothing); unset the variable to use the built-in default target, or list at least one target")
 	}
 	return targets, nil
 }

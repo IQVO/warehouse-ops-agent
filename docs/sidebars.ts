@@ -93,6 +93,7 @@ const sidebars: SidebarsConfig = {
         'adr/0014-runtime-signals-and-stranded-reservation-adoption',
         'adr/0015-core-flow-balance-and-daily-brief-adoption',
         'adr/0016-rest-error-mapping-cors-and-strict-path-target-config',
+        'adr/0017-empty-path-targets-is-a-config-error',
       ],
     },
   ],

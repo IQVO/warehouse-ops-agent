@@ -35,6 +35,7 @@ accepted.
 | [0014](./0014-runtime-signals-and-stranded-reservation-adoption.md) | Adoption record: GET /runtime-signals and detect_stranded_reservation (E2) | Accepted (adoption record) |
 | [0015](./0015-core-flow-balance-and-daily-brief-adoption.md) | Adoption record: E1 flow-balance correlation and E3 daily brief (core use cases) | Accepted (adoption record) |
 | [0016](./0016-rest-error-mapping-cors-and-strict-path-target-config.md) | REST error mapping for explain-travel-factor, GET-only CORS, and strict DAILY_BRIEF_PATH_TARGETS config | Accepted |
+| [0017](./0017-empty-path-targets-is-a-config-error.md) | An empty DAILY_BRIEF_PATH_TARGETS list is a startup config error | Accepted |
 
 ## Proposing a new one
 

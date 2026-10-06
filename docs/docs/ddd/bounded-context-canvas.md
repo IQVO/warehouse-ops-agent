@@ -163,7 +163,9 @@ Top terms: **DailyBrief**, **PathBrief**, **OpenException**,
 - Upstream MCP tool schemas and REST shapes stay stable; the agent mirrors
   them by hand (no shared Go types).
 - `DAILY_BRIEF_PATH_TARGETS` correctly binds each context's own name for
-  the same process path; the agent never infers it.
+  the same process path; the agent never infers it. Decided 2026-10-06
+  (ADR 0017): unset selects the default target; unparseable JSON or an
+  empty array `[]` fails startup with a config error naming the variable.
 - The console is the only consumer of `/console/**`.
 - Per-request re-reading is cheap enough that no cache or store is needed.
 
