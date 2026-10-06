@@ -11,7 +11,7 @@ description: Run warehouse-ops-agent locally, wired against the five sibling MCP
 — it holds no persisted state — and needs no Postgres. What it does need
 is a Streamable HTTP endpoint for each upstream context's MCP server it
 should read (an unset endpoint simply skips that client; see
-[Configuration](https://github.com/claudioed/warehouse-ops-agent#configuration)
+[Configuration](https://github.com/IQVO/warehouse-ops-agent#configuration)
 in the repo README for the full environment-variable table).
 
 ## Run it against the full fleet

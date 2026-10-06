@@ -92,7 +92,7 @@ context.
 | Service | MCP relationship | console-bff relationship |
 |---|---|---|
 | `order-management` | client wired (`get_order`), no consumer yet | OLTP `GET /orders/{id}`; reports `/reports/funnel` (WMS) |
-| `inventory-storage` | Customer — usable-stock and bin-occupancy facts (E2 use case, not yet exposed) | OLTP `GET /reservations?demandRef=`; reports `/reports/flow-accuracy` (WMS) |
+| `inventory-storage` | Customer — usable-stock and bin-occupancy facts (E2, exposed as the MCP tool `detect_stranded_reservation`) | OLTP `GET /reservations?demandRef=`; reports `/reports/flow-accuracy` (WMS) |
 | `wes-work-planning` | Customer — backlog telemetry and rebalance recommendations | OLTP `GET /work-units?reference=`; reports `/reports/throughput` (WES) |
 | `fulfillment-execution` | Customer — queue status and stuck-task diagnostics | OLTP `GET /tasks?orderRef=` (joined via each WorkUnit's id, not the plain order id — see ADR 0002); reports `/reports/throughput` (WES) |
 | `workforce-management` | Customer — staffing gap | reports `/reports/labor` (WES) |

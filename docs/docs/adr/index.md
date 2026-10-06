@@ -46,8 +46,7 @@ accepted.
    elsewhere.
 5. Add it to the table above and to `sidebars.ts`.
 
-See [facility-layout's ADR index](https://claudioed.github.io/facility-layout/docs/adr)
-for the fuller template rationale this convention is copied from. (Still
-`claudioed.github.io`, not a stale link: `facility-layout`'s own
-`docusaurus.config.ts` has not migrated its docs site to the IQVO org
-yet, unlike this repo's — checked directly, not assumed.)
+See [facility-layout's ADR index](https://iqvo.github.io/facility-layout/docs/adr)
+for the fuller template rationale this convention is copied from.
+(`facility-layout`'s `docusaurus.config.ts` now publishes under
+`iqvo.github.io`, like this repo's.)

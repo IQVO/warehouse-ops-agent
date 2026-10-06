@@ -7,12 +7,21 @@ description: Why warehouse-ops-agent is a read-side decision-support mechanism, 
 
 # Subdomain classification
 
-`warehouse-ops-agent` is deliberately **not classified** alongside the
-fleet's Core/Supporting/Generic subdomains (`inventory-storage` and
-`wes-work-planning` as Core; `workforce-management` as Supporting;
-`facility-layout` as Generic). Strategic Design classification answers
-"whose aggregate is this, and how differentiating is it" — and this repo
-owns no aggregate at all.
+`warehouse-ops-agent` is deliberately **not classified as a bounded
+context** alongside the fleet's Core/Supporting/Generic subdomains
+(`inventory-storage`, `wes-work-planning`, `fulfillment-execution` and
+`warehouse-planning` as Core; `workforce-management`, `labor-performance`
+and `network-fulfillment` as Supporting; `order-management` as
+Generic/Supporting; `facility-layout` and `process-path-management` as
+Generic). Strategic Design classification answers "whose aggregate is
+this, and how differentiating is it" — and this repo owns no aggregate at
+all.
+
+Where the fleet-wide map has to put every repo in one of the three
+buckets for comparison purposes, it files this agent as **Supporting**:
+operationally valuable, but owning no domain aggregate of its own. The
+[core domain chart](./core-domain-chart.md) plots it there, with the
+caveat above attached.
 
 ## What it actually is
 
@@ -31,8 +40,9 @@ protects. `warehouse-ops-agent` protects none:
 - It has no aggregate root, no entity with a lifecycle it enforces.
 - It has no invariant a domain-layer method rejects an operation over —
   every rejection in its policy layer (`ParseRebalanceAction`,
-  `TaskType.Valid()`) is *input validation at an untrusted boundary*, not
-  a business invariant about a domain concept this repo owns.
+  `TaskType.Valid()`, `ParseLLMMode`, `ValidatePlan`) is *input validation
+  at an untrusted boundary*, not a business invariant about a domain
+  concept this repo owns.
 - It persists no state. Restart it and it has forgotten nothing, because
   it never knew anything that wasn't re-derivable from its upstream
   reads.
