@@ -2,7 +2,7 @@
 id: 0018-mcp-tool-error-slug-classification
 title: "0018 — Classify upstream MCP tool rejections by the fleet's slug convention"
 sidebar_label: "0018 · Tool-error slug classification"
-description: A validation rejection from an upstream MCP tool (error text "<slug>: detail" with a validation slug) is reported as invalid input (REST 400) on GET /explain-travel-factor; every other rejection, including slug-less text from an older facility-layout, stays a 502.
+description: "A validation rejection from an upstream MCP tool (error text slug-colon-detail with a validation slug) is reported as invalid input (REST 400) on GET /explain-travel-factor; every other rejection, including slug-less text from an older facility-layout, stays a 502."
 ---
 
 # ADR 0018: Classify upstream MCP tool rejections by the fleet's slug convention
