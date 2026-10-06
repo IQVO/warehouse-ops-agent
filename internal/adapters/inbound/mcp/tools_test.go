@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/claudioed/warehouse-ops-agent/internal/application/usecases"
+	"github.com/claudioed/warehouse-ops-agent/internal/domain/policy"
 	"github.com/claudioed/warehouse-ops-agent/internal/ports"
 )
 
@@ -224,6 +225,89 @@ func TestGetFlowBalanceException_AllSignalsHealthy_AssignsLabor(t *testing.T) {
 	}
 	if len(out.Evidence) != 3 {
 		t.Errorf("len(Evidence) = %d, want 3: %+v", len(out.Evidence), out.Evidence)
+	}
+	// ADR-0004: with no LLM reasoner wired, Source must round-trip as
+	// "deterministic", never empty — mirrors the REST handler's
+	// TestGetFlowBalanceException_Returns200WithDecision assertion.
+	if out.Source != "deterministic" {
+		t.Errorf("Source = %q, want deterministic", out.Source)
+	}
+}
+
+// fbToolFakeLP is a minimal ports.LaborPerformanceClient fake that only
+// implements GetTaskTypeUtilization, mirroring the usecases package's own
+// fbFakeLP, to drive the labor-utilization correlation overlay through the
+// MCP tool boundary.
+type fbToolFakeLP struct {
+	util ports.TaskTypeUtilization
+}
+
+func (f *fbToolFakeLP) GetAssociateScorecard(ctx context.Context, associateId string) (ports.AssociateScorecard, error) {
+	return ports.AssociateScorecard{}, nil
+}
+func (f *fbToolFakeLP) GetTaskTypePerformance(ctx context.Context, taskType string) (ports.TaskTypePerformance, error) {
+	return ports.TaskTypePerformance{}, nil
+}
+func (f *fbToolFakeLP) GetLaborStandard(ctx context.Context, taskType string) (ports.LaborStandard, error) {
+	return ports.LaborStandard{}, nil
+}
+func (f *fbToolFakeLP) GetTaskTypeUtilization(ctx context.Context, taskType string, windowSeconds int64) (ports.TaskTypeUtilization, error) {
+	return f.util, nil
+}
+
+// TestGetFlowBalanceException_UtilizationRoundTrips is the ADR-0008
+// regression test for the BUG this fixes: the MCP tool's output must
+// surface Decision.Utilization exactly like the REST handler already does
+// (router.go toFlowBalanceExceptionDTO), never silently drop it.
+func TestGetFlowBalanceException_UtilizationRoundTrips(t *testing.T) {
+	pct := 30.0
+	deps := Deps{
+		FlowBalanceAdvisory: &usecases.FlowBalanceAdvisory{
+			Wes: &fbToolFakeWes{recommendation: ports.RebalanceRecommendation{
+				PathId: "pick-a", Action: "NoActionNeeded", BacklogDepth: 120, WIP: 10,
+			}},
+			WFM: &fbToolFakeWfm{gap: ports.StaffingGap{PathId: "pick-a", PlannedHeads: 4, ActiveHeads: 4}},
+			FE:  &fbToolFakeFe{result: ports.StuckTasksResult{Count: 0}},
+			LP: &fbToolFakeLP{util: ports.TaskTypeUtilization{
+				TaskType: "PICK", WindowSeconds: 3600, TaskSeconds: 700, IdleSeconds: 1300, UtilizationPct: &pct,
+			}},
+			PathTaskTypes: map[string]string{"pick-a": "PICK"},
+		},
+	}
+
+	out, err := deps.getFlowBalanceException(context.Background(), flowBalanceExceptionInput{
+		BuildingId: "bldg-1", ShiftId: "shift-1", PathId: "pick-a",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if out.Utilization == nil {
+		t.Fatal("expected a non-nil Utilization correlation on the MCP tool output")
+	}
+	if out.Utilization.Kind != string(policy.UtilizationCorrelationClaimFlowProblem) {
+		t.Errorf("Utilization.Kind = %q, want %q", out.Utilization.Kind, policy.UtilizationCorrelationClaimFlowProblem)
+	}
+	if out.Utilization.Rationale == "" {
+		t.Error("expected a non-empty Utilization.Rationale")
+	}
+}
+
+func TestGetFlowBalanceException_NoLP_UtilizationStaysNil(t *testing.T) {
+	deps := Deps{
+		FlowBalanceAdvisory: &usecases.FlowBalanceAdvisory{
+			Wes: &fbToolFakeWes{recommendation: ports.RebalanceRecommendation{PathId: "pick-a", Action: "NoActionNeeded"}},
+			WFM: &fbToolFakeWfm{gap: ports.StaffingGap{PathId: "pick-a", PlannedHeads: 4, ActiveHeads: 4}},
+			FE:  &fbToolFakeFe{result: ports.StuckTasksResult{Count: 0}},
+		},
+	}
+	out, err := deps.getFlowBalanceException(context.Background(), flowBalanceExceptionInput{
+		BuildingId: "bldg-1", ShiftId: "shift-1", PathId: "pick-a",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if out.Utilization != nil {
+		t.Errorf("expected nil Utilization with no LP client wired, got %+v", out.Utilization)
 	}
 }
 

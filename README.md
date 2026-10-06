@@ -35,7 +35,7 @@ See [ADR 0001](./docs/docs/adr/0001-warehouse-ops-agent-placement.md) for
 the placement decision this repo embodies. The full documentation
 site (business context, DDD placement, API surface, governance note, and
 every ADR) is published from `docs/` — see
-[claudioed.github.io/warehouse-ops-agent](https://claudioed.github.io/warehouse-ops-agent/)
+[iqvo.github.io/warehouse-ops-agent](https://iqvo.github.io/warehouse-ops-agent/)
 once the `Docs` GitHub Actions workflow has deployed it, or run it locally
 with `cd docs && npm install && npm start`.
 
@@ -48,7 +48,7 @@ with `cd docs && npm install && npm start`.
   context's packages, ever — only their published MCP tool schemas (and,
   for the console-bff, plain REST). `internal/architecture/architecture_test.go`'s
   `TestNoDirectDependencyOnBoundedContexts` enforces this for the five
-  original contexts' module paths.
+  original contexts' module paths plus `warehouse-planning`'s.
 - **Zero write capability (v1), CI-enforced.**
   `internal/architecture/zerowrite/zerowrite_test.go` fails the build if an
   outbound client (`mcpclient`, `restclient`) gains a mutating HTTP method or
@@ -79,10 +79,10 @@ internal/
   adapters/
     inbound/
       http/                           chi router (8 GET routes, see below)
-      mcp/                            this agent's own MCP server (4
+      mcp/                            this agent's own MCP server (5
                                         read-only tools)
     outbound/mcpclient/             one thin, schema-typed MCP client per
-                                     upstream context (8), Streamable HTTP
+                                     upstream context (9), Streamable HTTP
     outbound/restclient/            console-bff REST clients: 4 OLTP APIs
                                      + 7 *-reports analytics readers
     outbound/telemetry/             Prometheus HTTP API reader (stub when
@@ -102,9 +102,17 @@ REST (all `GET`, unauthenticated — [ADR 0006](./docs/docs/adr/0006-fleet-wide-
 `/healthz`, `/daily-brief`, `/flow-balance/{pathId}`,
 `/explain-travel-factor`, `/console/orders/{id}/lifecycle`,
 `/console/reports/wms`, `/console/reports/wes`, `/runtime-signals`.
-MCP at `/mcp` (Streamable HTTP): `get_daily_brief`, `list_open_exceptions`,
-`get_flow_balance_exception`, `explain_travel_factor`. Full details:
+MCP at `/mcp` (Streamable HTTP, stateless): `get_daily_brief`,
+`list_open_exceptions`, `get_flow_balance_exception`,
+`explain_travel_factor`, `detect_stranded_reservation` (all
+`ReadOnlyHint: true`; the last three are registered only when their use
+case is wired). Full details:
 [`docs/docs/api-surface.md`](./docs/docs/api-surface.md).
+
+The ddd-crew DDD artifact pack (core domain chart, bounded context canvas,
+context map, EventStorming, class / ER / sequence diagrams, and an honest
+"no aggregate, no database, no events" record) lives under
+[`docs/docs/ddd/`](./docs/docs/ddd/ddd-artifacts.md).
 
 ## Configuration
 

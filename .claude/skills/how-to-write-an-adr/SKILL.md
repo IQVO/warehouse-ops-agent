@@ -6,7 +6,7 @@ description: Write an Architecture Decision Record in this repo's numbering and 
 # How to write an ADR
 
 Use when a change is architecturally significant for this repo — a new
-outbound MCP tool call to one of the eight upstream contexts, a new
+outbound MCP tool call to one of the nine upstream contexts, a new
 console-bff fan-out capability, a change to the ADR-0004 reasoner's
 design, a reversal of a prior decision, or anything a future reader would
 otherwise have to reverse-engineer from the diff. Not every change needs
@@ -100,9 +100,9 @@ new ADR referencing it — see ADR-0006's own frontmatter/intro
 for the exact wording pattern, and note ADR-0005 itself was left
 unedited, only marked superseded in the index table.
 
-## Cross-repo decisions: this repo touches all eight upstream contexts by design
+## Cross-repo decisions: this repo touches all nine upstream contexts by design
 
-Because this repo is a Customer of eight bounded contexts at once (unlike
+Because this repo is a Customer of nine bounded contexts at once (unlike
 a typical sibling repo, which has at most one or two cross-context
 neighbors), a decision that changes what this repo reads from an upstream
 context (e.g. ADR 0009's `estimate_travel_distance` addition, which

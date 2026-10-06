@@ -7,14 +7,19 @@ description: The fleet-wide decision to remove REST OIDC/static-bearer identity 
 
 # ADR 0006: Fleet-wide auth removal — REST OIDC and MCP static bearer keys withdrawn
 
-- Status: Accepted
-- Date: 2026-09-09
-- Scope: **fleet-wide.** Recorded here for the same reason ADR 0005 was:
+## Status
+
+Accepted
+
+**Date:** 2026-09-09
+
+**Scope:** **fleet-wide.** Recorded here for the same reason ADR 0005 was:
   this service is the fleet's cross-context Customer, holding its own
   inbound REST/MCP surfaces *and* the outbound MCP-client bearer keys for
   all five upstream contexts. Each context records its own short adoption
   note pointing back to this one.
-- Supersedes: [ADR 0005](./0005-rest-identity-static-bearer-scopes.md)
+
+**Supersedes:** [ADR 0005](./0005-rest-identity-static-bearer-scopes.md)
   (Fleet REST identity: static bearer keys with read/read-write scopes, no
   IdP). ADR 0005 is left in place, unmodified, as the historical record of
   why the posture existed; this record is the fleet-wide decision to

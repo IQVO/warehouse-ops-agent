@@ -126,13 +126,17 @@ type flowBalanceExceptionInput struct {
 }
 
 type flowBalanceExceptionOutput struct {
-	PathId            string             `json:"pathId"`
-	RecommendedAction string             `json:"recommendedAction"`
-	ProposedHeads     int                `json:"proposedHeads,omitempty"`
-	Rationale         string             `json:"rationale"`
-	Partial           bool               `json:"partial"`
-	MissingSignals    []string           `json:"missingSignals,omitempty"`
-	Evidence          []evidenceEntryDTO `json:"evidence"`
+	PathId            string                     `json:"pathId"`
+	RecommendedAction string                     `json:"recommendedAction"`
+	ProposedHeads     int                        `json:"proposedHeads,omitempty"`
+	Rationale         string                     `json:"rationale"`
+	Partial           bool                       `json:"partial"`
+	MissingSignals    []string                   `json:"missingSignals,omitempty"`
+	Evidence          []evidenceEntryDTO         `json:"evidence"`
+	Utilization       *utilizationCorrelationDTO `json:"utilization,omitempty"`
+	// Source is the ADR-0004 arbitration source that produced this
+	// Decision: deterministic, llm, or fallback.
+	Source string `json:"source,omitempty"`
 }
 
 func (d Deps) getFlowBalanceException(ctx context.Context, in flowBalanceExceptionInput) (flowBalanceExceptionOutput, error) {
@@ -148,6 +152,8 @@ func (d Deps) getFlowBalanceException(ctx context.Context, in flowBalanceExcepti
 		Partial:           decision.Partial,
 		MissingSignals:    decision.MissingSignals,
 		Evidence:          toFlowBalanceEvidenceDTOs(decision.Evidence),
+		Utilization:       toUtilizationCorrelationDTO(decision.Utilization),
+		Source:            string(decision.Source),
 	}, nil
 }
 
@@ -290,8 +296,12 @@ func (d Deps) detectStrandedReservation(ctx context.Context, in strandedReservat
 // --- registration -----------------------------------------------------------
 
 // registerTools adds every tool to the server, each wrapped so its handler
-// runs inside an OTel span named "mcp.tool <name>". Both tools are
-// read-only — this agent has no write tool at all.
+// runs inside an OTel span named "mcp.tool <name>". get_daily_brief and
+// list_open_exceptions are always registered; get_flow_balance_exception,
+// explain_travel_factor, and detect_stranded_reservation are registered
+// only when their use case is wired (see each one's own nil check below)
+// — up to five tools total, every one of them read-only. This agent has
+// no write tool at all.
 func (d Deps) registerTools(server *mcp.Server) {
 	readOnly := true
 

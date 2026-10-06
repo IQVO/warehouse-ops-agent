@@ -9,7 +9,7 @@ paths:
 This repo has its own Docusaurus site under `docs/` (business context, DDD
 placement/subdomain-classification, context map, API surface, governance
 note, every ADR). It publishes via `.github/workflows/docs.yml` to
-`https://claudioed.github.io/warehouse-ops-agent/` on push to `main`
+`https://iqvo.github.io/warehouse-ops-agent/` on push to `main`
 touching `docs/**`.
 
 Local dev: `cd docs && npm install && npm start`.

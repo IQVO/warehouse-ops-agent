@@ -7,8 +7,11 @@ description: Why the warehouse-systems fleet gets one cross-cutting operator con
 
 # ADR 0002: Micro-frontend console architecture over per-service REST, with a thin BFF for cross-service reads
 
-- Status: Accepted
-- Date: 2026-08-29
+## Status
+
+Accepted
+
+**Date:** 2026-08-29
 
 ## Context
 

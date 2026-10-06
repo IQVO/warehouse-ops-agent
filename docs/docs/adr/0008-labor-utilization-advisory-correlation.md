@@ -7,8 +7,11 @@ description: Consuming labor-performance's get_task_type_utilization tool to dis
 
 # ADR 0008: Labor-utilization advisory correlation
 
-- Status: Accepted
-- Date: 2026-09-11
+## Status
+
+Accepted
+
+**Date:** 2026-09-11
 
 ## Context
 

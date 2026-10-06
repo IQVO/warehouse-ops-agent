@@ -32,6 +32,8 @@ accepted.
 | [0011](./0011-reasoner-path-circuit-breaker-timeout-retry.md) | Reasoner-path resilience: circuit breaker, deadline-derived timeout, bounded retry | Accepted |
 | [0012](./0012-horizontal-autoscaling-single-deployment.md) | HorizontalPodAutoscaler for the single Deployment, and switching the inbound MCP server to stateless mode | Accepted |
 | [0013](./0013-warehouse-planning-mcp-client-and-capacity-outlook.md) | warehouse-planning MCP client (read tools only) and the fail-open capacity outlook in the daily brief | Accepted |
+| [0014](./0014-runtime-signals-and-stranded-reservation-adoption.md) | Adoption record: GET /runtime-signals and detect_stranded_reservation (E2) | Accepted (adoption record) |
+| [0015](./0015-core-flow-balance-and-daily-brief-adoption.md) | Adoption record: E1 flow-balance correlation and E3 daily brief (core use cases) | Accepted (adoption record) |
 
 ## Proposing a new one
 
@@ -44,5 +46,7 @@ accepted.
    elsewhere.
 5. Add it to the table above and to `sidebars.ts`.
 
-See [facility-layout's ADR index](https://claudioed.github.io/facility-layout/docs/adr)
+See [facility-layout's ADR index](https://iqvo.github.io/facility-layout/docs/adr)
 for the fuller template rationale this convention is copied from.
+(`facility-layout`'s `docusaurus.config.ts` now publishes under
+`iqvo.github.io`, like this repo's.)

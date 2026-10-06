@@ -1,6 +1,7 @@
 // Package config loads warehouse-ops-agent's runtime configuration from the
-// environment: one Streamable-HTTP endpoint + static bearer read-key pair
-// per upstream bounded context, plus this agent's own listen address and
+// environment: one Streamable-HTTP endpoint per upstream bounded context
+// (REST and MCP are unauthenticated fleet-wide — ADR 0006 — so there is no
+// bearer-key pair to configure), plus this agent's own listen address and
 // the set of process paths the daily brief (E3) monitors. It is
 // deliberately dumb (env-var reads, defaults, no validation beyond
 // presence) — the composition root (cmd/agent) decides what to do with a
@@ -71,11 +72,13 @@ type Config struct {
 
 	// OrderManagement, LaborPerformance, ProcessPathManagement are the
 	// second-wave upstream contexts whose MCP servers came online in a
-	// later fleet-wide wiring pass. Like the five above, an empty
-	// endpoint means "skip this client"; the composition root wires
-	// them as available dependencies even before any use case consumes
-	// them, matching the existing InventoryStorageClient
-	// wired-but-unconsumed precedent.
+	// later fleet-wide wiring pass (ADR 0007). Like the five above, an
+	// empty endpoint means "skip this client". LaborPerformance has
+	// since graduated from "wired but unconsumed" to actually consumed
+	// by FlowBalanceAdvisory's labor-utilization correlation overlay
+	// (ADR 0008 Phase 3); OrderManagement and ProcessPathManagement
+	// remain wired-but-unconsumed, the ADR-0007 precedent they were
+	// both added under.
 	OrderManagement       UpstreamConfig
 	LaborPerformance      UpstreamConfig
 	ProcessPathManagement UpstreamConfig
