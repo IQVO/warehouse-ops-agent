@@ -7,16 +7,20 @@ description: Where warehouse-ops-agent sits relative to the warehouse-systems bo
 
 # Context map
 
+This is `warehouse-ops-agent`'s slice of the fleet context map, in
+ddd-crew [Context Mapping](https://github.com/ddd-crew/context-mapping)
+notation. It is part of the [DDD artifact pack](../ddd/ddd-artifacts.md).
+
 `warehouse-ops-agent` carries **three distinct relationships** to the rest
 of the fleet, added in different phases and never merged into one:
 
 1. **MCP Customer** (ADR 0001, extended by
    [ADR 0007](../adr/0007-second-wave-outbound-mcp-clients.md)) — the
-   daily-brief, flow-balance-exception and explain-travel-factor use cases
-   read each context's published MCP Open Host Service, synchronously, at
-   request time. Clients exist for nine contexts: the five original ones
-   plus `labor-performance` (consumed by the
-   [ADR 0008](../adr/0008-labor-utilization-advisory-correlation.md)
+   daily-brief, flow-balance-exception, explain-travel-factor and
+   stranded-reservation use cases read each context's published MCP Open
+   Host Service, synchronously, at request time. Clients exist for nine
+   contexts: the five original ones plus `labor-performance` (consumed by
+   the [ADR 0008](../adr/0008-labor-utilization-advisory-correlation.md)
    utilization overlay), `order-management` and `process-path-management`
    (wired, not yet consumed by any use case), and `warehouse-planning`
    ([ADR 0013](../adr/0013-warehouse-planning-mcp-client-and-capacity-outlook.md):
@@ -43,63 +47,74 @@ asking "what needs attention right now" versus a browser rendering "what
 happened to order X" for a human.
 
 ```mermaid
-graph LR
-    WOA["warehouse-ops-agent"]
-    IS["inventory-storage"]
-    WM["workforce-management"]
-    WP["wes-work-planning"]
-    FE["fulfillment-execution"]
-    FL["facility-layout"]
-    LP["labor-performance"]
-    OM["order-management"]
-    PPM["process-path-management"]
-    OBS["Prometheus / Loki<br/><i>warehouse-infra</i>"]
-    WC["warehouse-console<br/><i>browser SPA, separate repo</i>"]
+flowchart LR
+    WOA["warehouse-ops-agent<br/>Supporting"]
+    WP["wes-work-planning<br/>Core"]
+    FE["fulfillment-execution<br/>Core"]
+    IS["inventory-storage<br/>Core"]
+    WPL["warehouse-planning<br/>Core"]
+    WM["workforce-management<br/>Supporting"]
+    LP["labor-performance<br/>Supporting"]
+    FL["facility-layout<br/>Generic"]
+    OM["order-management<br/>Generic/Supporting"]
+    PPM["process-path-management<br/>Generic"]
+    NF["network-fulfillment<br/>Supporting"]
+    WC["warehouse-console<br/>frontend"]
+    OBS["Prometheus / Loki<br/>observability"]
+    LLM["Anthropic Messages API<br/>external, optional"]
 
-    WC -->|"/console/** (HTTP)"| WOA
-
-    WOA -->|"check_availability<br/>get_bin_occupancy (MCP)"| IS
-    WOA -->|"get_staffing_gap<br/>propose_path_heads (MCP)"| WM
-    WOA -->|"get_backlog_telemetry<br/>get_rebalance_recommendation (MCP)"| WP
-    WOA -->|"get_queue_status<br/>find_claimable_work<br/>diagnose_stuck_tasks (MCP)"| FE
-    WOA -->|"list_sites · get_site_layout<br/>get_zone_grid · estimate_travel_distance (MCP)"| FL
-    WOA -->|"get_task_type_utilization<br/>+ 3 more (MCP)"| LP
-    WOA -->|"get_order (MCP, unconsumed)"| OM
-    WOA -->|"get_process_path<br/>list_process_paths (MCP, unconsumed)"| PPM
-
-    WOA -.->|"REST, console-bff"| OM
-    WOA -.->|"REST, console-bff"| IS
-    WOA -.->|"REST, console-bff"| WP
-    WOA -.->|"REST, console-bff"| FE
-    WOA -.->|"reports REST, console-bff"| WM
-    WOA -.->|"reports REST, console-bff"| FL
-    WOA -.->|"reports REST, console-bff"| LP
-
-    WOA ==>|"/api/v1/query · /loki/api/v1/query_range"| OBS
+    WP -->|"U OHS / D CF - MCP get_backlog_telemetry, get_rebalance_recommendation + REST work-units + reports"| WOA
+    FE -->|"U OHS / D CF - MCP get_queue_status, diagnose_stuck_tasks + REST tasks + reports"| WOA
+    IS -->|"U OHS / D CF - MCP check_availability, get_bin_occupancy + REST reservations + reports"| WOA
+    WPL -->|"U OHS / D CF - MCP get_process_path_capacity, read tools only"| WOA
+    WM -->|"U OHS / D CF - MCP get_staffing_gap + reports"| WOA
+    LP -->|"U OHS / D CF - MCP get_task_type_utilization + reports"| WOA
+    FL -->|"U OHS / D CF - MCP list_sites, estimate_travel_distance + reports"| WOA
+    OM -.->|"U OHS / D CF - REST orders + reports live, MCP get_order wired only"| WOA
+    PPM -.->|"U OHS / D CF - MCP get_process_path, list_process_paths wired only"| WOA
+    NF -.-|"Separate Ways - no client, deliberately absent"| WOA
+    WOA -->|"U OHS / D C-S - REST /console/** BFF"| WC
+    OBS -->|"U / D CF - HTTP /api/v1/query, /loki/api/v1/query_range"| WOA
+    LLM -.->|"U / D CF - HTTP POST /v1/messages, behind policy ACL, off by default"| WOA
 
     style WOA fill:#fde9d2,stroke:#b45309,stroke-width:2px
-    style WC fill:#dbeafe,stroke:#1d4ed8,stroke-width:2px
 ```
 
-Solid edges are the MCP-Customer relationship; dashed edges are the
-`console-bff` REST fan-out (OLTP and `*-reports`); the thick edge is the
-runtime-signals telemetry read. Every edge points outward from this agent,
-and every call is a read — nothing here ever gains write access to any
+Source: `cmd/agent/main.go`, `cmd/agent/reasoner.go`,
+`internal/adapters/outbound/{mcpclient,restclient,telemetry,logs,llm/anthropic}/*.go`,
+`internal/adapters/inbound/http/router.go`, `internal/config/config.go`.
+Omits: the tool-by-tool list for wired-but-unconsumed tools (see the
+table), the `/freshness` calls that accompany every report call, and
+relationships between the other contexts.
+
+Arrows point from upstream (U) to downstream (D), i.e. in the direction
+facts flow; every *call* goes the other way, from this agent outward. A
+solid arrow is live; a dashed arrow is wired-but-unconsumed, or (for the
+LLM) off unless `LLM_MODE` is set; the undirected dashed link to
+`network-fulfillment` marks a deliberate absence. Every edge is a read — nothing here ever gains write access to any
 context.
 
 ## Relationship table
 
-| Service | MCP relationship | console-bff relationship |
-|---|---|---|
-| `order-management` | client wired (`get_order`), no consumer yet | OLTP `GET /orders/{id}`; reports `/reports/funnel` (WMS) |
-| `inventory-storage` | Customer — usable-stock and bin-occupancy facts (E2, exposed as the MCP tool `detect_stranded_reservation`) | OLTP `GET /reservations?demandRef=`; reports `/reports/flow-accuracy` (WMS) |
-| `wes-work-planning` | Customer — backlog telemetry and rebalance recommendations | OLTP `GET /work-units?reference=`; reports `/reports/throughput` (WES) |
-| `fulfillment-execution` | Customer — queue status and stuck-task diagnostics | OLTP `GET /tasks?orderRef=` (joined via each WorkUnit's id, not the plain order id — see ADR 0002); reports `/reports/throughput` (WES) |
-| `workforce-management` | Customer — staffing gap | reports `/reports/labor` (WES) |
-| `facility-layout` | Customer — site structure, travel distance | reports `/reports/catalog-growth` (WMS) |
-| `labor-performance` | Customer — task-type utilization (ADR 0008) | reports `/reports/performance` (WES) |
-| `process-path-management` | client wired (`get_process_path`, `list_process_paths`), no consumer yet | none |
-| `warehouse-planning` | Customer, **read tools only** (its MCP server is read+write): `get_process_path_capacity` → daily-brief capacity outlook; `get_capacity_plan`, `get_storage_capacity`, `list_station_standards` wired, no consumer yet (ADR 0013) | none |
+| Upstream | Pattern | Technology | Status | Evidence |
+|---|---|---|---|---|
+| `wes-work-planning` (Core) | OHS / Conformist | MCP `get_backlog_telemetry`, `get_rebalance_recommendation`; REST `GET /work-units?reference=`; reports `/reports/throughput` | live | `mcpclient/wes_work_planning.go`, `restclient/clients.go`, `restclient/reports_clients.go` |
+| `fulfillment-execution` (Core) | OHS / Conformist | MCP `get_queue_status`, `diagnose_stuck_tasks` (live), `find_claimable_work` (wired); REST `GET /tasks?orderRef=` (joined via each WorkUnit's id, not the plain order id — see ADR 0002); reports `/reports/throughput` | live | `mcpclient/fulfillment_execution.go`, `restclient/clients.go` |
+| `inventory-storage` (Core) | OHS / Conformist | MCP `check_availability`, `get_bin_occupancy` (E2, exposed as the MCP tool `detect_stranded_reservation`); REST `GET /reservations?demandRef=`; reports `/reports/flow-accuracy` | live | `mcpclient/inventory_storage.go`, `usecases/stranded_reservation.go` |
+| `warehouse-planning` (Core) | OHS / Conformist, **read tools only** (its MCP server is read+write) | MCP `get_process_path_capacity` (live, daily-brief capacity outlook); `get_capacity_plan`, `get_storage_capacity`, `list_station_standards` (wired) | live, only when `WAREHOUSE_PLANNING_MCP_ENDPOINT` is set | `mcpclient/warehouse_planning.go`, `usecases/capacity_outlook.go`, `zerowrite/mcpclient_tools_test.go` |
+| `workforce-management` (Supporting) | OHS / Conformist | MCP `get_staffing_gap` (live), `propose_path_heads` (wired); reports `/reports/labor` | live | `mcpclient/workforce_management.go` |
+| `labor-performance` (Supporting) | OHS / Conformist | MCP `get_task_type_utilization` (live, ADR 0008) + 3 wired tools; reports `/reports/performance` | live | `mcpclient/labor_performance.go`, `usecases/flow_balance_advisory.go` |
+| `facility-layout` (Generic) | OHS / Conformist | MCP `list_sites`, `estimate_travel_distance` (live), `get_site_layout`, `get_zone_grid` (wired); reports `/reports/catalog-growth` | live | `mcpclient/facility_layout.go`, `usecases/explain_travel_factor.go` |
+| `order-management` (Generic/Supporting) | OHS / Conformist | REST `GET /orders/{id}` and reports `/reports/funnel` (live); MCP `get_order` (wired, `_ = om` in `cmd/agent/main.go`) | REST live, MCP wired-but-unused | `restclient/clients.go`, `mcpclient/order_management.go` |
+| `process-path-management` (Generic) | OHS / Conformist | MCP `get_process_path`, `list_process_paths` | wired-but-unused (`_ = ppm`) | `mcpclient/process_path_management.go` |
+| `network-fulfillment` (Supporting) | Separate Ways | none | deliberately absent | no client in `internal/adapters/outbound` |
+| Prometheus / Loki | Conformist (not a bounded context) | HTTP `/api/v1/query`, `/loki/api/v1/query_range` | live | `telemetry/prometheus_reader.go`, `logs/loki_reader.go` |
+| Anthropic Messages API (external) | Conformist, with `policy.ValidatePlan` / `Arbitrate` as the anti-corruption gate | HTTP `POST /v1/messages` | off by default (`LLM_MODE=off`) | `llm/anthropic/reasoner.go`, `cmd/agent/reasoner.go` |
+
+| Downstream | Pattern | Technology | Status | Evidence |
+|---|---|---|---|---|
+| `warehouse-console` | Customer/Supplier (this agent is the BFF supplier; DTOs hand-kept in sync with the console's types) | REST `/console/orders/{id}/lifecycle`, `/console/reports/wms`, `/console/reports/wes`, plus `/daily-brief` | live | `inbound/http/router.go` |
+| Agentic / LLM hosts | OHS / Published Language (MCP tool schemas) | MCP `/mcp`: 5 read-only tools | live | `inbound/mcp/tools.go` |
 
 Every `*-reports` read also calls that report's `/freshness` endpoint. MCP
 and REST calls carry no credentials — the fleet's auth was removed
@@ -110,12 +125,13 @@ and REST calls carry no credentials — the fleet's auth was removed
 This agent has **no Kafka integration** — it reads exclusively via
 synchronous MCP tool calls, REST calls and Prometheus/Loki queries, at
 request time. It does not subscribe to any context's domain events, and it
-publishes none of its own.
+publishes none of its own (see [Domain events](../ddd/domain-events.md)).
 
 It also has **no cross-repo Go dependency** on any upstream context:
 `internal/architecture/architecture_test.go`'s
 `TestNoDirectDependencyOnBoundedContexts` fails the build if one of the
-five original contexts' modules is ever introduced, and the domain-layer types in `internal/domain/policy`
+five original contexts' modules (or `warehouse-planning`'s) is ever
+introduced, and the domain-layer types in `internal/domain/policy`
 (`RebalanceAction`, `TaskType`, and so on) are hand-mirrored copies of the
 upstream enums, validated at the tool-boundary rather than imported.
 
