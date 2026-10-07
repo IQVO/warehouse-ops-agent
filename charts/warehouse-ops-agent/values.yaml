@@ -191,6 +191,15 @@ upstreams:
   # http://product-master-mcp.warehouse-systems.svc.cluster.local:8090/mcp
   productMaster:
     endpoint: ""
+  # network-inventory-planning (ADR 0019): its MCP server publishes READ
+  # tools only and this agent calls only those (get_transfer,
+  # find_stuck_transfers, simulate_transfer_options). Empty = not
+  # configured: the binary builds no client, the /transfer-watch/* routes
+  # answer 503 and the triage_stuck_transfers / get_transfer_status /
+  # explain_network_imbalance MCP tools are not registered. Moving,
+  # approving or cancelling a transfer stays an operator action in NIP.
+  networkInventoryPlanning:
+    endpoint: ""
 
 # warehouse-infra Prometheus base URL, for the telemetry-reader port's
 # REAL implementation (already wired: cmd/agent's newTelemetryReader picks

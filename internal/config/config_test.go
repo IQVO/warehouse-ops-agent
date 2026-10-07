@@ -154,3 +154,18 @@ func TestLoad_PathTargets_EmptyList_IsAConfigError(t *testing.T) {
 		}
 	}
 }
+
+func TestLoad_NetworkInventoryPlanning_DefaultsToNotConfigured(t *testing.T) {
+	t.Setenv("NETWORK_INVENTORY_PLANNING_MCP_ENDPOINT", "")
+	if got := mustLoad(t).NetworkInventoryPlanning.Endpoint; got != "" {
+		t.Errorf("an unset endpoint must stay empty (= not configured), got %q", got)
+	}
+}
+
+func TestLoad_NetworkInventoryPlanning_ReadsEndpoint(t *testing.T) {
+	t.Setenv("NETWORK_INVENTORY_PLANNING_MCP_ENDPOINT", "http://network-inventory-planning-mcp.apps.svc.cluster.local:8090/mcp")
+	want := "http://network-inventory-planning-mcp.apps.svc.cluster.local:8090/mcp"
+	if got := mustLoad(t).NetworkInventoryPlanning.Endpoint; got != want {
+		t.Errorf("endpoint = %q, want %q", got, want)
+	}
+}

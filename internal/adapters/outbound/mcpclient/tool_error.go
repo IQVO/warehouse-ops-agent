@@ -70,11 +70,16 @@ type ToolError struct {
 	Slug string
 
 	invalidInput bool
+	notFound     bool
 }
 
 func newToolError(upstream, tool, text string) *ToolError {
 	slug, invalid := classifyToolErrorText(text)
-	return &ToolError{Upstream: upstream, Tool: tool, Text: text, Slug: slug, invalidInput: invalid}
+	return &ToolError{
+		Upstream: upstream, Tool: tool, Text: text, Slug: slug,
+		invalidInput: invalid,
+		notFound:     strings.HasSuffix(slug, "-not-found"),
+	}
 }
 
 func (e *ToolError) Error() string {
@@ -82,7 +87,15 @@ func (e *ToolError) Error() string {
 }
 
 // Is makes errors.Is(err, ports.ErrUpstreamInvalidInput) true for a
-// validation-slug rejection only.
+// validation-slug rejection only, and errors.Is(err,
+// ports.ErrUpstreamNotFound) true for a "*-not-found" slug only (ADR 0019).
 func (e *ToolError) Is(target error) bool {
-	return target == ports.ErrUpstreamInvalidInput && e.invalidInput
+	switch target {
+	case ports.ErrUpstreamInvalidInput:
+		return e.invalidInput
+	case ports.ErrUpstreamNotFound:
+		return e.notFound
+	default:
+		return false
+	}
 }

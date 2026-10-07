@@ -59,6 +59,8 @@ internal/
                                         (console-bff), capacity_outlook.go (ADR 0013,
                                         fail-open section of the daily brief),
                                         master_data_gaps.go (ADR 0020, list_products scan),
+                                        transfer_watch.go (ADR 0019, read-only
+                                        NIP transfer triage / status / imbalance),
                                         console_reports*.go
                                         (console-bff WMS/WES dashboards)
   ports/                             OUT: one client interface per upstream
@@ -70,7 +72,9 @@ internal/
                                       clients_planning.go: WarehousePlanning,
                                       read tools only — ADR 0013;
                                       clients_product_master.go: ProductMaster,
-                                      its 4 read tools — ADR 0020)
+                                      its 4 read tools — ADR 0020;
+                                      clients_nip.go: NetworkInventoryPlanning,
+                                      read tools only — ADR 0019)
                                       + TelemetryReader, LogReader, Reasoner,
                                       ArbitrationMetrics + console-bff's
                                       separate REST port shapes
@@ -80,11 +84,17 @@ internal/
                       /flow-balance/{pathId}, /explain-travel-factor,
                       /console/orders/{id}/lifecycle,
                       /console/reports/wms, /console/reports/wes,
-                      /runtime-signals, /master-data-gaps
+                      /runtime-signals, /master-data-gaps,
+                      /transfer-watch/stuck,
+                      /transfer-watch/transfers/{id},
+                      /transfer-watch/imbalance (503 when NIP unset)
       mcp/            this agent's OWN MCP server: get_daily_brief,
                       list_open_exceptions, get_flow_balance_exception,
                       explain_travel_factor, detect_stranded_reservation,
-                      find_master_data_gaps (all ReadOnlyHint: true)
+                      find_master_data_gaps, plus — only when NIP is
+                      configured — triage_stuck_transfers,
+                      get_transfer_status, explain_network_imbalance
+                      (all ReadOnlyHint: true)
     outbound/
       mcpclient/      one thin, schema-typed MCP client per upstream
                       context, Streamable HTTP, unauthenticated
@@ -92,8 +102,9 @@ internal/
                       inventory_storage.go, wes_work_planning.go,
                       workforce_management.go, labor_performance.go,
                       order_management.go, process_path_management.go,
-                      warehouse_planning.go, product_master.go — the
-                      last pinned to testdata/product_master_tools.golden.json),
+                      warehouse_planning.go, network_inventory_planning.go,
+                      product_master.go — the last pinned to
+                      testdata/product_master_tools.golden.json),
                       plus tool_invoker.go / session.go used by the LLM
                       reasoner's tool-use loop
       restclient/     console-bff's REST clients — a SEPARATE family from

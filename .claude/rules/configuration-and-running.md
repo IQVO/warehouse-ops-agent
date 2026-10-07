@@ -28,6 +28,7 @@ One Streamable-HTTP endpoint per upstream MCP context:
 | process-path-management | `PROCESS_PATH_MANAGEMENT_MCP_ENDPOINT` |
 | warehouse-planning | `WAREHOUSE_PLANNING_MCP_ENDPOINT` (unset = no client and no capacity outlook; read tools only, ADR 0013) |
 | product-master | `PRODUCT_MASTER_MCP_ENDPOINT` (unset = no client, `GET /master-data-gaps` 503, no `find_master_data_gaps`; read-only server, ADR 0020) |
+| network-inventory-planning | `NETWORK_INVENTORY_PLANNING_MCP_ENDPOINT` (unset = no client, `/transfer-watch/*` answer 503, the three transfer-watch MCP tools are not registered; read tools only, ADR 0019) |
 
 Plus `AGENT_ADDR` (default `:8095`), `PROMETHEUS_URL` / `LOKI_URL`
 (runtime-signals sources; unset Prometheus → stub reader, unset Loki →

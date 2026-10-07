@@ -85,6 +85,7 @@ console-bff). `TestNoDirectDependencyOnBoundedContexts` covers the five
 original module paths plus warehouse-planning; the three second-wave clients
 (ADR 0007) follow the same rule even though the test does not list them.
 warehouse-planning's MCP server is read+write (ADR 0013), so its client is
+(like network-inventory-planning's, ADR 0019, whose server is read-only today)
 held read-only by `zerowrite.TestMCPClientsCallOnlyReadTools`, which fails
 the build if any `callTool` literal in `mcpclient` starts with a write verb
 (`create_`, `publish_`, `register_`, `declare_`, …).

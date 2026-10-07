@@ -45,6 +45,11 @@ type Deps struct {
 	// PRODUCT_MASTER_MCP_ENDPOINT) means find_master_data_gaps is simply
 	// not registered.
 	MasterDataGaps *usecases.MasterDataGaps
+
+	// TransferWatch is the ADR-0019 read-only view of
+	// network-inventory-planning. Nil is a valid value; the three
+	// transfer-watch tools are simply not registered when nil.
+	TransferWatch *usecases.TransferWatch
 }
 
 // --- get_daily_brief -----------------------------------------------------
@@ -352,6 +357,10 @@ func (d Deps) registerTools(server *mcp.Server) {
 			Description: "List product-master products whose master data is missing or contradictory: unclassified (no handling classification, so hazmat/fragile/temperature handling is unknown downstream) and dimension-discrepancy (product-master's own flag that declared and measured unit dimensions disagree beyond its tolerance; both dimension sets are returned). Optional kind filter (unclassified or dimension-discrepancy); a scan covers at most 5,000 products per call and returns complete=false plus nextCursor to resume. Read-only: it only reports, it never classifies, declares or measures anything.",
 			Annotations: &mcp.ToolAnnotations{ReadOnlyHint: readOnly},
 		}, d.findMasterDataGaps)
+	}
+
+	if d.TransferWatch != nil {
+		d.registerTransferWatchTools(server)
 	}
 }
 

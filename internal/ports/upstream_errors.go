@@ -12,3 +12,12 @@ import "errors"
 // 5xx, not-found, conflicts, "internal-error" or an unrecognised/slug-less
 // message -- those stay plain upstream errors.
 var ErrUpstreamInvalidInput = errors.New("upstream rejected the input")
+
+// ErrUpstreamNotFound marks an error returned by an outbound client when an
+// upstream tool answered that the thing asked about does not exist: the
+// isError text starts with a "*-not-found" slug (e.g. NIP's
+// transfer-not-found). It is additive: the error text and the 502
+// classification of every existing caller are unchanged (ADR 0018 keeps
+// "*-not-found" out of the invalid-input table); only a use case that opts in
+// with errors.Is(err, ErrUpstreamNotFound) can answer "unknown id" (ADR 0019).
+var ErrUpstreamNotFound = errors.New("upstream reported not found")
