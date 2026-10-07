@@ -11,7 +11,8 @@ Source of truth: `internal/architecture/architecture_test.go`,
    `TestNoDirectDependencyOnBoundedContexts` asserts it for the five
    original contexts (`fulfillment-execution`, `wes-work-planning`,
    `workforce-management`, `inventory-storage`, `facility-layout`) plus the
-   third-wave `warehouse-planning` (ADR 0013) by
+   third-wave `warehouse-planning` (ADR 0013) and `product-master`
+   (ADR 0020) by
    scanning `go.mod`/`go.sum` for those module paths and fails the build if any
    appear — the check runs even if nothing today imports them, so it fails
    loudly the moment one is added. All cross-context integration must go
@@ -87,6 +88,11 @@ warehouse-planning's MCP server is read+write (ADR 0013), so its client is
 held read-only by `zerowrite.TestMCPClientsCallOnlyReadTools`, which fails
 the build if any `callTool` literal in `mcpclient` starts with a write verb
 (`create_`, `publish_`, `register_`, `declare_`, …).
+product-master's server is read-only (ADR 0020); its client is additionally
+pinned to exactly its four tools by
+`zerowrite.TestProductMasterClientCallsOnlyPinnedTools` and to their published
+schemas by `mcpclient/testdata/product_master_tools.golden.json` (a verbatim
+copy of product-master's registry golden; refresh it, never hand-edit it).
 
 ## Auth posture (as of ADR 0006, 2026-09-09)
 

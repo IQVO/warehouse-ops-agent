@@ -27,6 +27,7 @@ authoritative.
 | `GET /console/reports/wms?from=&to=` | The **console-bff** WMS dashboard ([ADR 0003](./adr/0003-console-bff-report-dashboards.md)): three sections — `order-funnel` (order-management `/reports/funnel`), `inventory-flow-accuracy` (inventory-storage `/reports/flow-accuracy`), `catalog-growth` (facility-layout `/reports/catalog-growth`) — each read from that context's separate `*-reports` binary together with its `/freshness` lag. `from`/`to` are optional RFC3339 timestamps (default: trailing 24 h); 400 if either is malformed or `to` is not after `from`. Each section degrades independently (`available: false` + `error`). |
 | `GET /console/reports/wes?from=&to=` | The **console-bff** WES dashboard: `planning-throughput` (wes-work-planning `/reports/throughput`), `fulfillment-throughput` (fulfillment-execution `/reports/throughput`), `labor-management` (workforce-management `/reports/labor`), `labor-performance` (labor-performance `/reports/performance`). Same window, validation and per-section degradation as the WMS dashboard. |
 | `GET /runtime-signals` | Per-service runtime health for the eight backend contexts (override with `RUNTIME_SIGNALS_SERVICES`) over a 10-minute window: Istio 5xx error rate (`istio_requests_total`) and p99 latency (`istio_request_duration_milliseconds_bucket`) from Prometheus, plus error/fatal log-line counts from Loki (`{namespace="warehouse-systems"}`). Classified by `policy.ClassifyErrorRate` (warning ≥ 1%, critical ≥ 5%) and `policy.ClassifyLatencyP99` (warning ≥ 1000 ms, critical ≥ 3000 ms); any recent error log lifts a service to at least `warning`. A failing Prometheus or Loki query, or an unset `LOKI_URL`, is listed in `unavailableSources` (`prometheus`, `loki`) instead of failing the request; an unset `PROMETHEUS_URL` uses a no-op stub reader, so its metrics read as zero rather than unavailable. 503 if the use case isn't wired. |
+| `GET /master-data-gaps?kind=&cursor=` | product-master products whose master data is missing or contradictory ([ADR 0020](./adr/0020-product-master-mcp-client-and-master-data-gaps.md)): `unclassified` (no handling classification) and `dimension-discrepancy` (product-master's own flag; `declared`/`measured` dimensions, `measuredAt`, `deviceId` echoed). Body: `scanned`, `complete`, `nextCursor` (when the 5,000-product per-request bound was hit), `unclassifiedCount`, `dimensionDiscrepancyCount`, `gaps[]` (`sku`, `description`, `version`, `kinds`, `rationale`). Both params optional: `kind` is `unclassified` or `dimension-discrepancy`, `cursor` resumes an incomplete scan. 400 for an unknown `kind` or a cursor product-master rejects; 502 if product-master fails; 503 when `PRODUCT_MASTER_MCP_ENDPOINT` is unset. |
 
 ## MCP (`internal/adapters/inbound/mcp`)
 
@@ -42,8 +43,9 @@ context's facts.
 | `get_flow_balance_exception` | Correlates the E1 signals for one `pathId` (+ `buildingId`/`shiftId` for the staffing lookup) into a ranked `FlowBalanceException`. |
 | `explain_travel_factor` | Calls facility-layout's `estimate_travel_distance` for two REQUIRED, caller-supplied location codes (`fromLocationCode`/`toLocationCode`) and classifies the result. The caller must already know both codes — this tool never infers or guesses them (see [ADR 0009](./adr/0009-explain-travel-factor.md)). |
 | `detect_stranded_reservation` | The E2 `StrandedReservationException` use case: correlates fulfillment-execution's `diagnose_stuck_tasks` expired/expiring leases for a `taskType` with inventory-storage's `check_availability` usable-stock shortfall for one `sku`. Only ever recommends `revoke_reservation` alongside its mandatory blast radius (`get_bin_occupancy`, requiring both `reservationId` and `binId`) — never on partial evidence; degrades to `hold` otherwise. This tool never calls inventory-storage's `revoke_reservation` write tool itself. |
+| `find_master_data_gaps` | Same report as `GET /master-data-gaps` (optional `kind`, `cursor`); registered only when `PRODUCT_MASTER_MCP_ENDPOINT` is set. An unknown `kind` is a tool error, never defaulted. It only reports: it never classifies, declares or measures ([ADR 0020](./adr/0020-product-master-mcp-client-and-master-data-gaps.md)). |
 
-All five tools are annotated read-only
+All six tools are annotated read-only
 (`mcp.ToolAnnotations{ReadOnlyHint: true}`). This agent has **zero write
 tools** — see the [Governance note](./mcp/governance-note.md) for why that
 is a v1 design choice, not an oversight.
@@ -63,3 +65,10 @@ is consumed only through `get_process_path_capacity` (the daily brief's
 capacity outlook); `get_capacity_plan`, `get_storage_capacity` and
 `list_station_standards` are wired but not yet consumed by any use case.
 Its MCP server is read+write; this agent calls read tools only.
+
+`product-master`'s outbound client
+([ADR 0020](./adr/0020-product-master-mcp-client-and-master-data-gaps.md))
+is consumed only through `list_products` (the master-data gaps report);
+`get_product`, `get_product_classification` and `get_physical_profile` are
+wired and contract-tested against product-master's published registry but
+not yet consumed. product-master's MCP server is read-only.
