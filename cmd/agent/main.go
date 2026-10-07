@@ -84,6 +84,7 @@ func run() error {
 		ExplainTravelFactor: decision.explainTravelFactor,
 		StrandedReservation: decision.strandedReservation,
 		MasterDataGaps:      decision.masterDataGaps,
+		TransferWatch:       decision.transferWatch,
 	}
 	mcpHandler := inboundmcp.Handler(inboundmcp.NewServer(mcpDeps))
 
@@ -95,6 +96,7 @@ func run() error {
 		ConsoleReports:      newConsoleReports(cfg),
 		RuntimeSignals:      newRuntimeSignals(cfg, clients.telemetry, clients.logs),
 		MasterDataGaps:      decision.masterDataGaps,
+		TransferWatch:       decision.transferWatch,
 		// MCPHandler mounts /mcp on the SAME chi router as every REST
 		// route (ADR-0010): otelchi trace, otelchimetric RED duration,
 		// and RequestLogger all apply to MCP traffic too, not just REST.
@@ -125,8 +127,12 @@ type outboundClients struct {
 	// master-data-gaps use case is then not wired (ADR 0020). Assigned only
 	// when configured, so a nil check is a genuine "not configured".
 	productMaster ports.ProductMasterClient
-	telemetry     ports.TelemetryReader
-	logs          ports.LogReader
+	// nip is nil when NETWORK_INVENTORY_PLANNING_MCP_ENDPOINT is unset:
+	// the transfer watch is then not wired at all (ADR 0019). Assigned
+	// only when configured, so a nil check is a genuine "not configured".
+	nip       ports.NetworkInventoryPlanningClient
+	telemetry ports.TelemetryReader
+	logs      ports.LogReader
 }
 
 // newProductMasterClient builds the product-master MCP client (its four
@@ -139,6 +145,19 @@ func newProductMasterClient(cfg config.Config) ports.ProductMasterClient {
 	return mcpclient.NewProductMaster(mcpclient.Config{
 		Name:     "product-master",
 		Endpoint: cfg.ProductMaster.Endpoint,
+	})
+}
+
+// newNIPClient builds the network-inventory-planning MCP client (read
+// tools only), or returns a nil interface when no endpoint is configured so
+// boot never depends on it.
+func newNIPClient(cfg config.Config) ports.NetworkInventoryPlanningClient {
+	if cfg.NetworkInventoryPlanning.Endpoint == "" {
+		return nil
+	}
+	return mcpclient.NewNetworkInventoryPlanning(mcpclient.Config{
+		Name:     "network-inventory-planning",
+		Endpoint: cfg.NetworkInventoryPlanning.Endpoint,
 	})
 }
 
@@ -201,6 +220,7 @@ func newOutboundClients(cfg config.Config) outboundClients {
 		logs:          newLogReader(cfg.LokiURL),
 		planning:      newPlanningClient(cfg),
 		productMaster: newProductMasterClient(cfg),
+		nip:           newNIPClient(cfg),
 	}
 }
 
@@ -215,6 +235,9 @@ type decisionSupport struct {
 	explainTravelFactor *usecases.ExplainTravelFactor
 	strandedReservation *usecases.DetectStrandedReservation
 	masterDataGaps      *usecases.MasterDataGaps
+	// transferWatch is nil when network-inventory-planning is not
+	// configured (ADR 0019).
+	transferWatch *usecases.TransferWatch
 }
 
 // newDecisionSupport wires the decision-support use cases over the
@@ -267,7 +290,19 @@ func newDecisionSupport(cfg config.Config, clients outboundClients) decisionSupp
 		explainTravelFactor: &usecases.ExplainTravelFactor{Facility: clients.facility},
 		strandedReservation: strandedReservation,
 		masterDataGaps:      masterDataGaps,
+		transferWatch:       newTransferWatch(clients),
 	}
+}
+
+// newTransferWatch wires the ADR-0019 read-only transfer watch, or returns
+// nil when network-inventory-planning is not configured. The nil must be a
+// real nil *TransferWatch (never a non-nil struct around a nil port) so the
+// inbound adapters' "not configured" checks are genuine.
+func newTransferWatch(clients outboundClients) *usecases.TransferWatch {
+	if clients.nip == nil {
+		return nil
+	}
+	return &usecases.TransferWatch{NIP: clients.nip}
 }
 
 // newOrderLifecycle wires the console-bff order-lifecycle use case. Its
@@ -333,6 +368,7 @@ func serveAgent(cfg config.Config, logger *slog.Logger, serviceName string, hand
 			"facility_layout_endpoint_configured", cfg.FacilityLayout.Endpoint != "",
 			"warehouse_planning_endpoint_configured", cfg.WarehousePlanning.Endpoint != "",
 			"product_master_endpoint_configured", cfg.ProductMaster.Endpoint != "",
+			"network_inventory_planning_endpoint_configured", cfg.NetworkInventoryPlanning.Endpoint != "",
 			"path_targets", len(cfg.PathTargets),
 		)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {

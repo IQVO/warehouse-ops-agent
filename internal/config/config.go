@@ -98,6 +98,12 @@ type Config struct {
 	// registered) and nothing else changes -- the agent boots fail-open.
 	ProductMaster UpstreamConfig
 
+	// NetworkInventoryPlanning is the fourth-wave upstream (ADR 0019). An
+	// empty endpoint means "not configured": the composition root then
+	// builds no client and no transfer watch, the three /transfer-watch
+	// routes answer 503 and the three MCP tools are not registered.
+	NetworkInventoryPlanning UpstreamConfig
+
 	// CapacityOutlookHorizon is how far ahead the daily brief's
 	// warehouse-planning capacity window extends from now
 	// (CAPACITY_OUTLOOK_HORIZON, a Go duration; default 8h). It is a time
@@ -244,6 +250,9 @@ func Load() (Config, error) {
 		},
 		ProductMaster: UpstreamConfig{
 			Endpoint: getenv("PRODUCT_MASTER_MCP_ENDPOINT", ""),
+		},
+		NetworkInventoryPlanning: UpstreamConfig{
+			Endpoint: getenv("NETWORK_INVENTORY_PLANNING_MCP_ENDPOINT", ""),
 		},
 		CapacityOutlookHorizon: loadDuration("CAPACITY_OUTLOOK_HORIZON", defaultCapacityOutlookHorizon),
 

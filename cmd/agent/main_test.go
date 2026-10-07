@@ -68,3 +68,32 @@ func TestToUseCaseTargets_CarriesPlanningBinding(t *testing.T) {
 		t.Fatalf("planning binding not carried through: %+v", out)
 	}
 }
+
+func TestNewNIPClient_UnsetEndpoint_IsANilInterface(t *testing.T) {
+	// Same typed-nil trap as the planning client: a non-nil interface around a
+	// nil pointer would pass the "configured?" check and crash on first call.
+	if got := newNIPClient(config.Config{}); got != nil {
+		t.Fatalf("an unset NETWORK_INVENTORY_PLANNING_MCP_ENDPOINT must yield a nil client, got %T", got)
+	}
+}
+
+func TestNewNIPClient_SetEndpoint_BuildsClient(t *testing.T) {
+	cfg := config.Config{NetworkInventoryPlanning: config.UpstreamConfig{Endpoint: "http://network-inventory-planning-mcp:8090/mcp"}}
+	if got := newNIPClient(cfg); got == nil {
+		t.Fatal("a configured endpoint must build the client")
+	}
+}
+
+func TestNewDecisionSupport_TransferWatchOnlyWiredWhenNIPConfigured(t *testing.T) {
+	cfg := config.Config{}
+
+	if got := newDecisionSupport(cfg, outboundClients{}).transferWatch; got != nil {
+		t.Fatalf("no NIP client => no transfer watch (a genuine nil, so adapters answer 503), got %+v", got)
+	}
+
+	cfg.NetworkInventoryPlanning.Endpoint = "http://network-inventory-planning-mcp:8090/mcp"
+	got := newDecisionSupport(cfg, outboundClients{nip: newNIPClient(cfg)}).transferWatch
+	if got == nil || got.NIP == nil {
+		t.Fatalf("a configured NIP client must wire the transfer watch: %+v", got)
+	}
+}

@@ -93,6 +93,8 @@ spec:
               value: {{ .Values.upstreams.warehousePlanning.endpoint | quote }}
             - name: PRODUCT_MASTER_MCP_ENDPOINT
               value: {{ .Values.upstreams.productMaster.endpoint | quote }}
+            - name: NETWORK_INVENTORY_PLANNING_MCP_ENDPOINT
+              value: {{ .Values.upstreams.networkInventoryPlanning.endpoint | quote }}
             {{- if .Values.config.capacityOutlookHorizon }}
             - name: CAPACITY_OUTLOOK_HORIZON
               value: {{ .Values.config.capacityOutlookHorizon | quote }}
