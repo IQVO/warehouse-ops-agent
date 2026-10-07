@@ -183,6 +183,14 @@ upstreams:
   # carries an omittedReason, never a failed brief).
   warehousePlanning:
     endpoint: ""
+  # product-master (ADR 0020): its MCP server is read-only (get_product,
+  # list_products, get_product_classification, get_physical_profile on
+  # :8090, Streamable HTTP at /mcp). Empty = not configured: no client, no
+  # GET /master-data-gaps (503) and no find_master_data_gaps tool; nothing
+  # else changes. In-cluster value:
+  # http://product-master-mcp.warehouse-systems.svc.cluster.local:8090/mcp
+  productMaster:
+    endpoint: ""
 
 # warehouse-infra Prometheus base URL, for the telemetry-reader port's
 # REAL implementation (already wired: cmd/agent's newTelemetryReader picks

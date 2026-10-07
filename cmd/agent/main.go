@@ -1,13 +1,14 @@
 // Command agent is the composition root for warehouse-ops-agent: it wires
-// env config to the nine outbound MCP-client adapters (one per upstream
-// bounded context), the REST clients for the console-bff, and the telemetry
+// env config to the ten outbound MCP-client adapters (one per upstream
+// bounded context; warehouse-planning and product-master only when their
+// endpoint is set), the REST clients for the console-bff, and the telemetry
 // and log readers (a real Prometheus reader when PROMETHEUS_URL is set, a
 // no-op stub otherwise; a Loki reader when LOKI_URL is set), then wires
 // those into the decision-support use cases (daily brief, flow balance,
-// explain travel factor, stranded reservation) and the console-bff and
-// runtime-signals use cases. It serves them over BOTH an inbound HTTP
-// endpoint and this agent's own inbound MCP server (up to five tools: see
-// internal/adapters/inbound/mcp/server.go) — a single process, two
+// explain travel factor, stranded reservation, master-data gaps) and the
+// console-bff and runtime-signals use cases. It serves them over BOTH an
+// inbound HTTP endpoint and this agent's own inbound MCP server (up to six
+// tools: see internal/adapters/inbound/mcp/tools.go) — a single process, two
 // driving adapters over the same use cases, exactly the pattern the five
 // bounded contexts use for their own HTTP+MCP pair.
 package main
@@ -82,6 +83,7 @@ func run() error {
 		FlowBalanceAdvisory: decision.flowBalance,
 		ExplainTravelFactor: decision.explainTravelFactor,
 		StrandedReservation: decision.strandedReservation,
+		MasterDataGaps:      decision.masterDataGaps,
 	}
 	mcpHandler := inboundmcp.Handler(inboundmcp.NewServer(mcpDeps))
 
@@ -92,6 +94,7 @@ func run() error {
 		OrderLifecycle:      newOrderLifecycle(cfg),
 		ConsoleReports:      newConsoleReports(cfg),
 		RuntimeSignals:      newRuntimeSignals(cfg, clients.telemetry, clients.logs),
+		MasterDataGaps:      decision.masterDataGaps,
 		// MCPHandler mounts /mcp on the SAME chi router as every REST
 		// route (ADR-0010): otelchi trace, otelchimetric RED duration,
 		// and RequestLogger all apply to MCP traffic too, not just REST.
@@ -117,9 +120,26 @@ type outboundClients struct {
 	// capacity outlook is then not wired at all (ADR 0013). Unlike its
 	// siblings it is assigned only when configured, so a nil check on this
 	// interface is a genuine "not configured".
-	planning  ports.WarehousePlanningClient
-	telemetry ports.TelemetryReader
-	logs      ports.LogReader
+	planning ports.WarehousePlanningClient
+	// productMaster is nil when PRODUCT_MASTER_MCP_ENDPOINT is unset: the
+	// master-data-gaps use case is then not wired (ADR 0020). Assigned only
+	// when configured, so a nil check is a genuine "not configured".
+	productMaster ports.ProductMasterClient
+	telemetry     ports.TelemetryReader
+	logs          ports.LogReader
+}
+
+// newProductMasterClient builds the product-master MCP client (its four
+// read tools only), or returns a nil interface when no endpoint is
+// configured so boot never depends on product-master (fail-open).
+func newProductMasterClient(cfg config.Config) ports.ProductMasterClient {
+	if cfg.ProductMaster.Endpoint == "" {
+		return nil
+	}
+	return mcpclient.NewProductMaster(mcpclient.Config{
+		Name:     "product-master",
+		Endpoint: cfg.ProductMaster.Endpoint,
+	})
 }
 
 // newPlanningClient builds the warehouse-planning MCP client (read tools
@@ -178,20 +198,23 @@ func newOutboundClients(cfg config.Config) outboundClients {
 			Name:     "labor-performance",
 			Endpoint: cfg.LaborPerformance.Endpoint,
 		}),
-		logs:     newLogReader(cfg.LokiURL),
-		planning: newPlanningClient(cfg),
+		logs:          newLogReader(cfg.LokiURL),
+		planning:      newPlanningClient(cfg),
+		productMaster: newProductMasterClient(cfg),
 	}
 }
 
 // decisionSupport bundles the MCP-Customer / decision-support use case
 // family: the daily brief (E3), the flow-balance advisory (E1) with its
-// ADR-0008 utilization overlay, explain-travel-factor (ADR 0009), and the
-// E2 stranded-reservation correlation.
+// ADR-0008 utilization overlay, explain-travel-factor (ADR 0009), the
+// E2 stranded-reservation correlation and the ADR 0020 master-data gaps
+// (nil when product-master is not configured).
 type decisionSupport struct {
 	dailyBrief          *usecases.DailyBrief
 	flowBalance         *usecases.FlowBalanceAdvisory
 	explainTravelFactor *usecases.ExplainTravelFactor
 	strandedReservation *usecases.DetectStrandedReservation
+	masterDataGaps      *usecases.MasterDataGaps
 }
 
 // newDecisionSupport wires the decision-support use cases over the
@@ -230,11 +253,20 @@ func newDecisionSupport(cfg config.Config, clients outboundClients) decisionSupp
 		InventoryStorage:     clients.inv,
 	}
 
+	// Master-data gaps (ADR 0020): only wired when product-master is
+	// configured; otherwise GET /master-data-gaps answers 503 and
+	// find_master_data_gaps is not registered.
+	var masterDataGaps *usecases.MasterDataGaps
+	if clients.productMaster != nil {
+		masterDataGaps = &usecases.MasterDataGaps{ProductMaster: clients.productMaster}
+	}
+
 	return decisionSupport{
 		dailyBrief:          dailyBrief,
 		flowBalance:         flowBalance,
 		explainTravelFactor: &usecases.ExplainTravelFactor{Facility: clients.facility},
 		strandedReservation: strandedReservation,
+		masterDataGaps:      masterDataGaps,
 	}
 }
 
@@ -292,7 +324,7 @@ func serveAgent(cfg config.Config, logger *slog.Logger, serviceName string, hand
 	go func() {
 		logger.Info("warehouse-ops-agent listening",
 			"addr", cfg.Addr,
-			"http_routes", "/healthz, /daily-brief, /flow-balance/{pathId}, /explain-travel-factor, /console/orders/{id}/lifecycle, /console/reports/wms, /console/reports/wes, /runtime-signals",
+			"http_routes", "/healthz, /daily-brief, /flow-balance/{pathId}, /explain-travel-factor, /console/orders/{id}/lifecycle, /console/reports/wms, /console/reports/wes, /runtime-signals, /master-data-gaps",
 			"mcp_route", "/mcp",
 			"wes_work_planning_endpoint_configured", cfg.WesWorkPlanning.Endpoint != "",
 			"fulfillment_execution_endpoint_configured", cfg.FulfillmentExecution.Endpoint != "",
@@ -300,6 +332,7 @@ func serveAgent(cfg config.Config, logger *slog.Logger, serviceName string, hand
 			"workforce_management_endpoint_configured", cfg.WorkforceManagement.Endpoint != "",
 			"facility_layout_endpoint_configured", cfg.FacilityLayout.Endpoint != "",
 			"warehouse_planning_endpoint_configured", cfg.WarehousePlanning.Endpoint != "",
+			"product_master_endpoint_configured", cfg.ProductMaster.Endpoint != "",
 			"path_targets", len(cfg.PathTargets),
 		)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {

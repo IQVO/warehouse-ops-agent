@@ -91,6 +91,13 @@ type Config struct {
 	// client and no capacity outlook, and the daily brief is unchanged.
 	WarehousePlanning UpstreamConfig
 
+	// ProductMaster is product-master's read-only MCP server (ADR 0020),
+	// PRODUCT_MASTER_MCP_ENDPOINT. An empty endpoint means "not configured":
+	// the composition root builds no client and no master-data-gaps use
+	// case (GET /master-data-gaps answers 503, find_master_data_gaps is not
+	// registered) and nothing else changes -- the agent boots fail-open.
+	ProductMaster UpstreamConfig
+
 	// CapacityOutlookHorizon is how far ahead the daily brief's
 	// warehouse-planning capacity window extends from now
 	// (CAPACITY_OUTLOOK_HORIZON, a Go duration; default 8h). It is a time
@@ -234,6 +241,9 @@ func Load() (Config, error) {
 		},
 		WarehousePlanning: UpstreamConfig{
 			Endpoint: getenv("WAREHOUSE_PLANNING_MCP_ENDPOINT", ""),
+		},
+		ProductMaster: UpstreamConfig{
+			Endpoint: getenv("PRODUCT_MASTER_MCP_ENDPOINT", ""),
 		},
 		CapacityOutlookHorizon: loadDuration("CAPACITY_OUTLOOK_HORIZON", defaultCapacityOutlookHorizon),
 

@@ -16,6 +16,21 @@ func mustLoad(t *testing.T) Config {
 	return cfg
 }
 
+func TestLoad_ProductMaster_UnsetIsNotConfigured(t *testing.T) {
+	t.Setenv("PRODUCT_MASTER_MCP_ENDPOINT", "")
+	if got := mustLoad(t).ProductMaster.Endpoint; got != "" {
+		t.Errorf("an unset PRODUCT_MASTER_MCP_ENDPOINT must stay empty (= client disabled, fail-open), got %q", got)
+	}
+}
+
+func TestLoad_ProductMaster_ReadsEndpoint(t *testing.T) {
+	const url = "http://product-master-mcp.warehouse-systems.svc.cluster.local:8090/mcp"
+	t.Setenv("PRODUCT_MASTER_MCP_ENDPOINT", url)
+	if got := mustLoad(t).ProductMaster.Endpoint; got != url {
+		t.Errorf("endpoint = %q, want %q", got, url)
+	}
+}
+
 func TestLoad_WarehousePlanning_DefaultsToNotConfigured(t *testing.T) {
 	t.Setenv("WAREHOUSE_PLANNING_MCP_ENDPOINT", "")
 	t.Setenv("CAPACITY_OUTLOOK_HORIZON", "")
