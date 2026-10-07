@@ -33,7 +33,9 @@ Plus `AGENT_ADDR` (default `:8095`), `PROMETHEUS_URL` / `LOKI_URL`
 reported in `unavailableSources`), `RUNTIME_SIGNALS_NAMESPACE` (default
 `warehouse-systems`), `RUNTIME_SIGNALS_SERVICES` (comma-separated, default
 the eight backend contexts), `DAILY_BRIEF_PATH_TARGETS` (optional JSON
-array overriding the process paths the daily brief monitors — defaults to
+array overriding the process paths the daily brief monitors — unset uses the
+default; a malformed, empty (`[]`) or `null` value FAILS startup with a config
+error naming the variable, ADR 0017 — defaults to
 the single path the e2e-tests bootstrap scenario seeds; each target may also
 carry optional `planningPathId` / `unitsPerOrder` / `packagesPerOrder` for the
 ADR 0013 capacity outlook, never defaulted), `CAPACITY_OUTLOOK_HORIZON` (Go

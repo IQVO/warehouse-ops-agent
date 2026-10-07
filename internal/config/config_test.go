@@ -116,3 +116,26 @@ func TestLoad_PathTargets_MalformedJSON_IsAConfigError(t *testing.T) {
 		}
 	}
 }
+
+// An explicitly empty target list ("[]", or JSON null) is a set value that
+// monitors nothing: an operator mistake, or an intent the daily brief cannot
+// honour silently. It must fail startup, name the variable and say how to
+// get the default (unset it) -- never fall back to the default target.
+func TestLoad_PathTargets_EmptyList_IsAConfigError(t *testing.T) {
+	for _, empty := range []string{`[]`, ` [ ] `, "[\n]", `null`} {
+		t.Setenv("DAILY_BRIEF_PATH_TARGETS", empty)
+
+		_, err := Load()
+		if err == nil {
+			t.Errorf("Load() with DAILY_BRIEF_PATH_TARGETS=%q: expected an error, got nil", empty)
+			continue
+		}
+		msg := err.Error()
+		if !strings.Contains(msg, "DAILY_BRIEF_PATH_TARGETS") {
+			t.Errorf("error for %q must name the offending variable, got: %v", empty, err)
+		}
+		if !strings.Contains(msg, "unset") {
+			t.Errorf("error for %q must say how to get the default (unset the variable), got: %v", empty, err)
+		}
+	}
+}
