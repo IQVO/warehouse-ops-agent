@@ -1,8 +1,9 @@
 // Package http is warehouse-ops-agent's inbound REST adapter: chi router,
-// the handlers for its eight GET routes (/healthz, /daily-brief,
+// the handlers for its nine GET routes (/healthz, /daily-brief,
 // /flow-balance/{pathId}, /explain-travel-factor,
 // /console/orders/{id}/lifecycle, /console/reports/wms,
-// /console/reports/wes, /runtime-signals) plus the optional /mcp mount, and
+// /console/reports/wes, /runtime-signals, /master-data-gaps) plus the
+// optional /mcp mount, and
 // DTOs. Domain/application structs never leak across this boundary.
 package http
 
@@ -59,6 +60,10 @@ type Handlers struct {
 	// above) for any deployment that hasn't wired it.
 	RuntimeSignals *usecases.RuntimeSignals
 
+	// MasterDataGaps is the ADR 0020 product-master use case. Nil (no
+	// PRODUCT_MASTER_MCP_ENDPOINT) answers 503 on GET /master-data-gaps.
+	MasterDataGaps *usecases.MasterDataGaps
+
 	// MCPHandler is this agent's own inbound MCP server
 	// (internal/adapters/inbound/mcp), mounted at /mcp on this SAME chi
 	// router (ADR-0010) so MCP traffic gets the identical otelchi trace,
@@ -103,6 +108,7 @@ func NewRouter(h *Handlers, serviceName string) *chi.Mux {
 	r.Get("/console/reports/wms", h.getWMSDashboard)
 	r.Get("/console/reports/wes", h.getWESDashboard)
 	r.Get("/runtime-signals", h.getRuntimeSignals)
+	r.Get("/master-data-gaps", h.getMasterDataGaps)
 
 	// /mcp: same router, same middleware chain as every REST route above
 	// (ADR-0010) — NOT a second handler mounted outside it on a raw
