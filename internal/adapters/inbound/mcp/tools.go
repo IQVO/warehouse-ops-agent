@@ -40,6 +40,11 @@ type Deps struct {
 	// when nil, mirroring FlowBalanceAdvisory's own precedent. Read-only:
 	// it only ever recommends a revoke_reservation, never calls it.
 	StrandedReservation *usecases.DetectStrandedReservation
+
+	// MasterDataGaps is the ADR 0020 product-master use case. Nil (no
+	// PRODUCT_MASTER_MCP_ENDPOINT) means find_master_data_gaps is simply
+	// not registered.
+	MasterDataGaps *usecases.MasterDataGaps
 }
 
 // --- get_daily_brief -----------------------------------------------------
@@ -298,10 +303,10 @@ func (d Deps) detectStrandedReservation(ctx context.Context, in strandedReservat
 // registerTools adds every tool to the server, each wrapped so its handler
 // runs inside an OTel span named "mcp.tool <name>". get_daily_brief and
 // list_open_exceptions are always registered; get_flow_balance_exception,
-// explain_travel_factor, and detect_stranded_reservation are registered
-// only when their use case is wired (see each one's own nil check below)
-// — up to five tools total, every one of them read-only. This agent has
-// no write tool at all.
+// explain_travel_factor, detect_stranded_reservation and
+// find_master_data_gaps are registered only when their use case is wired
+// (see each one's own nil check below) — up to six tools total, every one
+// of them read-only. This agent has no write tool at all.
 func (d Deps) registerTools(server *mcp.Server) {
 	readOnly := true
 
@@ -339,6 +344,14 @@ func (d Deps) registerTools(server *mcp.Server) {
 			Description: "Correlate fulfillment-execution's expired/expiring task leases with inventory-storage's usable-stock shortfall for one SKU into a ranked StrandedReservationException recommendation (revoke_reservation or hold). A revoke is only ever recommended alongside its mandatory blast radius (which bin, how much stock would return to usable) — never on partial evidence. This tool only recommends; it never calls inventory-storage's revoke_reservation write tool itself.",
 			Annotations: &mcp.ToolAnnotations{ReadOnlyHint: readOnly},
 		}, d.detectStrandedReservation)
+	}
+
+	if d.MasterDataGaps != nil {
+		addTool(server, &mcp.Tool{
+			Name:        "find_master_data_gaps",
+			Description: "List product-master products whose master data is missing or contradictory: unclassified (no handling classification, so hazmat/fragile/temperature handling is unknown downstream) and dimension-discrepancy (product-master's own flag that declared and measured unit dimensions disagree beyond its tolerance; both dimension sets are returned). Optional kind filter (unclassified or dimension-discrepancy); a scan covers at most 5,000 products per call and returns complete=false plus nextCursor to resume. Read-only: it only reports, it never classifies, declares or measures anything.",
+			Annotations: &mcp.ToolAnnotations{ReadOnlyHint: readOnly},
+		}, d.findMasterDataGaps)
 	}
 }
 

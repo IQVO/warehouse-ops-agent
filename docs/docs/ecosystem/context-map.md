@@ -2,7 +2,7 @@
 id: context-map
 title: Context map
 sidebar_label: Context map
-description: Where warehouse-ops-agent sits relative to the warehouse-systems bounded contexts — an MCP Customer of nine of them, a console-bff REST fan-out host over their OLTP and analytics APIs, and a reader of the fleet's Prometheus/Loki telemetry.
+description: Where warehouse-ops-agent sits relative to the warehouse-systems bounded contexts — an MCP Customer of ten of them, a console-bff REST fan-out host over their OLTP and analytics APIs, and a reader of the fleet's Prometheus/Loki telemetry.
 ---
 
 # Context map
@@ -18,7 +18,7 @@ of the fleet, added in different phases and never merged into one:
    [ADR 0007](../adr/0007-second-wave-outbound-mcp-clients.md)) — the
    daily-brief, flow-balance-exception, explain-travel-factor and
    stranded-reservation use cases read each context's published MCP Open
-   Host Service, synchronously, at request time. Clients exist for nine
+   Host Service, synchronously, at request time. Clients exist for ten
    contexts: the five original ones plus `labor-performance` (consumed by
    the [ADR 0008](../adr/0008-labor-utilization-advisory-correlation.md)
    utilization overlay), `order-management` and `process-path-management`
@@ -26,7 +26,10 @@ of the fleet, added in different phases and never merged into one:
    ([ADR 0013](../adr/0013-warehouse-planning-mcp-client-and-capacity-outlook.md):
    read tools only; `get_process_path_capacity` feeds the daily brief's
    optional capacity outlook, the other three read tools are wired but
-   unconsumed).
+   unconsumed), and `product-master`
+   ([ADR 0020](../adr/0020-product-master-mcp-client-and-master-data-gaps.md):
+   read-only server; `list_products` feeds the master-data gaps report, the
+   other three read tools are wired but unconsumed).
 2. **REST fan-out host for `console-bff`** ([ADR
    0002](../adr/0002-micro-frontend-console-architecture.md), [ADR
    0003](../adr/0003-console-bff-report-dashboards.md)) — a *separate*
@@ -53,6 +56,7 @@ flowchart LR
     FE["fulfillment-execution<br/>Core"]
     IS["inventory-storage<br/>Core"]
     WPL["warehouse-planning<br/>Core"]
+    PM["product-master<br/>Supporting"]
     WM["workforce-management<br/>Supporting"]
     LP["labor-performance<br/>Supporting"]
     FL["facility-layout<br/>Generic"]
@@ -67,6 +71,7 @@ flowchart LR
     FE -->|"U OHS / D CF - MCP get_queue_status, diagnose_stuck_tasks + REST tasks + reports"| WOA
     IS -->|"U OHS / D CF - MCP check_availability, get_bin_occupancy + REST reservations + reports"| WOA
     WPL -->|"U OHS / D CF - MCP get_process_path_capacity, read tools only"| WOA
+    PM -->|"U OHS / D CF - MCP list_products, read-only server"| WOA
     WM -->|"U OHS / D CF - MCP get_staffing_gap + reports"| WOA
     LP -->|"U OHS / D CF - MCP get_task_type_utilization + reports"| WOA
     FL -->|"U OHS / D CF - MCP list_sites, estimate_travel_distance + reports"| WOA
@@ -102,6 +107,7 @@ context.
 | `fulfillment-execution` (Core) | OHS / Conformist | MCP `get_queue_status`, `diagnose_stuck_tasks` (live), `find_claimable_work` (wired); REST `GET /tasks?orderRef=` (joined via each WorkUnit's id, not the plain order id — see ADR 0002); reports `/reports/throughput` | live | `mcpclient/fulfillment_execution.go`, `restclient/clients.go` |
 | `inventory-storage` (Core) | OHS / Conformist | MCP `check_availability`, `get_bin_occupancy` (E2, exposed as the MCP tool `detect_stranded_reservation`); REST `GET /reservations?demandRef=`; reports `/reports/flow-accuracy` | live | `mcpclient/inventory_storage.go`, `usecases/stranded_reservation.go` |
 | `warehouse-planning` (Core) | OHS / Conformist, **read tools only** (its MCP server is read+write) | MCP `get_process_path_capacity` (live, daily-brief capacity outlook); `get_capacity_plan`, `get_storage_capacity`, `list_station_standards` (wired) | live, only when `WAREHOUSE_PLANNING_MCP_ENDPOINT` is set | `mcpclient/warehouse_planning.go`, `usecases/capacity_outlook.go`, `zerowrite/mcpclient_tools_test.go` |
+| `product-master` (Supporting) | OHS / Conformist (read-only server; contract pinned to its published registry golden) | MCP `list_products` (live, master-data gaps); `get_product`, `get_product_classification`, `get_physical_profile` (wired) | live, only when `PRODUCT_MASTER_MCP_ENDPOINT` is set | `mcpclient/product_master.go`, `mcpclient/testdata/product_master_tools.golden.json`, `usecases/master_data_gaps.go` |
 | `workforce-management` (Supporting) | OHS / Conformist | MCP `get_staffing_gap` (live), `propose_path_heads` (wired); reports `/reports/labor` | live | `mcpclient/workforce_management.go` |
 | `labor-performance` (Supporting) | OHS / Conformist | MCP `get_task_type_utilization` (live, ADR 0008) + 3 wired tools; reports `/reports/performance` | live | `mcpclient/labor_performance.go`, `usecases/flow_balance_advisory.go` |
 | `facility-layout` (Generic) | OHS / Conformist | MCP `list_sites`, `estimate_travel_distance` (live), `get_site_layout`, `get_zone_grid` (wired); reports `/reports/catalog-growth` | live | `mcpclient/facility_layout.go`, `usecases/explain_travel_factor.go` |
@@ -114,7 +120,7 @@ context.
 | Downstream | Pattern | Technology | Status | Evidence |
 |---|---|---|---|---|
 | `warehouse-console` | Customer/Supplier (this agent is the BFF supplier; DTOs hand-kept in sync with the console's types) | REST `/console/orders/{id}/lifecycle`, `/console/reports/wms`, `/console/reports/wes`, plus `/daily-brief` | live | `inbound/http/router.go` |
-| Agentic / LLM hosts | OHS / Published Language (MCP tool schemas) | MCP `/mcp`: 5 read-only tools | live | `inbound/mcp/tools.go` |
+| Agentic / LLM hosts | OHS / Published Language (MCP tool schemas) | MCP `/mcp`: up to 6 read-only tools | live | `inbound/mcp/tools.go` |
 
 Every `*-reports` read also calls that report's `/freshness` endpoint. MCP
 and REST calls carry no credentials — the fleet's auth was removed
@@ -130,7 +136,7 @@ publishes none of its own (see [Domain events](../ddd/domain-events.md)).
 It also has **no cross-repo Go dependency** on any upstream context:
 `internal/architecture/architecture_test.go`'s
 `TestNoDirectDependencyOnBoundedContexts` fails the build if one of the
-five original contexts' modules (or `warehouse-planning`'s) is ever
+five original contexts' modules (or `warehouse-planning`'s, or `product-master`'s) is ever
 introduced, and the domain-layer types in `internal/domain/policy`
 (`RebalanceAction`, `TaskType`, and so on) are hand-mirrored copies of the
 upstream enums, validated at the tool-boundary rather than imported.

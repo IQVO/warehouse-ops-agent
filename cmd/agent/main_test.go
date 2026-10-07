@@ -7,6 +7,29 @@ import (
 	"github.com/claudioed/warehouse-ops-agent/internal/config"
 )
 
+func TestNewProductMasterClient_UnsetEndpoint_IsANilInterface(t *testing.T) {
+	if got := newProductMasterClient(config.Config{}); got != nil {
+		t.Fatalf("an unset PRODUCT_MASTER_MCP_ENDPOINT must yield a nil client (fail-open), got %T", got)
+	}
+}
+
+func TestNewDecisionSupport_MasterDataGapsOnlyWiredWhenProductMasterConfigured(t *testing.T) {
+	cfg := config.Config{PathTargets: []config.PathTarget{{SiteCode: "WH1", PathId: "p", ProcessPath: "PICK"}}}
+	if got := newDecisionSupport(cfg, outboundClients{}).masterDataGaps; got != nil {
+		t.Fatal("no product-master client => no master-data-gaps use case")
+	}
+
+	cfg.ProductMaster.Endpoint = "http://product-master-mcp:8090/mcp"
+	clients := newOutboundClients(cfg)
+	if clients.productMaster == nil {
+		t.Fatal("a configured endpoint must build the product-master client")
+	}
+	got := newDecisionSupport(cfg, clients).masterDataGaps
+	if got == nil || got.ProductMaster == nil {
+		t.Fatalf("a configured product-master must wire the use case: %+v", got)
+	}
+}
+
 func TestNewPlanningClient_UnsetEndpoint_IsANilInterface(t *testing.T) {
 	// A typed-nil would pass a `!= nil` check and then crash on first call;
 	// the wiring must return a genuinely nil interface when not configured.
