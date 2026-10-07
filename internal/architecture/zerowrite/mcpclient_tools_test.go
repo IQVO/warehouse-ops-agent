@@ -3,6 +3,7 @@ package zerowrite
 import (
 	"go/ast"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"testing"
@@ -14,11 +15,33 @@ import (
 // zero-write rule for it cannot lean on the server: the mcpclient package
 // itself must never name such a tool (ADR 0013). The list is deliberately
 // broader than planning's own verbs so it also guards the other contexts'
-// write tools (assign_labor, revoke_reservation, ...).
+// write tools (assign_labor, revoke_reservation, ...). classify_ and record_
+// cover product-master's REST-only writes (classify a product, record a
+// measurement; ADR 0020) should they ever be published as tools.
 var writeToolPrefixes = []string{
 	"create_", "publish_", "register_", "declare_", "assign_", "release_",
 	"revoke_", "update_", "delete_", "cancel_", "set_", "add_", "remove_",
-	"submit_", "reserve_", "activate_", "deactivate_",
+	"submit_", "reserve_", "activate_", "deactivate_", "classify_", "record_",
+}
+
+// productMasterReadTools is the exact allow-list for the product-master
+// client (ADR 0020): its four published read tools. A prefix scan alone
+// would let a new non-prefixed verb through; this pins the whole set.
+var productMasterReadTools = []string{"get_physical_profile", "get_product", "get_product_classification", "list_products"}
+
+// TestProductMasterClientCallsOnlyPinnedTools scans product_master.go and
+// fails unless it names exactly product-master's four read tools.
+func TestProductMasterClientCallsOnlyPinnedTools(t *testing.T) {
+	path := "../../adapters/outbound/mcpclient/product_master.go"
+	src, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+	names := calledToolNames(parseGoFile(t, path, src))
+	sort.Strings(names)
+	if strings.Join(names, ",") != strings.Join(productMasterReadTools, ",") {
+		t.Fatalf("%s calls %v; the product-master client may call exactly %v (read-only, ADR 0020)", path, names, productMasterReadTools)
+	}
 }
 
 // TestMCPClientsCallOnlyReadTools statically scans every non-test source
@@ -48,12 +71,12 @@ func TestMCPClientsCallOnlyReadTools(t *testing.T) {
 // TestWritePrefixDetector pins the detector itself, so the scan above
 // cannot silently stop recognising write tools.
 func TestWritePrefixDetector(t *testing.T) {
-	for _, name := range []string{"create_capacity_plan", "publish_capacity_plan", "register_process_path", "declare_station_standard", "assign_labor", "revoke_reservation"} {
+	for _, name := range []string{"create_capacity_plan", "publish_capacity_plan", "register_process_path", "declare_station_standard", "assign_labor", "revoke_reservation", "classify_product", "record_measurement"} {
 		if writePrefixOf(name) == "" {
 			t.Errorf("%q must be flagged as a write tool", name)
 		}
 	}
-	for _, name := range []string{"get_process_path_capacity", "get_capacity_plan", "get_storage_capacity", "list_station_standards", "find_claimable_work", "diagnose_stuck_tasks"} {
+	for _, name := range []string{"get_process_path_capacity", "get_capacity_plan", "get_storage_capacity", "list_station_standards", "find_claimable_work", "diagnose_stuck_tasks", "get_product", "list_products", "get_product_classification", "get_physical_profile"} {
 		if p := writePrefixOf(name); p != "" {
 			t.Errorf("%q is a read tool but was flagged by prefix %q", name, p)
 		}

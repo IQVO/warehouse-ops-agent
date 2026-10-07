@@ -40,6 +40,8 @@ var boundedContextModules = []string{
 	"github.com/claudioed/facility-layout",
 	// Third wave (ADR 0013): the same rule applies to the newer contexts.
 	"github.com/claudioed/warehouse-planning",
+	// ADR 0020: product-master, read through its four MCP read tools only.
+	"github.com/claudioed/product-master",
 }
 
 // TestNoDirectDependencyOnBoundedContexts asserts that no package in this
