@@ -82,8 +82,9 @@ It is a read-side/decision-support mechanism: a CQRS-style read model that
 spans context boundaries, plus a policy layer. It is a Customer of the
 upstream contexts' published MCP Open Host Services (plus plain REST for
 console-bff). `TestNoDirectDependencyOnBoundedContexts` covers the five
-original module paths plus warehouse-planning; the three second-wave clients
-(ADR 0007) follow the same rule even though the test does not list them.
+original module paths plus warehouse-planning and product-master; the three
+second-wave clients (ADR 0007) and network-inventory-planning (ADR 0019) follow
+the same rule even though the test does not list them.
 warehouse-planning's MCP server is read+write (ADR 0013), so its client is
 (like network-inventory-planning's, ADR 0019, whose server is read-only today)
 held read-only by `zerowrite.TestMCPClientsCallOnlyReadTools`, which fails
