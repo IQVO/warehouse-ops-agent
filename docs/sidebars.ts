@@ -97,6 +97,7 @@ const sidebars: SidebarsConfig = {
         'adr/0018-mcp-tool-error-slug-classification',
         'adr/0019-network-inventory-planning-transfer-watch',
         'adr/0020-product-master-mcp-client-and-master-data-gaps',
+        'adr/0021-inbound-receiving-mcp-client-and-inbound-outlook',
       ],
     },
   ],

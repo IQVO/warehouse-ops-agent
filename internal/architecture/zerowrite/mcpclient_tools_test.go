@@ -17,11 +17,14 @@ import (
 // broader than planning's own verbs so it also guards the other contexts'
 // write tools (assign_labor, revoke_reservation, ...). classify_ and record_
 // cover product-master's REST-only writes (classify a product, record a
-// measurement; ADR 0020) should they ever be published as tools.
+// measurement; ADR 0020) should they ever be published as tools. book_,
+// check_in_, open_, receive_ and close_ cover inbound-receiving's REST-only
+// write verbs (ADR 0021) on the same terms.
 var writeToolPrefixes = []string{
 	"create_", "publish_", "register_", "declare_", "assign_", "release_",
 	"revoke_", "update_", "delete_", "cancel_", "set_", "add_", "remove_",
 	"submit_", "reserve_", "activate_", "deactivate_", "classify_", "record_",
+	"book_", "check_in_", "open_", "receive_", "close_",
 }
 
 // productMasterReadTools is the exact allow-list for the product-master
@@ -41,6 +44,32 @@ func TestProductMasterClientCallsOnlyPinnedTools(t *testing.T) {
 	sort.Strings(names)
 	if strings.Join(names, ",") != strings.Join(productMasterReadTools, ",") {
 		t.Fatalf("%s calls %v; the product-master client may call exactly %v (read-only, ADR 0020)", path, names, productMasterReadTools)
+	}
+}
+
+// inboundReceivingReadTools is the exact allow-list for the inbound-receiving
+// client (ADR 0021): its seven published read tools. inbound-receiving's
+// writes (register/cancel an ASN, book/check in/cancel an appointment,
+// open/receive/close a receipt) are REST-only and have no tool.
+var inboundReceivingReadTools = []string{"get_appointment", "get_asn", "get_receipt", "list_appointments", "list_asns", "list_docks", "list_receipts"}
+
+// TestInboundReceivingClientCallsOnlyPinnedTools scans inbound_receiving.go
+// and fails unless it names exactly inbound-receiving's seven read tools.
+func TestInboundReceivingClientCallsOnlyPinnedTools(t *testing.T) {
+	path := "../../adapters/outbound/mcpclient/inbound_receiving.go"
+	src, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+	names := calledToolNames(parseGoFile(t, path, src))
+	sort.Strings(names)
+	if strings.Join(names, ",") != strings.Join(inboundReceivingReadTools, ",") {
+		t.Fatalf("%s calls %v; the inbound-receiving client may call exactly %v (read-only, ADR 0021)", path, names, inboundReceivingReadTools)
+	}
+	for _, name := range names {
+		if prefix := writePrefixOf(name); prefix != "" {
+			t.Errorf("%s: tool %q starts with write verb %q", path, name, prefix)
+		}
 	}
 }
 
@@ -71,12 +100,12 @@ func TestMCPClientsCallOnlyReadTools(t *testing.T) {
 // TestWritePrefixDetector pins the detector itself, so the scan above
 // cannot silently stop recognising write tools.
 func TestWritePrefixDetector(t *testing.T) {
-	for _, name := range []string{"create_capacity_plan", "publish_capacity_plan", "register_process_path", "declare_station_standard", "assign_labor", "revoke_reservation", "classify_product", "record_measurement"} {
+	for _, name := range []string{"create_capacity_plan", "publish_capacity_plan", "register_process_path", "declare_station_standard", "assign_labor", "revoke_reservation", "classify_product", "record_measurement", "register_asn", "cancel_asn", "book_appointment", "check_in_appointment", "open_receipt", "receive_line", "close_receipt"} {
 		if writePrefixOf(name) == "" {
 			t.Errorf("%q must be flagged as a write tool", name)
 		}
 	}
-	for _, name := range []string{"get_process_path_capacity", "get_capacity_plan", "get_storage_capacity", "list_station_standards", "find_claimable_work", "diagnose_stuck_tasks", "get_product", "list_products", "get_product_classification", "get_physical_profile"} {
+	for _, name := range []string{"get_process_path_capacity", "get_capacity_plan", "get_storage_capacity", "list_station_standards", "find_claimable_work", "diagnose_stuck_tasks", "get_product", "list_products", "get_product_classification", "get_physical_profile", "list_asns", "get_asn", "list_appointments", "get_appointment", "list_receipts", "get_receipt", "list_docks"} {
 		if p := writePrefixOf(name); p != "" {
 			t.Errorf("%q is a read tool but was flagged by prefix %q", name, p)
 		}

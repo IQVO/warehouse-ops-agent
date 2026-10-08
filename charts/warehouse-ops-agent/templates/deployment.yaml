@@ -93,6 +93,12 @@ spec:
               value: {{ .Values.upstreams.warehousePlanning.endpoint | quote }}
             - name: PRODUCT_MASTER_MCP_ENDPOINT
               value: {{ .Values.upstreams.productMaster.endpoint | quote }}
+            - name: INBOUND_RECEIVING_MCP_ENDPOINT
+              value: {{ .Values.upstreams.inboundReceiving.endpoint | quote }}
+            {{- if .Values.config.inboundStaleReceiptAge }}
+            - name: INBOUND_STALE_RECEIPT_AGE
+              value: {{ .Values.config.inboundStaleReceiptAge | quote }}
+            {{- end }}
             - name: NETWORK_INVENTORY_PLANNING_MCP_ENDPOINT
               value: {{ .Values.upstreams.networkInventoryPlanning.endpoint | quote }}
             {{- if .Values.config.capacityOutlookHorizon }}

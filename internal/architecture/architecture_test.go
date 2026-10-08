@@ -42,6 +42,8 @@ var boundedContextModules = []string{
 	"github.com/claudioed/warehouse-planning",
 	// ADR 0020: product-master, read through its four MCP read tools only.
 	"github.com/claudioed/product-master",
+	// ADR 0021: inbound-receiving, read through its seven MCP read tools only.
+	"github.com/claudioed/inbound-receiving",
 }
 
 // TestNoDirectDependencyOnBoundedContexts asserts that no package in this

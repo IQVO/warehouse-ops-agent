@@ -85,13 +85,15 @@ internal/
                       /console/orders/{id}/lifecycle,
                       /console/reports/wms, /console/reports/wes,
                       /runtime-signals, /master-data-gaps,
+                      /inbound-outlook (503 when inbound-receiving unset),
                       /transfer-watch/stuck,
                       /transfer-watch/transfers/{id},
                       /transfer-watch/imbalance (503 when NIP unset)
       mcp/            this agent's OWN MCP server: get_daily_brief,
                       list_open_exceptions, get_flow_balance_exception,
                       explain_travel_factor, detect_stranded_reservation,
-                      find_master_data_gaps, plus — only when NIP is
+                      find_master_data_gaps, get_inbound_outlook (only when
+                      inbound-receiving is configured), plus — only when NIP is
                       configured — triage_stuck_transfers,
                       get_transfer_status, explain_network_imbalance
                       (all ReadOnlyHint: true)
