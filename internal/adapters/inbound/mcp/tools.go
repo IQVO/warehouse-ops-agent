@@ -46,6 +46,11 @@ type Deps struct {
 	// not registered.
 	MasterDataGaps *usecases.MasterDataGaps
 
+	// InboundOutlook is the ADR 0021 inbound-receiving use case. Nil (no
+	// INBOUND_RECEIVING_MCP_ENDPOINT) means get_inbound_outlook is simply
+	// not registered.
+	InboundOutlook *usecases.InboundOutlook
+
 	// TransferWatch is the ADR-0019 read-only view of
 	// network-inventory-planning. Nil is a valid value; the three
 	// transfer-watch tools are simply not registered when nil.
@@ -309,8 +314,9 @@ func (d Deps) detectStrandedReservation(ctx context.Context, in strandedReservat
 // runs inside an OTel span named "mcp.tool <name>". get_daily_brief and
 // list_open_exceptions are always registered; get_flow_balance_exception,
 // explain_travel_factor, detect_stranded_reservation and
-// find_master_data_gaps are registered only when their use case is wired
-// (see each one's own nil check below) — up to six tools total, every one
+// find_master_data_gaps and get_inbound_outlook are registered only when their use case is wired
+// (see each one's own nil check below) — up to ten tools total (with the
+// three transfer-watch tools), every one
 // of them read-only. This agent has no write tool at all.
 func (d Deps) registerTools(server *mcp.Server) {
 	readOnly := true
@@ -357,6 +363,14 @@ func (d Deps) registerTools(server *mcp.Server) {
 			Description: "List product-master products whose master data is missing or contradictory: unclassified (no handling classification, so hazmat/fragile/temperature handling is unknown downstream) and dimension-discrepancy (product-master's own flag that declared and measured unit dimensions disagree beyond its tolerance; both dimension sets are returned). Optional kind filter (unclassified or dimension-discrepancy); a scan covers at most 5,000 products per call and returns complete=false plus nextCursor to resume. Read-only: it only reports, it never classifies, declares or measures anything.",
 			Annotations: &mcp.ToolAnnotations{ReadOnlyHint: readOnly},
 		}, d.findMasterDataGaps)
+	}
+
+	if d.InboundOutlook != nil {
+		addTool(server, &mcp.Tool{
+			Name:        "get_inbound_outlook",
+			Description: "Report the inbound dock side's near-term picture from inbound-receiving: ASNs awaiting arrival (state Registered; overdue when their own expected arrival has passed), dock appointments in the next 24 hours (Booked or CheckedIn), open receipts older than the operator-configured INBOUND_STALE_RECEIPT_AGE, and receipts closed with discrepancies today. Takes no arguments. Each section carries its own omitted reason (an upstream failure, or the stale age not being configured) and complete flag (false = the 5,000-record scan bound was reached, so the list is a lower bound); an omitted section is NOT 'nothing to report'. Read-only: it only reports, it never registers, books, receives or closes anything.",
+			Annotations: &mcp.ToolAnnotations{ReadOnlyHint: readOnly},
+		}, d.getInboundOutlook)
 	}
 
 	if d.TransferWatch != nil {

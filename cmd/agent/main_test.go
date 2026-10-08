@@ -30,6 +30,31 @@ func TestNewDecisionSupport_MasterDataGapsOnlyWiredWhenProductMasterConfigured(t
 	}
 }
 
+func TestNewInboundReceivingClient_UnsetEndpoint_IsANilInterface(t *testing.T) {
+	// A typed-nil would pass a `!= nil` check and then crash on first call.
+	if got := newInboundReceivingClient(config.Config{}); got != nil {
+		t.Fatalf("an unset INBOUND_RECEIVING_MCP_ENDPOINT must yield a nil client (fail-open), got %T", got)
+	}
+}
+
+func TestNewDecisionSupport_InboundOutlookOnlyWiredWhenInboundReceivingConfigured(t *testing.T) {
+	cfg := config.Config{PathTargets: []config.PathTarget{{SiteCode: "WH1", PathId: "p", ProcessPath: "PICK"}}}
+	if got := newDecisionSupport(cfg, outboundClients{}).inboundOutlook; got != nil {
+		t.Fatalf("no inbound-receiving client => no inbound outlook (a genuine nil, so adapters answer 503), got %+v", got)
+	}
+
+	cfg.InboundReceiving.Endpoint = "http://inbound-receiving-mcp:8090/mcp"
+	cfg.InboundStaleReceiptAge = 6 * time.Hour
+	clients := newOutboundClients(cfg)
+	if clients.inboundReceiving == nil {
+		t.Fatal("a configured endpoint must build the inbound-receiving client")
+	}
+	got := newDecisionSupport(cfg, clients).inboundOutlook
+	if got == nil || got.Inbound == nil || got.StaleReceiptAge != 6*time.Hour {
+		t.Fatalf("a configured inbound-receiving must wire the outlook with the configured stale age: %+v", got)
+	}
+}
+
 func TestNewPlanningClient_UnsetEndpoint_IsANilInterface(t *testing.T) {
 	// A typed-nil would pass a `!= nil` check and then crash on first call;
 	// the wiring must return a genuinely nil interface when not configured.

@@ -1,11 +1,13 @@
 // Command agent is the composition root for warehouse-ops-agent: it wires
 // env config to the ten outbound MCP-client adapters (one per upstream
-// bounded context; warehouse-planning and product-master only when their
+// bounded context; warehouse-planning, product-master and inbound-receiving
+// only when their
 // endpoint is set), the REST clients for the console-bff, and the telemetry
 // and log readers (a real Prometheus reader when PROMETHEUS_URL is set, a
 // no-op stub otherwise; a Loki reader when LOKI_URL is set), then wires
 // those into the decision-support use cases (daily brief, flow balance,
-// explain travel factor, stranded reservation, master-data gaps) and the
+// explain travel factor, stranded reservation, master-data gaps, inbound
+// outlook) and the
 // console-bff and runtime-signals use cases. It serves them over BOTH an
 // inbound HTTP endpoint and this agent's own inbound MCP server (up to six
 // tools: see internal/adapters/inbound/mcp/tools.go) — a single process, two
@@ -84,6 +86,7 @@ func run() error {
 		ExplainTravelFactor: decision.explainTravelFactor,
 		StrandedReservation: decision.strandedReservation,
 		MasterDataGaps:      decision.masterDataGaps,
+		InboundOutlook:      decision.inboundOutlook,
 		TransferWatch:       decision.transferWatch,
 	}
 	mcpHandler := inboundmcp.Handler(inboundmcp.NewServer(mcpDeps))
@@ -96,6 +99,7 @@ func run() error {
 		ConsoleReports:      newConsoleReports(cfg),
 		RuntimeSignals:      newRuntimeSignals(cfg, clients.telemetry, clients.logs),
 		MasterDataGaps:      decision.masterDataGaps,
+		InboundOutlook:      decision.inboundOutlook,
 		TransferWatch:       decision.transferWatch,
 		// MCPHandler mounts /mcp on the SAME chi router as every REST
 		// route (ADR-0010): otelchi trace, otelchimetric RED duration,
@@ -127,6 +131,10 @@ type outboundClients struct {
 	// master-data-gaps use case is then not wired (ADR 0020). Assigned only
 	// when configured, so a nil check is a genuine "not configured".
 	productMaster ports.ProductMasterClient
+	// inboundReceiving is nil when INBOUND_RECEIVING_MCP_ENDPOINT is unset:
+	// the inbound outlook is then not wired (ADR 0021). Assigned only when
+	// configured, so a nil check is a genuine "not configured".
+	inboundReceiving ports.InboundReceivingClient
 	// nip is nil when NETWORK_INVENTORY_PLANNING_MCP_ENDPOINT is unset:
 	// the transfer watch is then not wired at all (ADR 0019). Assigned
 	// only when configured, so a nil check is a genuine "not configured".
@@ -145,6 +153,19 @@ func newProductMasterClient(cfg config.Config) ports.ProductMasterClient {
 	return mcpclient.NewProductMaster(mcpclient.Config{
 		Name:     "product-master",
 		Endpoint: cfg.ProductMaster.Endpoint,
+	})
+}
+
+// newInboundReceivingClient builds the inbound-receiving MCP client (its
+// seven read tools only), or returns a nil interface when no endpoint is
+// configured so boot never depends on inbound-receiving (fail-open).
+func newInboundReceivingClient(cfg config.Config) ports.InboundReceivingClient {
+	if cfg.InboundReceiving.Endpoint == "" {
+		return nil
+	}
+	return mcpclient.NewInboundReceiving(mcpclient.Config{
+		Name:     "inbound-receiving",
+		Endpoint: cfg.InboundReceiving.Endpoint,
 	})
 }
 
@@ -217,10 +238,11 @@ func newOutboundClients(cfg config.Config) outboundClients {
 			Name:     "labor-performance",
 			Endpoint: cfg.LaborPerformance.Endpoint,
 		}),
-		logs:          newLogReader(cfg.LokiURL),
-		planning:      newPlanningClient(cfg),
-		productMaster: newProductMasterClient(cfg),
-		nip:           newNIPClient(cfg),
+		logs:             newLogReader(cfg.LokiURL),
+		planning:         newPlanningClient(cfg),
+		productMaster:    newProductMasterClient(cfg),
+		inboundReceiving: newInboundReceivingClient(cfg),
+		nip:              newNIPClient(cfg),
 	}
 }
 
@@ -235,6 +257,9 @@ type decisionSupport struct {
 	explainTravelFactor *usecases.ExplainTravelFactor
 	strandedReservation *usecases.DetectStrandedReservation
 	masterDataGaps      *usecases.MasterDataGaps
+	// inboundOutlook is nil when inbound-receiving is not configured
+	// (ADR 0021).
+	inboundOutlook *usecases.InboundOutlook
 	// transferWatch is nil when network-inventory-planning is not
 	// configured (ADR 0019).
 	transferWatch *usecases.TransferWatch
@@ -290,7 +315,22 @@ func newDecisionSupport(cfg config.Config, clients outboundClients) decisionSupp
 		explainTravelFactor: &usecases.ExplainTravelFactor{Facility: clients.facility},
 		strandedReservation: strandedReservation,
 		masterDataGaps:      masterDataGaps,
+		inboundOutlook:      newInboundOutlook(cfg, clients),
 		transferWatch:       newTransferWatch(clients),
+	}
+}
+
+// newInboundOutlook wires the ADR-0021 read-only inbound outlook, or returns
+// nil when inbound-receiving is not configured. The nil must be a real nil
+// *InboundOutlook (never a non-nil struct around a nil port) so the inbound
+// adapters' "not configured" checks are genuine.
+func newInboundOutlook(cfg config.Config, clients outboundClients) *usecases.InboundOutlook {
+	if clients.inboundReceiving == nil {
+		return nil
+	}
+	return &usecases.InboundOutlook{
+		Inbound:         clients.inboundReceiving,
+		StaleReceiptAge: cfg.InboundStaleReceiptAge,
 	}
 }
 
@@ -359,7 +399,7 @@ func serveAgent(cfg config.Config, logger *slog.Logger, serviceName string, hand
 	go func() {
 		logger.Info("warehouse-ops-agent listening",
 			"addr", cfg.Addr,
-			"http_routes", "/healthz, /daily-brief, /flow-balance/{pathId}, /explain-travel-factor, /console/orders/{id}/lifecycle, /console/reports/wms, /console/reports/wes, /runtime-signals, /master-data-gaps",
+			"http_routes", "/healthz, /daily-brief, /flow-balance/{pathId}, /explain-travel-factor, /console/orders/{id}/lifecycle, /console/reports/wms, /console/reports/wes, /runtime-signals, /master-data-gaps, /inbound-outlook",
 			"mcp_route", "/mcp",
 			"wes_work_planning_endpoint_configured", cfg.WesWorkPlanning.Endpoint != "",
 			"fulfillment_execution_endpoint_configured", cfg.FulfillmentExecution.Endpoint != "",
@@ -368,6 +408,7 @@ func serveAgent(cfg config.Config, logger *slog.Logger, serviceName string, hand
 			"facility_layout_endpoint_configured", cfg.FacilityLayout.Endpoint != "",
 			"warehouse_planning_endpoint_configured", cfg.WarehousePlanning.Endpoint != "",
 			"product_master_endpoint_configured", cfg.ProductMaster.Endpoint != "",
+			"inbound_receiving_endpoint_configured", cfg.InboundReceiving.Endpoint != "",
 			"network_inventory_planning_endpoint_configured", cfg.NetworkInventoryPlanning.Endpoint != "",
 			"path_targets", len(cfg.PathTargets),
 		)

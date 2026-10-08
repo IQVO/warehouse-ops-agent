@@ -1,9 +1,9 @@
 // Package http is warehouse-ops-agent's inbound REST adapter: chi router,
-// the handlers for its twelve GET routes (/healthz, /daily-brief,
+// the handlers for its thirteen GET routes (/healthz, /daily-brief,
 // /flow-balance/{pathId}, /explain-travel-factor,
 // /console/orders/{id}/lifecycle, /console/reports/wms,
 // /console/reports/wes, /runtime-signals, /master-data-gaps,
-// /transfer-watch/stuck, /transfer-watch/transfers/{id},
+// /inbound-outlook, /transfer-watch/stuck, /transfer-watch/transfers/{id},
 // /transfer-watch/imbalance) plus the optional /mcp mount, and
 // DTOs. Domain/application structs never leak across this boundary.
 package http
@@ -65,6 +65,10 @@ type Handlers struct {
 	// PRODUCT_MASTER_MCP_ENDPOINT) answers 503 on GET /master-data-gaps.
 	MasterDataGaps *usecases.MasterDataGaps
 
+	// InboundOutlook is the ADR 0021 inbound-receiving use case. Nil (no
+	// INBOUND_RECEIVING_MCP_ENDPOINT) answers 503 on GET /inbound-outlook.
+	InboundOutlook *usecases.InboundOutlook
+
 	// TransferWatch is the ADR-0019 read-only view of
 	// network-inventory-planning. Nil is a valid value (same
 	// 503-not-panic convention as the fields above): the three
@@ -116,6 +120,7 @@ func NewRouter(h *Handlers, serviceName string) *chi.Mux {
 	r.Get("/console/reports/wes", h.getWESDashboard)
 	r.Get("/runtime-signals", h.getRuntimeSignals)
 	r.Get("/master-data-gaps", h.getMasterDataGaps)
+	r.Get("/inbound-outlook", h.getInboundOutlook)
 	r.Get("/transfer-watch/stuck", h.getStuckTransfers)
 	r.Get("/transfer-watch/transfers/{id}", h.getTransferStatus)
 	r.Get("/transfer-watch/imbalance", h.getNetworkImbalance)
