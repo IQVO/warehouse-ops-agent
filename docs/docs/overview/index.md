@@ -24,7 +24,9 @@ three second-wave MCP clients (`labor-performance`, `order-management`,
 `warehouse-planning` (read tools only,
 [ADR 0013](../adr/0013-warehouse-planning-mcp-client-and-capacity-outlook.md)), plus
 `product-master` (read-only,
-[ADR 0020](../adr/0020-product-master-mcp-client-and-master-data-gaps.md)). It is a
+[ADR 0020](../adr/0020-product-master-mcp-client-and-master-data-gaps.md)), plus
+`network-inventory-planning` (read tools only,
+[ADR 0019](../adr/0019-network-inventory-planning-transfer-watch.md)). It is a
 **Customer** of those contexts' published MCP Open Host Services — it owns
 no aggregate, enforces no new business invariant, and persists no domain
 state. Its "domain" layer is decision **policy**: pure correlation rules
@@ -57,7 +59,8 @@ import of any sibling's internal packages:
 | `order-management` | `get_order` | nothing yet (wired, unconsumed) |
 | `process-path-management` | `get_process_path`, `list_process_paths` | nothing yet (wired, unconsumed) |
 | `warehouse-planning` | `get_process_path_capacity`, `get_capacity_plan`, `get_storage_capacity`, `list_station_standards` (read tools only; its write tools are never called) | daily brief capacity outlook (`get_process_path_capacity`, [ADR 0013](../adr/0013-warehouse-planning-mcp-client-and-capacity-outlook.md)); the other three wired, unconsumed |
-| `product-master` | `get_product`, `list_products`, `get_product_classification`, `get_physical_profile` (its whole, read-only surface) | master-data gaps report (`list_products`, `GET /master-data-gaps` / `find_master_data_gaps`, [ADR 0020](../adr/0020-product-master-mcp-client-and-master-data-gaps.md)); the other three wired, unconsumed |
+| `product-master` | `get_product`, `list_products`, `get_product_classification`, `get_physical_profile` (its whole, read-only surface) | master-data gaps report (`list_products`, `GET /master-data-gaps` / `find_master_data_gaps`, [ADR 0020](../adr/0020-product-master-mcp-client-and-master-data-gaps.md)); the other three wired, unconsumed. Switched on in the kind cluster (warehouse-infra sets `PRODUCT_MASTER_MCP_ENDPOINT`) |
+| `network-inventory-planning` | `get_transfer`, `list_transfers`, `find_stuck_transfers`, `simulate_transfer_options` (read tools only) | transfer watch (`/transfer-watch/*`, `triage_stuck_transfers`, `get_transfer_status`, `explain_network_imbalance`, [ADR 0019](../adr/0019-network-inventory-planning-transfer-watch.md)); `list_transfers` wired, unconsumed |
 
 Beyond MCP, the agent also reads Prometheus and Loki for its
 [runtime-signals report](../api-surface.md), and fans out over plain REST
