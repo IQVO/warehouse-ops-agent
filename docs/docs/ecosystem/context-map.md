@@ -2,7 +2,7 @@
 id: context-map
 title: Context map
 sidebar_label: Context map
-description: Where warehouse-ops-agent sits relative to the warehouse-systems bounded contexts — an MCP Customer of ten of them, a console-bff REST fan-out host over their OLTP and analytics APIs, and a reader of the fleet's Prometheus/Loki telemetry.
+description: Where warehouse-ops-agent sits relative to the warehouse-systems bounded contexts — an MCP Customer of eleven of them, a console-bff REST fan-out host over their OLTP and analytics APIs, and a reader of the fleet's Prometheus/Loki telemetry.
 ---
 
 # Context map
@@ -18,7 +18,7 @@ of the fleet, added in different phases and never merged into one:
    [ADR 0007](../adr/0007-second-wave-outbound-mcp-clients.md)) — the
    daily-brief, flow-balance-exception, explain-travel-factor and
    stranded-reservation use cases read each context's published MCP Open
-   Host Service, synchronously, at request time. Clients exist for ten
+   Host Service, synchronously, at request time. Clients exist for eleven
    contexts: the five original ones plus `labor-performance` (consumed by
    the [ADR 0008](../adr/0008-labor-utilization-advisory-correlation.md)
    utilization overlay), `order-management` and `process-path-management`
@@ -26,10 +26,13 @@ of the fleet, added in different phases and never merged into one:
    ([ADR 0013](../adr/0013-warehouse-planning-mcp-client-and-capacity-outlook.md):
    read tools only; `get_process_path_capacity` feeds the daily brief's
    optional capacity outlook, the other three read tools are wired but
-   unconsumed), and `product-master`
+   unconsumed), `product-master`
    ([ADR 0020](../adr/0020-product-master-mcp-client-and-master-data-gaps.md):
    read-only server; `list_products` feeds the master-data gaps report, the
-   other three read tools are wired but unconsumed).
+   other three read tools are wired but unconsumed; deployed and switched on
+   in the kind cluster) and `network-inventory-planning`
+   ([ADR 0019](../adr/0019-network-inventory-planning-transfer-watch.md):
+   read tools only; they feed the transfer watch).
 2. **REST fan-out host for `console-bff`** ([ADR
    0002](../adr/0002-micro-frontend-console-architecture.md), [ADR
    0003](../adr/0003-console-bff-report-dashboards.md)) — a *separate*
@@ -63,6 +66,7 @@ flowchart LR
     OM["order-management<br/>Generic/Supporting"]
     PPM["process-path-management<br/>Generic"]
     NF["network-fulfillment<br/>Supporting"]
+    NIP["network-inventory-planning"]
     WC["warehouse-console<br/>frontend"]
     OBS["Prometheus / Loki<br/>observability"]
     LLM["Anthropic Messages API<br/>external, optional"]
@@ -72,6 +76,7 @@ flowchart LR
     IS -->|"U OHS / D CF - MCP check_availability, get_bin_occupancy + REST reservations + reports"| WOA
     WPL -->|"U OHS / D CF - MCP get_process_path_capacity, read tools only"| WOA
     PM -->|"U OHS / D CF - MCP list_products, read-only server"| WOA
+    NIP -->|"U OHS / D CF - MCP find_stuck_transfers, get_transfer, simulate_transfer_options"| WOA
     WM -->|"U OHS / D CF - MCP get_staffing_gap + reports"| WOA
     LP -->|"U OHS / D CF - MCP get_task_type_utilization + reports"| WOA
     FL -->|"U OHS / D CF - MCP list_sites, estimate_travel_distance + reports"| WOA
@@ -107,7 +112,8 @@ context.
 | `fulfillment-execution` (Core) | OHS / Conformist | MCP `get_queue_status`, `diagnose_stuck_tasks` (live), `find_claimable_work` (wired); REST `GET /tasks?orderRef=` (joined via each WorkUnit's id, not the plain order id — see ADR 0002); reports `/reports/throughput` | live | `mcpclient/fulfillment_execution.go`, `restclient/clients.go` |
 | `inventory-storage` (Core) | OHS / Conformist | MCP `check_availability`, `get_bin_occupancy` (E2, exposed as the MCP tool `detect_stranded_reservation`); REST `GET /reservations?demandRef=`; reports `/reports/flow-accuracy` | live | `mcpclient/inventory_storage.go`, `usecases/stranded_reservation.go` |
 | `warehouse-planning` (Core) | OHS / Conformist, **read tools only** (its MCP server is read+write) | MCP `get_process_path_capacity` (live, daily-brief capacity outlook); `get_capacity_plan`, `get_storage_capacity`, `list_station_standards` (wired) | live, only when `WAREHOUSE_PLANNING_MCP_ENDPOINT` is set | `mcpclient/warehouse_planning.go`, `usecases/capacity_outlook.go`, `zerowrite/mcpclient_tools_test.go` |
-| `product-master` (Supporting) | OHS / Conformist (read-only server; contract pinned to its published registry golden) | MCP `list_products` (live, master-data gaps); `get_product`, `get_product_classification`, `get_physical_profile` (wired) | live, only when `PRODUCT_MASTER_MCP_ENDPOINT` is set | `mcpclient/product_master.go`, `mcpclient/testdata/product_master_tools.golden.json`, `usecases/master_data_gaps.go` |
+| `product-master` (Supporting) | OHS / Conformist (read-only server; contract pinned to its published registry golden) | MCP `list_products` (live, master-data gaps); `get_product`, `get_product_classification`, `get_physical_profile` (wired) | live, only when `PRODUCT_MASTER_MCP_ENDPOINT` is set (warehouse-infra sets it in the kind cluster: `product-master-mcp:8090/mcp`) | `mcpclient/product_master.go`, `mcpclient/testdata/product_master_tools.golden.json`, `usecases/master_data_gaps.go` |
+| `network-inventory-planning` | OHS / Conformist, read tools only | MCP `find_stuck_transfers`, `get_transfer`, `simulate_transfer_options` (live, transfer watch, ADR 0019); `list_transfers` (wired) | live, only when `NETWORK_INVENTORY_PLANNING_MCP_ENDPOINT` is set | `mcpclient/network_inventory_planning.go`, `usecases/transfer_watch.go` |
 | `workforce-management` (Supporting) | OHS / Conformist | MCP `get_staffing_gap` (live), `propose_path_heads` (wired); reports `/reports/labor` | live | `mcpclient/workforce_management.go` |
 | `labor-performance` (Supporting) | OHS / Conformist | MCP `get_task_type_utilization` (live, ADR 0008) + 3 wired tools; reports `/reports/performance` | live | `mcpclient/labor_performance.go`, `usecases/flow_balance_advisory.go` |
 | `facility-layout` (Generic) | OHS / Conformist | MCP `list_sites`, `estimate_travel_distance` (live), `get_site_layout`, `get_zone_grid` (wired); reports `/reports/catalog-growth` | live | `mcpclient/facility_layout.go`, `usecases/explain_travel_factor.go` |
@@ -120,7 +126,7 @@ context.
 | Downstream | Pattern | Technology | Status | Evidence |
 |---|---|---|---|---|
 | `warehouse-console` | Customer/Supplier (this agent is the BFF supplier; DTOs hand-kept in sync with the console's types) | REST `/console/orders/{id}/lifecycle`, `/console/reports/wms`, `/console/reports/wes`, plus `/daily-brief` | live | `inbound/http/router.go` |
-| Agentic / LLM hosts | OHS / Published Language (MCP tool schemas) | MCP `/mcp`: up to 6 read-only tools | live | `inbound/mcp/tools.go` |
+| Agentic / LLM hosts | OHS / Published Language (MCP tool schemas) | MCP `/mcp`: up to 9 read-only tools (6 in `tools.go`, 3 transfer-watch tools in `transfer_watch.go`) | live | `inbound/mcp/tools.go`, `inbound/mcp/transfer_watch.go` |
 
 Every `*-reports` read also calls that report's `/freshness` endpoint. MCP
 and REST calls carry no credentials — the fleet's auth was removed

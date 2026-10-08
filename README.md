@@ -17,7 +17,7 @@ and persists no domain state; its "domain" layer is decision **policy**
 (correlation rules over facts read from the upstream contexts, plus a
 runtime-signals classifier over Prometheus/Loki telemetry).
 
-It holds an outbound MCP client for ten contexts: the five original ones
+It holds an outbound MCP client for eleven contexts: the five original ones
 (`wes-work-planning`, `fulfillment-execution`, `workforce-management`,
 `facility-layout`, `inventory-storage`) and three second-wave ones
 (`labor-performance`, `order-management`, `process-path-management`,
@@ -31,7 +31,12 @@ daily brief and has three more read tools wired but unconsumed
 ([ADR 0013](./docs/docs/adr/0013-warehouse-planning-mcp-client-and-capacity-outlook.md)).
 `product-master` (read-only server, contract pinned to its published tool
 registry) feeds the master-data gaps report
-([ADR 0020](./docs/docs/adr/0020-product-master-mcp-client-and-master-data-gaps.md)). Separately, it hosts the `console-bff` REST
+([ADR 0020](./docs/docs/adr/0020-product-master-mcp-client-and-master-data-gaps.md));
+in the kind cluster warehouse-infra sets `PRODUCT_MASTER_MCP_ENDPOINT` to
+`product-master-mcp:8090/mcp`, so the report is live there.
+`network-inventory-planning` (read tools only) feeds the transfer watch
+([ADR 0019](./docs/docs/adr/0019-network-inventory-planning-transfer-watch.md)).
+Separately, it hosts the `console-bff` REST
 fan-out for `warehouse-console` (ADR 0002/0003).
 
 See [ADR 0001](./docs/docs/adr/0001-warehouse-ops-agent-placement.md) for
@@ -137,6 +142,7 @@ unauthenticated; an empty endpoint means that client is skipped):
 | process-path-management | `PROCESS_PATH_MANAGEMENT_MCP_ENDPOINT` |
 | warehouse-planning | `WAREHOUSE_PLANNING_MCP_ENDPOINT` |
 | product-master | `PRODUCT_MASTER_MCP_ENDPOINT` (unset = client disabled, fail-open; ADR 0020) |
+| network-inventory-planning | `NETWORK_INVENTORY_PLANNING_MCP_ENDPOINT` (unset = client disabled; ADR 0019) |
 
 Plus:
 
@@ -162,8 +168,12 @@ Plus:
   read as zero (`normal`) rather than unavailable — only a failing
   Prometheus query lists `prometheus`.
   `RUNTIME_SIGNALS_NAMESPACE` (default `warehouse-systems`) scopes the Loki
-  query; `RUNTIME_SIGNALS_SERVICES` (comma-separated) defaults to the eight
-  backend contexts.
+  query; `RUNTIME_SIGNALS_SERVICES` (comma-separated) defaults to eight
+  backend contexts (order-management, inventory-storage, wes-work-planning,
+  fulfillment-execution, workforce-management, facility-layout,
+  labor-performance, process-path-management; `internal/config/config.go`).
+  product-master, warehouse-planning and the network contexts are not in
+  that default: list them in the override to include them.
 - console-bff REST base URLs: `ORDER_MANAGEMENT_REST_URL`,
   `INVENTORY_STORAGE_REST_URL`, `WES_WORK_PLANNING_REST_URL`,
   `FULFILLMENT_EXECUTION_REST_URL` (defaults `localhost:8086/8082/8083/8084`),
@@ -243,7 +253,14 @@ Shipped on `develop` (all read-only, recommendations-only):
   `find_master_data_gaps`: product-master products that are unclassified or
   whose declared and measured dimensions disagree (product-master's own
   discrepancy flag), read through `list_products`. Off (503 / tool absent)
-  unless `PRODUCT_MASTER_MCP_ENDPOINT` is set.
+  unless `PRODUCT_MASTER_MCP_ENDPOINT` is set; warehouse-infra sets it in the
+  kind cluster.
+- **Transfer watch** (ADR 0019) — `GET /transfer-watch/stuck`,
+  `/transfer-watch/transfers/{id}`, `/transfer-watch/imbalance` and the MCP
+  tools `triage_stuck_transfers`, `get_transfer_status`,
+  `explain_network_imbalance` over network-inventory-planning's read tools.
+  Off (503 / tools absent) unless `NETWORK_INVENTORY_PLANNING_MCP_ENDPOINT`
+  is set.
 
 No write path exists (see the
 [governance note](./docs/docs/mcp/governance-note.md)).
