@@ -98,6 +98,21 @@ type Config struct {
 	// registered) and nothing else changes -- the agent boots fail-open.
 	ProductMaster UpstreamConfig
 
+	// InboundReceiving is inbound-receiving's read-only MCP server (ADR
+	// 0021), INBOUND_RECEIVING_MCP_ENDPOINT. An empty endpoint means "not
+	// configured": the composition root builds no client and no inbound
+	// outlook (GET /inbound-outlook answers 503, get_inbound_outlook is not
+	// registered) and nothing else changes -- the agent boots fail-open.
+	InboundReceiving UpstreamConfig
+
+	// InboundStaleReceiptAge is the age past which an OPEN receipt counts as
+	// stale in the inbound outlook (INBOUND_STALE_RECEIPT_AGE, a Go
+	// duration). It is an operational fact only the operator knows, so
+	// there is deliberately NO default: unset (or unparseable / non-positive)
+	// is 0 and the outlook then reports the stale-receipt section as
+	// "not configured" instead of inventing a threshold.
+	InboundStaleReceiptAge time.Duration
+
 	// NetworkInventoryPlanning is the fourth-wave upstream (ADR 0019). An
 	// empty endpoint means "not configured": the composition root then
 	// builds no client and no transfer watch, the three /transfer-watch
@@ -251,6 +266,10 @@ func Load() (Config, error) {
 		ProductMaster: UpstreamConfig{
 			Endpoint: getenv("PRODUCT_MASTER_MCP_ENDPOINT", ""),
 		},
+		InboundReceiving: UpstreamConfig{
+			Endpoint: getenv("INBOUND_RECEIVING_MCP_ENDPOINT", ""),
+		},
+		InboundStaleReceiptAge: loadDuration("INBOUND_STALE_RECEIPT_AGE", 0),
 		NetworkInventoryPlanning: UpstreamConfig{
 			Endpoint: getenv("NETWORK_INVENTORY_PLANNING_MCP_ENDPOINT", ""),
 		},

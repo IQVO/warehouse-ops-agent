@@ -31,6 +31,40 @@ func TestLoad_ProductMaster_ReadsEndpoint(t *testing.T) {
 	}
 }
 
+func TestLoad_InboundReceiving_UnsetIsNotConfigured(t *testing.T) {
+	t.Setenv("INBOUND_RECEIVING_MCP_ENDPOINT", "")
+	t.Setenv("INBOUND_STALE_RECEIPT_AGE", "")
+	cfg := mustLoad(t)
+	if cfg.InboundReceiving.Endpoint != "" {
+		t.Errorf("an unset INBOUND_RECEIVING_MCP_ENDPOINT must stay empty (= client disabled, fail-open), got %q", cfg.InboundReceiving.Endpoint)
+	}
+	if cfg.InboundStaleReceiptAge != 0 {
+		t.Errorf("an unset INBOUND_STALE_RECEIPT_AGE must stay 0 (no invented threshold), got %v", cfg.InboundStaleReceiptAge)
+	}
+}
+
+func TestLoad_InboundReceiving_ReadsEndpointAndStaleAge(t *testing.T) {
+	const url = "http://inbound-receiving-mcp.warehouse-systems.svc.cluster.local:8090/mcp"
+	t.Setenv("INBOUND_RECEIVING_MCP_ENDPOINT", url)
+	t.Setenv("INBOUND_STALE_RECEIPT_AGE", "6h")
+	cfg := mustLoad(t)
+	if cfg.InboundReceiving.Endpoint != url {
+		t.Errorf("endpoint = %q, want %q", cfg.InboundReceiving.Endpoint, url)
+	}
+	if cfg.InboundStaleReceiptAge != 6*time.Hour {
+		t.Errorf("stale age = %v, want 6h", cfg.InboundStaleReceiptAge)
+	}
+}
+
+func TestLoad_InboundStaleReceiptAge_InvalidIsNotConfigured(t *testing.T) {
+	for _, raw := range []string{"soon", "-1h", "0s"} {
+		t.Setenv("INBOUND_STALE_RECEIPT_AGE", raw)
+		if got := mustLoad(t).InboundStaleReceiptAge; got != 0 {
+			t.Errorf("INBOUND_STALE_RECEIPT_AGE=%q must fall back to 0 (not configured), got %v", raw, got)
+		}
+	}
+}
+
 func TestLoad_WarehousePlanning_DefaultsToNotConfigured(t *testing.T) {
 	t.Setenv("WAREHOUSE_PLANNING_MCP_ENDPOINT", "")
 	t.Setenv("CAPACITY_OUTLOOK_HORIZON", "")
