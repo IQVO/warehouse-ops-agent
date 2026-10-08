@@ -23,11 +23,14 @@ import (
 
 // inbound-receiving's published state names, as the rules compare them.
 const (
-	inboundAsnRegistered     = "Registered"
-	inboundApptBooked        = "Booked"
-	inboundApptCheckedIn     = "CheckedIn"
-	inboundReceiptOpen       = "Open"
-	inboundReceiptClosedName = "Closed"
+	// InboundAsnRegistered is the ASN state "awaiting arrival".
+	InboundAsnRegistered = "Registered"
+	// InboundReceiptOpen and InboundReceiptClosed are the receipt states.
+	InboundReceiptOpen   = "Open"
+	InboundReceiptClosed = "Closed"
+
+	inboundApptBooked    = "Booked"
+	inboundApptCheckedIn = "CheckedIn"
 )
 
 // InboundAppointmentHorizon is how far ahead "the next 24 h" looks. It is
@@ -99,7 +102,7 @@ type StaleReceipt struct {
 func AsnsAwaitingArrival(asns []InboundAsnFact, now time.Time) []AwaitingAsn {
 	out := []AwaitingAsn{}
 	for _, a := range asns {
-		if a.State != inboundAsnRegistered {
+		if a.State != InboundAsnRegistered {
 			continue
 		}
 		out = append(out, AwaitingAsn{
@@ -153,7 +156,7 @@ func StaleOpenReceipts(receipts []InboundReceiptFact, now time.Time, age time.Du
 		return out
 	}
 	for _, r := range receipts {
-		if r.State != inboundReceiptOpen || r.OpenedAt.IsZero() {
+		if r.State != InboundReceiptOpen || r.OpenedAt.IsZero() {
 			continue
 		}
 		if openFor := now.Sub(r.OpenedAt); openFor > age {
@@ -183,7 +186,7 @@ func DayBounds(now time.Time) (from, to time.Time) {
 func ClosedWithDiscrepancies(receipts []InboundReceiptFact, from, to time.Time) []InboundReceiptFact {
 	out := []InboundReceiptFact{}
 	for _, r := range receipts {
-		if r.State != inboundReceiptClosedName || len(r.Discrepancies) == 0 {
+		if r.State != InboundReceiptClosed || len(r.Discrepancies) == 0 {
 			continue
 		}
 		if !r.ClosedAt.Before(from) && r.ClosedAt.Before(to) {
