@@ -4,7 +4,7 @@
 # The build stage runs natively on the BUILDER's platform and cross-compiles
 # for each requested TARGET platform (multi-arch: linux/amd64 + linux/arm64),
 # so no QEMU emulation is needed for the Go build.
-FROM --platform=$BUILDPLATFORM golang:1.26-alpine@sha256:ce864e7223ac17b1775e6fd0b4c0db580c2eb50e7953a427916379e4b92a1628 AS build
+FROM --platform=$BUILDPLATFORM golang:1.26-alpine@sha256:c95332c2af86b6d89b91bd0500f4b9529ccbd090a0d1855c6d1ceaa142ae8615 AS build
 ARG TARGETOS
 ARG TARGETARCH
 WORKDIR /src

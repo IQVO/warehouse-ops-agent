@@ -1,6 +1,6 @@
 module github.com/claudioed/warehouse-ops-agent
 
-go 1.26.6
+go 1.26.9
 
 require (
 	github.com/arch-go/arch-go v1.7.0
@@ -42,7 +42,7 @@ require (
 	go.opentelemetry.io/otel/metric v1.47.0
 	go.opentelemetry.io/proto/otlp v1.11.0 // indirect
 	golang.org/x/mod v0.41.0 // indirect
-	golang.org/x/net v0.59.0 // indirect
+	golang.org/x/net v0.60.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/sync v0.23.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect
