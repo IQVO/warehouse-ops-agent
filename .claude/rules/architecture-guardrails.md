@@ -11,8 +11,8 @@ Source of truth: `internal/architecture/architecture_test.go`,
    `TestNoDirectDependencyOnBoundedContexts` asserts it for the five
    original contexts (`fulfillment-execution`, `wes-work-planning`,
    `workforce-management`, `inventory-storage`, `facility-layout`) plus the
-   third-wave `warehouse-planning` (ADR 0013) and `product-master`
-   (ADR 0020) by
+   third-wave `warehouse-planning` (ADR 0013), `product-master`
+   (ADR 0020) and `inbound-receiving` (ADR 0021) by
    scanning `go.mod`/`go.sum` for those module paths and fails the build if any
    appear — the check runs even if nothing today imports them, so it fails
    loudly the moment one is added. All cross-context integration must go
@@ -82,7 +82,8 @@ It is a read-side/decision-support mechanism: a CQRS-style read model that
 spans context boundaries, plus a policy layer. It is a Customer of the
 upstream contexts' published MCP Open Host Services (plus plain REST for
 console-bff). `TestNoDirectDependencyOnBoundedContexts` covers the five
-original module paths plus warehouse-planning and product-master; the three
+original module paths plus warehouse-planning, product-master and
+inbound-receiving; the three
 second-wave clients (ADR 0007) and network-inventory-planning (ADR 0019) follow
 the same rule even though the test does not list them.
 warehouse-planning's MCP server is read+write (ADR 0013), so its client is
@@ -95,6 +96,16 @@ pinned to exactly its four tools by
 `zerowrite.TestProductMasterClientCallsOnlyPinnedTools` and to their published
 schemas by `mcpclient/testdata/product_master_tools.golden.json` (a verbatim
 copy of product-master's registry golden; refresh it, never hand-edit it).
+inbound-receiving's server is read-only too (ADR 0021); its client is pinned
+to exactly its seven tools (`get_asn`, `list_asns`, `get_appointment`,
+`list_appointments`, `get_receipt`, `list_receipts`, `list_docks`) by
+`zerowrite.TestInboundReceivingClientCallsOnlyPinnedTools` and to their
+published schemas by `mcpclient/testdata/inbound_receiving_tools.golden.json`
+(a verbatim copy of inbound-receiving's `tool_registry.golden.json`; refresh
+it, never hand-edit it). Its writes (register/cancel an ASN, book/check
+in/cancel an appointment, open/receive/close a receipt) are REST-only and
+the write-verb list also covers `book_`, `check_in_`, `open_`, `receive_`,
+`close_`.
 
 ## Auth posture (as of ADR 0006, 2026-09-09)
 

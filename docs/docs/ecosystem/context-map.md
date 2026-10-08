@@ -30,7 +30,11 @@ of the fleet, added in different phases and never merged into one:
    ([ADR 0020](../adr/0020-product-master-mcp-client-and-master-data-gaps.md):
    read-only server; `list_products` feeds the master-data gaps report, the
    other three read tools are wired but unconsumed; deployed and switched on
-   in the kind cluster) and `network-inventory-planning`
+   in the kind cluster), `inbound-receiving`
+   ([ADR 0021](../adr/0021-inbound-receiving-mcp-client-and-inbound-outlook.md):
+   read-only server; `list_asns`, `list_appointments` and `list_receipts` feed
+   the inbound outlook, the other four read tools are wired but unconsumed;
+   off until `INBOUND_RECEIVING_MCP_ENDPOINT` is set) and `network-inventory-planning`
    ([ADR 0019](../adr/0019-network-inventory-planning-transfer-watch.md):
    read tools only; they feed the transfer watch).
 2. **REST fan-out host for `console-bff`** ([ADR
@@ -60,6 +64,7 @@ flowchart LR
     IS["inventory-storage<br/>Core"]
     WPL["warehouse-planning<br/>Core"]
     PM["product-master<br/>Supporting"]
+    IR["inbound-receiving<br/>Supporting"]
     WM["workforce-management<br/>Supporting"]
     LP["labor-performance<br/>Supporting"]
     FL["facility-layout<br/>Generic"]
@@ -76,6 +81,7 @@ flowchart LR
     IS -->|"U OHS / D CF - MCP check_availability, get_bin_occupancy + REST reservations + reports"| WOA
     WPL -->|"U OHS / D CF - MCP get_process_path_capacity, read tools only"| WOA
     PM -->|"U OHS / D CF - MCP list_products, read-only server"| WOA
+    IR -->|"U OHS / D CF - MCP list_asns, list_appointments, list_receipts, read-only server"| WOA
     NIP -->|"U OHS / D CF - MCP find_stuck_transfers, get_transfer, simulate_transfer_options"| WOA
     WM -->|"U OHS / D CF - MCP get_staffing_gap + reports"| WOA
     LP -->|"U OHS / D CF - MCP get_task_type_utilization + reports"| WOA

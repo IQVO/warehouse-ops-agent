@@ -34,6 +34,10 @@ registry) feeds the master-data gaps report
 ([ADR 0020](./docs/docs/adr/0020-product-master-mcp-client-and-master-data-gaps.md));
 in the kind cluster warehouse-infra sets `PRODUCT_MASTER_MCP_ENDPOINT` to
 `product-master-mcp:8090/mcp`, so the report is live there.
+`inbound-receiving` (read-only server, contract pinned to its published tool
+registry) feeds the inbound outlook
+([ADR 0021](./docs/docs/adr/0021-inbound-receiving-mcp-client-and-inbound-outlook.md));
+it is off until `INBOUND_RECEIVING_MCP_ENDPOINT` is set.
 `network-inventory-planning` (read tools only) feeds the transfer watch
 ([ADR 0019](./docs/docs/adr/0019-network-inventory-planning-transfer-watch.md)).
 Separately, it hosts the `console-bff` REST
@@ -56,8 +60,8 @@ with `cd docs && npm install && npm start`.
   context's packages, ever — only their published MCP tool schemas (and,
   for the console-bff, plain REST). `internal/architecture/architecture_test.go`'s
   `TestNoDirectDependencyOnBoundedContexts` enforces this for the five
-  original contexts' module paths plus `warehouse-planning`'s and
-  `product-master`'s.
+  original contexts' module paths plus `warehouse-planning`'s,
+  `product-master`'s and `inbound-receiving`'s.
 - **Zero write capability (v1), CI-enforced.**
   `internal/architecture/zerowrite/zerowrite_test.go` fails the build if an
   outbound client (`mcpclient`, `restclient`) gains a mutating HTTP method or
@@ -111,11 +115,12 @@ REST (all `GET`, unauthenticated — [ADR 0006](./docs/docs/adr/0006-fleet-wide-
 `/healthz`, `/daily-brief`, `/flow-balance/{pathId}`,
 `/explain-travel-factor`, `/console/orders/{id}/lifecycle`,
 `/console/reports/wms`, `/console/reports/wes`, `/runtime-signals`,
-`/master-data-gaps`.
+`/master-data-gaps`, `/inbound-outlook`.
 MCP at `/mcp` (Streamable HTTP, stateless): `get_daily_brief`,
 `list_open_exceptions`, `get_flow_balance_exception`,
 `explain_travel_factor`, `detect_stranded_reservation`,
-`find_master_data_gaps` (all `ReadOnlyHint: true`; the last four are
+`find_master_data_gaps`, `get_inbound_outlook` (all `ReadOnlyHint: true`;
+all but the first two are
 registered only when their use case is wired). Full details:
 [`docs/docs/api-surface.md`](./docs/docs/api-surface.md).
 
@@ -142,6 +147,7 @@ unauthenticated; an empty endpoint means that client is skipped):
 | process-path-management | `PROCESS_PATH_MANAGEMENT_MCP_ENDPOINT` |
 | warehouse-planning | `WAREHOUSE_PLANNING_MCP_ENDPOINT` |
 | product-master | `PRODUCT_MASTER_MCP_ENDPOINT` (unset = client disabled, fail-open; ADR 0020) |
+| inbound-receiving | `INBOUND_RECEIVING_MCP_ENDPOINT` (unset = client disabled, fail-open; ADR 0021) |
 | network-inventory-planning | `NETWORK_INVENTORY_PLANNING_MCP_ENDPOINT` (unset = client disabled; ADR 0019) |
 
 Plus:
@@ -162,6 +168,12 @@ Plus:
   daily brief's warehouse-planning capacity window extends; only meaningful
   when `WAREHOUSE_PLANNING_MCP_ENDPOINT` is set (unset = no outlook, no
   client, brief unchanged).
+- `INBOUND_STALE_RECEIPT_AGE` (Go duration, e.g. `6h`, **no default**) — the
+  age past which an Open inbound-receiving receipt counts as stale in the
+  inbound outlook (ADR 0021). Unset, zero or unparseable = not configured:
+  the outlook's `staleReceipts` section is then omitted with that reason
+  rather than guessing a threshold. Only meaningful when
+  `INBOUND_RECEIVING_MCP_ENDPOINT` is set.
 - `PROMETHEUS_URL`, `LOKI_URL` — back `GET /runtime-signals`. An unset
   `LOKI_URL` (or a failing Loki query) lists `loki` in `unavailableSources`;
   an unset `PROMETHEUS_URL` falls back to a no-op stub reader, so metrics
@@ -255,6 +267,16 @@ Shipped on `develop` (all read-only, recommendations-only):
   discrepancy flag), read through `list_products`. Off (503 / tool absent)
   unless `PRODUCT_MASTER_MCP_ENDPOINT` is set; warehouse-infra sets it in the
   kind cluster.
+- **Inbound outlook** (ADR 0021) — `GET /inbound-outlook` /
+  `get_inbound_outlook` (no arguments): ASNs awaiting arrival (Registered;
+  `overdue` once their own expected arrival has passed), dock appointments in
+  the next 24 h (Booked or CheckedIn), Open receipts older than
+  `INBOUND_STALE_RECEIPT_AGE`, and receipts closed with discrepancies today
+  (the agent's local calendar day), read through `list_asns`,
+  `list_appointments` and `list_receipts`. Sections fail independently: each
+  carries `omitted` (why it is missing; not "nothing to report") and
+  `complete` (false = the 5,000-record scan bound was hit). Off (503 / tool
+  absent) unless `INBOUND_RECEIVING_MCP_ENDPOINT` is set.
 - **Transfer watch** (ADR 0019) — `GET /transfer-watch/stuck`,
   `/transfer-watch/transfers/{id}`, `/transfer-watch/imbalance` and the MCP
   tools `triage_stuck_transfers`, `get_transfer_status`,
