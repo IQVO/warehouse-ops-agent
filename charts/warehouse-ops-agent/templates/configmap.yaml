@@ -20,6 +20,10 @@ data:
   FACILITY_LAYOUT_MCP_ENDPOINT: {{ .Values.upstreams.facilityLayout.endpoint | quote }}
   WAREHOUSE_PLANNING_MCP_ENDPOINT: {{ .Values.upstreams.warehousePlanning.endpoint | quote }}
   PRODUCT_MASTER_MCP_ENDPOINT: {{ .Values.upstreams.productMaster.endpoint | quote }}
+  INBOUND_RECEIVING_MCP_ENDPOINT: {{ .Values.upstreams.inboundReceiving.endpoint | quote }}
+  {{- if .Values.config.inboundStaleReceiptAge }}
+  INBOUND_STALE_RECEIPT_AGE: {{ .Values.config.inboundStaleReceiptAge | quote }}
+  {{- end }}
   NETWORK_INVENTORY_PLANNING_MCP_ENDPOINT: {{ .Values.upstreams.networkInventoryPlanning.endpoint | quote }}
   {{- if .Values.restUrls.orderManagement }}
   ORDER_MANAGEMENT_REST_URL: {{ .Values.restUrls.orderManagement | quote }}

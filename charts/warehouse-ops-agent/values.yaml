@@ -106,6 +106,12 @@ config:
   # working brief rather than an empty one. Do NOT set it to "[]": an empty
   # list fails startup with a config error (ADR 0017) -- leave it empty.
   dailyBriefPathTargets: ""
+  # inboundStaleReceiptAge overrides INBOUND_STALE_RECEIPT_AGE (a Go
+  # duration, e.g. "4h"): an Open receipt older than this appears in the
+  # inbound outlook (ADR 0021). Left empty the "stale receipts" section is
+  # omitted (no default is invented). Only has an effect when
+  # upstreams.inboundReceiving.endpoint is set.
+  inboundStaleReceiptAge: ""
   # capacityOutlookHorizon overrides CAPACITY_OUTLOOK_HORIZON (a Go
   # duration, e.g. "8h"): how far ahead the daily brief's warehouse-planning
   # capacity window extends. Left empty the binary uses its own 8h default.
@@ -190,6 +196,14 @@ upstreams:
   # else changes. In-cluster value:
   # http://product-master-mcp.warehouse-systems.svc.cluster.local:8090/mcp
   productMaster:
+    endpoint: ""
+  # inbound-receiving (ADR 0021): its MCP server is read-only (get_asn,
+  # list_asns, get_appointment, list_appointments, get_receipt,
+  # list_receipts, list_docks on :8090, Streamable HTTP at /mcp). Empty =
+  # not configured: no client, no GET /inbound-outlook (503) and no
+  # get_inbound_outlook tool; nothing else changes. In-cluster value:
+  # http://inbound-receiving-mcp.warehouse-systems.svc.cluster.local:8090/mcp
+  inboundReceiving:
     endpoint: ""
   # network-inventory-planning (ADR 0019): its MCP server publishes READ
   # tools only and this agent calls only those (get_transfer,
