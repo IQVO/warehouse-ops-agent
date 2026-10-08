@@ -18,7 +18,7 @@ for the rejected-input classification.
 network-inventory-planning (NIP) owns inter-warehouse transfers: a saga from
 DRAFT to RECEIVED across inventory-storage (allocation, destination receipt),
 wes-work-planning and fulfillment-execution (floor work). Its MCP server
-(NIP ADR 0007) publishes four READ tools: `get_transfer`, `list_transfers`,
+(NIP ADR 0008) publishes four READ tools: `get_transfer`, `list_transfers`,
 `find_stuck_transfers`, `simulate_transfer_options`. Operators had no way to
 ask the agent "where is transfer X", "what is stuck and why" or "which sites
 are short" — the saga crosses four contexts and a stuck transfer is, in
