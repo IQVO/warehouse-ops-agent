@@ -1,8 +1,10 @@
 // Package http is warehouse-ops-agent's inbound REST adapter: chi router,
-// the handlers for its eight GET routes (/healthz, /daily-brief,
+// the handlers for its thirteen GET routes (/healthz, /daily-brief,
 // /flow-balance/{pathId}, /explain-travel-factor,
 // /console/orders/{id}/lifecycle, /console/reports/wms,
-// /console/reports/wes, /runtime-signals) plus the optional /mcp mount, and
+// /console/reports/wes, /runtime-signals, /master-data-gaps,
+// /inbound-outlook, /transfer-watch/stuck, /transfer-watch/transfers/{id},
+// /transfer-watch/imbalance) plus the optional /mcp mount, and
 // DTOs. Domain/application structs never leak across this boundary.
 package http
 
@@ -59,6 +61,20 @@ type Handlers struct {
 	// above) for any deployment that hasn't wired it.
 	RuntimeSignals *usecases.RuntimeSignals
 
+	// MasterDataGaps is the ADR 0020 product-master use case. Nil (no
+	// PRODUCT_MASTER_MCP_ENDPOINT) answers 503 on GET /master-data-gaps.
+	MasterDataGaps *usecases.MasterDataGaps
+
+	// InboundOutlook is the ADR 0021 inbound-receiving use case. Nil (no
+	// INBOUND_RECEIVING_MCP_ENDPOINT) answers 503 on GET /inbound-outlook.
+	InboundOutlook *usecases.InboundOutlook
+
+	// TransferWatch is the ADR-0019 read-only view of
+	// network-inventory-planning. Nil is a valid value (same
+	// 503-not-panic convention as the fields above): the three
+	// /transfer-watch routes answer 503 while
+	// NETWORK_INVENTORY_PLANNING_MCP_ENDPOINT is unset.
+	TransferWatch *usecases.TransferWatch
 	// MCPHandler is this agent's own inbound MCP server
 	// (internal/adapters/inbound/mcp), mounted at /mcp on this SAME chi
 	// router (ADR-0010) so MCP traffic gets the identical otelchi trace,
@@ -103,6 +119,11 @@ func NewRouter(h *Handlers, serviceName string) *chi.Mux {
 	r.Get("/console/reports/wms", h.getWMSDashboard)
 	r.Get("/console/reports/wes", h.getWESDashboard)
 	r.Get("/runtime-signals", h.getRuntimeSignals)
+	r.Get("/master-data-gaps", h.getMasterDataGaps)
+	r.Get("/inbound-outlook", h.getInboundOutlook)
+	r.Get("/transfer-watch/stuck", h.getStuckTransfers)
+	r.Get("/transfer-watch/transfers/{id}", h.getTransferStatus)
+	r.Get("/transfer-watch/imbalance", h.getNetworkImbalance)
 
 	// /mcp: same router, same middleware chain as every REST route above
 	// (ADR-0010) — NOT a second handler mounted outside it on a raw

@@ -40,6 +40,21 @@ type Deps struct {
 	// when nil, mirroring FlowBalanceAdvisory's own precedent. Read-only:
 	// it only ever recommends a revoke_reservation, never calls it.
 	StrandedReservation *usecases.DetectStrandedReservation
+
+	// MasterDataGaps is the ADR 0020 product-master use case. Nil (no
+	// PRODUCT_MASTER_MCP_ENDPOINT) means find_master_data_gaps is simply
+	// not registered.
+	MasterDataGaps *usecases.MasterDataGaps
+
+	// InboundOutlook is the ADR 0021 inbound-receiving use case. Nil (no
+	// INBOUND_RECEIVING_MCP_ENDPOINT) means get_inbound_outlook is simply
+	// not registered.
+	InboundOutlook *usecases.InboundOutlook
+
+	// TransferWatch is the ADR-0019 read-only view of
+	// network-inventory-planning. Nil is a valid value; the three
+	// transfer-watch tools are simply not registered when nil.
+	TransferWatch *usecases.TransferWatch
 }
 
 // --- get_daily_brief -----------------------------------------------------
@@ -298,10 +313,11 @@ func (d Deps) detectStrandedReservation(ctx context.Context, in strandedReservat
 // registerTools adds every tool to the server, each wrapped so its handler
 // runs inside an OTel span named "mcp.tool <name>". get_daily_brief and
 // list_open_exceptions are always registered; get_flow_balance_exception,
-// explain_travel_factor, and detect_stranded_reservation are registered
-// only when their use case is wired (see each one's own nil check below)
-// — up to five tools total, every one of them read-only. This agent has
-// no write tool at all.
+// explain_travel_factor, detect_stranded_reservation and
+// find_master_data_gaps and get_inbound_outlook are registered only when their use case is wired
+// (see each one's own nil check below) — up to ten tools total (with the
+// three transfer-watch tools), every one
+// of them read-only. This agent has no write tool at all.
 func (d Deps) registerTools(server *mcp.Server) {
 	readOnly := true
 
@@ -339,6 +355,26 @@ func (d Deps) registerTools(server *mcp.Server) {
 			Description: "Correlate fulfillment-execution's expired/expiring task leases with inventory-storage's usable-stock shortfall for one SKU into a ranked StrandedReservationException recommendation (revoke_reservation or hold). A revoke is only ever recommended alongside its mandatory blast radius (which bin, how much stock would return to usable) — never on partial evidence. This tool only recommends; it never calls inventory-storage's revoke_reservation write tool itself.",
 			Annotations: &mcp.ToolAnnotations{ReadOnlyHint: readOnly},
 		}, d.detectStrandedReservation)
+	}
+
+	if d.MasterDataGaps != nil {
+		addTool(server, &mcp.Tool{
+			Name:        "find_master_data_gaps",
+			Description: "List product-master products whose master data is missing or contradictory: unclassified (no handling classification, so hazmat/fragile/temperature handling is unknown downstream) and dimension-discrepancy (product-master's own flag that declared and measured unit dimensions disagree beyond its tolerance; both dimension sets are returned). Optional kind filter (unclassified or dimension-discrepancy); a scan covers at most 5,000 products per call and returns complete=false plus nextCursor to resume. Read-only: it only reports, it never classifies, declares or measures anything.",
+			Annotations: &mcp.ToolAnnotations{ReadOnlyHint: readOnly},
+		}, d.findMasterDataGaps)
+	}
+
+	if d.InboundOutlook != nil {
+		addTool(server, &mcp.Tool{
+			Name:        "get_inbound_outlook",
+			Description: "Report the inbound dock side's near-term picture from inbound-receiving: ASNs awaiting arrival (state Registered; overdue when their own expected arrival has passed), dock appointments in the next 24 hours (Booked or CheckedIn), open receipts older than the operator-configured INBOUND_STALE_RECEIPT_AGE, and receipts closed with discrepancies today. Takes no arguments. Each section carries its own omitted reason (an upstream failure, or the stale age not being configured) and complete flag (false = the 5,000-record scan bound was reached, so the list is a lower bound); an omitted section is NOT 'nothing to report'. Read-only: it only reports, it never registers, books, receives or closes anything.",
+			Annotations: &mcp.ToolAnnotations{ReadOnlyHint: readOnly},
+		}, d.getInboundOutlook)
+	}
+
+	if d.TransferWatch != nil {
+		d.registerTransferWatchTools(server)
 	}
 }
 

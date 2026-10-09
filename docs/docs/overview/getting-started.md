@@ -66,7 +66,8 @@ threshold, understaffed, or stuck tasks) shows up under
 
 ```
 make check       # fast pre-commit bundle: fmt-check vet build lint test
-make check-all   # + coverage (90% gate) + arch-test (pre-push gate)
+make check-all   # + coverage (90% gate) + arch-test + bdd (pre-push gate)
+make bdd         # godog/Gherkin acceptance scenarios under features/ (ADR 0022)
 ```
 
 `lefthook install` once to activate the pre-commit/pre-push git hooks.
