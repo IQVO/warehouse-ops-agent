@@ -57,7 +57,7 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'API Surface',
       collapsed: false,
-      items: ['api-surface'],
+      items: ['api-surface', 'api/http-routes'],
     },
     {
       type: 'category',
