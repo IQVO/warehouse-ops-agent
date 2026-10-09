@@ -51,6 +51,21 @@ every ADR) is published from `docs/` — see
 once the `Docs` GitHub Actions workflow has deployed it, or run it locally
 with `cd docs && npm install && npm start`.
 
+## Documentation
+
+Published at [iqvo.github.io/warehouse-ops-agent](https://iqvo.github.io/warehouse-ops-agent/).
+Sources under [`docs/docs/`](./docs/docs/):
+
+| Area | Pages |
+|---|---|
+| Overview | [Introduction](./docs/docs/overview/index.md), [Architecture](./docs/docs/overview/architecture.md), [Getting started](./docs/docs/overview/getting-started.md) |
+| Operations | [Configuration](./docs/docs/operations/configuration.md), [Runbook](./docs/docs/operations/runbook.md), [Observability](./docs/docs/operations/observability.md), [Troubleshooting](./docs/docs/operations/troubleshooting.md) |
+| Development | [Testing](./docs/docs/development/testing.md) |
+| API | [HTTP routes](./docs/docs/api/http-routes.md), [API surface](./docs/docs/api-surface.md), [MCP tools](./docs/docs/mcp/tools.md), [MCP governance note](./docs/docs/mcp/governance-note.md) |
+| Ecosystem | [Context map](./docs/docs/ecosystem/context-map.md), [Integration](./docs/docs/ecosystem/integration.md) |
+| Domain | [Use cases](./docs/docs/ddd/use-cases.md), [Subdomain classification](./docs/docs/ddd/subdomain-classification.md), [DDD artifacts](./docs/docs/ddd/ddd-artifacts.md), [Domain vision](./docs/docs/business-context/domain-vision.md), [Ubiquitous language](./docs/docs/business-context/ubiquitous-language.md) |
+| Decisions | [ADR index](./docs/docs/adr/index.md) |
+
 ## Guardrails (non-negotiable)
 
 - **No new domain aggregate; no direct DB writes.** This agent writes to any
@@ -115,14 +130,17 @@ REST (all `GET`, unauthenticated — [ADR 0006](./docs/docs/adr/0006-fleet-wide-
 `/healthz`, `/daily-brief`, `/flow-balance/{pathId}`,
 `/explain-travel-factor`, `/console/orders/{id}/lifecycle`,
 `/console/reports/wms`, `/console/reports/wes`, `/runtime-signals`,
-`/master-data-gaps`, `/inbound-outlook`.
+`/master-data-gaps`, `/inbound-outlook`, `/transfer-watch/stuck`,
+`/transfer-watch/transfers/{id}`, `/transfer-watch/imbalance`.
 MCP at `/mcp` (Streamable HTTP, stateless): `get_daily_brief`,
 `list_open_exceptions`, `get_flow_balance_exception`,
 `explain_travel_factor`, `detect_stranded_reservation`,
-`find_master_data_gaps`, `get_inbound_outlook` (all `ReadOnlyHint: true`;
-all but the first two are
-registered only when their use case is wired). Full details:
-[`docs/docs/api-surface.md`](./docs/docs/api-surface.md).
+`find_master_data_gaps`, `get_inbound_outlook`, `triage_stuck_transfers`,
+`get_transfer_status`, `explain_network_imbalance` (all
+`ReadOnlyHint: true`; the last five are registered only when their
+optional upstream is configured). Full details:
+[HTTP routes](./docs/docs/api/http-routes.md) and
+[MCP tools](./docs/docs/mcp/tools.md).
 
 The ddd-crew DDD artifact pack (core domain chart, bounded context canvas,
 context map, EventStorming, class / ER / sequence diagrams, and an honest
@@ -133,7 +151,11 @@ context map, EventStorming, class / ER / sequence diagrams, and an honest
 
 One Streamable-HTTP endpoint per upstream context, read from the
 environment (no bearer keys — every upstream MCP server is
-unauthenticated; an empty endpoint means that client is skipped):
+unauthenticated). The first eight clients are always built, so an empty
+endpoint makes every call to that context fail and the use cases degrade;
+the last four are optional and an empty endpoint turns their feature off.
+Every variable, default and chart value is on the
+[Configuration](./docs/docs/operations/configuration.md) page:
 
 | Context | Endpoint env var |
 |---|---|
