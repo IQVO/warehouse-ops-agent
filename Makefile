@@ -8,7 +8,7 @@ GOLANGCI_LINT_VERSION := v2.13.1
 COVERAGE_THRESHOLD    := 90
 COVERPKG              := ./internal/domain/...,./internal/application/...,./internal/adapters/inbound/...
 
-.PHONY: help build vet fmt fmt-check lint test coverage arch-test mutation-fast vuln check check-all
+.PHONY: help build vet fmt fmt-check lint test coverage bdd arch-test mutation-fast vuln check check-all
 
 help: ## Show the available targets
 	@echo "warehouse-ops-agent — make targets"
@@ -21,11 +21,12 @@ help: ## Show the available targets
 	@echo "  lint          golangci-lint run ./... (pinned $(GOLANGCI_LINT_VERSION) in CI)"
 	@echo "  test          go test ./... -race"
 	@echo "  coverage      Coverage run + $(COVERAGE_THRESHOLD)% gate (same command as CI)"
+	@echo "  bdd           go test ./... -run TestFeatures -v — godog/Gherkin acceptance suite (features/)"
 	@echo "  arch-test     Hexagonal architecture fitness tests (arch-go) + zero-write guardrail"
 	@echo "  mutation-fast gremlins unleash ./internal/domain (see .gremlins.yaml) — CI's blocking mutation job"
 	@echo "  vuln          govulncheck ./..."
 	@echo "  check         FAST pre-commit bundle: fmt-check vet build lint test"
-	@echo "  check-all     check + coverage arch-test (pre-push gate)"
+	@echo "  check-all     check + coverage arch-test bdd (pre-push gate)"
 	@echo ""
 	@echo "  Hooks: run 'lefthook install' once to activate the pre-commit/pre-push hooks."
 
@@ -72,6 +73,9 @@ coverage: ## Coverage run plus the CI coverage gate
 arch-test: ## Architecture fitness tests
 	go test ./internal/architecture/... -v
 
+bdd: ## godog/Gherkin acceptance suite over the real router (features/, ADR 0022)
+	go test ./... -run TestFeatures -v
+
 mutation-fast: ## Mutation testing over the whole domain layer (see .gremlins.yaml)
 	@if ! command -v gremlins >/dev/null 2>&1; then \
 		echo "gremlins is not installed."; \
@@ -93,7 +97,7 @@ vuln: ## Known CVEs in the dependency graph and the Go stdlib
 check: fmt-check vet build lint test ## Fast pre-commit bundle
 	@echo "check: OK"
 
-check-all: check coverage arch-test ## Fuller pre-push gate
+check-all: check coverage arch-test bdd ## Fuller pre-push gate
 	@echo "check-all: OK"
 
 # --- agent harness (harness-template v3) -----------------------------------

@@ -224,7 +224,8 @@ is a startup error, never a silent `off`.
 
 ```
 make check          # fast pre-commit bundle: fmt-check vet build lint test
-make check-all      # + coverage (90% gate) + arch-test (pre-push gate)
+make check-all      # + coverage (90% gate) + arch-test + bdd (pre-push gate)
+make bdd            # godog/Gherkin acceptance suite (features/, ADR 0022)
 make mutation-fast  # gremlins over ./internal/domain (CI's blocking mutation job)
 make vuln           # govulncheck ./...
 ```
