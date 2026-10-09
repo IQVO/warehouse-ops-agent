@@ -5,6 +5,7 @@ go 1.26.9
 require (
 	github.com/arch-go/arch-go v1.7.0
 	github.com/cenkalti/backoff/v4 v4.3.0
+	github.com/cucumber/godog v0.16.0
 	github.com/go-chi/chi/v5 v5.3.2
 	github.com/go-chi/cors v1.2.2
 	github.com/modelcontextprotocol/go-sdk v1.8.0
@@ -19,7 +20,15 @@ require (
 	go.opentelemetry.io/otel/trace v1.47.0
 )
 
-require go.opentelemetry.io/otel/log v1.47.0 // indirect
+require (
+	github.com/cucumber/gherkin/go/v42 v42.0.0 // indirect
+	github.com/cucumber/messages/go/v34 v34.2.0 // indirect
+	github.com/hashicorp/go-immutable-radix v1.3.1 // indirect
+	github.com/hashicorp/go-memdb v1.3.5 // indirect
+	github.com/hashicorp/golang-lru v0.5.4 // indirect
+	github.com/spf13/pflag v1.0.10 // indirect
+	go.opentelemetry.io/otel/log v1.47.0 // indirect
+)
 
 require (
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect

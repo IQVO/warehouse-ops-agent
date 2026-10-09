@@ -123,6 +123,20 @@ jobs:
           path: coverage.out
 
   # ============================================================
+  # CLASSIFICATION: BEHAVIOR TESTING (BDD / Gherkin)
+  # ============================================================
+  bdd:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: go.mod
+      - name: Run BDD (godog/Gherkin) acceptance tests
+        run: go test ./... -run TestFeatures -v
+
+  # ============================================================
   # CLASSIFICATION: LINTERS & STATIC ANALYSIS (architecture fitness)
   # ============================================================
   # The MCP eval gate as its own named check: the eval suites from
@@ -322,7 +336,7 @@ jobs:
   docker-publish:
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    needs: [lint, complexity, test, arch-test, evals-tests]
+    needs: [lint, complexity, test, bdd, arch-test, evals-tests]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
       contents: read
