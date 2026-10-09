@@ -156,6 +156,18 @@ jobs:
       - name: Agent MCP tool-selection evals (recording wire stubs)
         run: go test ./internal/adapters/outbound/mcpclient/... -race -run '^TestAgentEval' -v
 
+  # CLASSIFICATION: INTEGRATION TESTING (real Streamable HTTP wire, no DB in this service)
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: go.mod
+      - name: Integration tests (real MCP Streamable HTTP endpoints)
+        run: go test -tags=integration ./... -race -count=1
+
   arch-test:
     runs-on: ubuntu-latest
     timeout-minutes: 10
