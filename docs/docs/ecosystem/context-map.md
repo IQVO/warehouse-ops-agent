@@ -10,6 +10,8 @@ description: Where warehouse-ops-agent sits relative to the warehouse-systems bo
 This is `warehouse-ops-agent`'s slice of the fleet context map, in
 ddd-crew [Context Mapping](https://github.com/ddd-crew/context-mapping)
 notation. It is part of the [DDD artifact pack](../ddd/ddd-artifacts.md).
+The per-edge operational detail (exact calls, configuration, failure
+behaviour) is on [Integration](./integration.md).
 
 `warehouse-ops-agent` carries **three distinct relationships** to the rest
 of the fleet, added in different phases and never merged into one:
@@ -18,7 +20,7 @@ of the fleet, added in different phases and never merged into one:
    [ADR 0007](../adr/0007-second-wave-outbound-mcp-clients.md)) — the
    daily-brief, flow-balance-exception, explain-travel-factor and
    stranded-reservation use cases read each context's published MCP Open
-   Host Service, synchronously, at request time. Clients exist for eleven
+   Host Service, synchronously, at request time. Clients exist for twelve
    contexts: the five original ones plus `labor-performance` (consumed by
    the [ADR 0008](../adr/0008-labor-utilization-advisory-correlation.md)
    utilization overlay), `order-management` and `process-path-management`
@@ -132,7 +134,7 @@ context.
 | Downstream | Pattern | Technology | Status | Evidence |
 |---|---|---|---|---|
 | `warehouse-console` | Customer/Supplier (this agent is the BFF supplier; DTOs hand-kept in sync with the console's types) | REST `/console/orders/{id}/lifecycle`, `/console/reports/wms`, `/console/reports/wes`, plus `/daily-brief` | live | `inbound/http/router.go` |
-| Agentic / LLM hosts | OHS / Published Language (MCP tool schemas) | MCP `/mcp`: up to 9 read-only tools (6 in `tools.go`, 3 transfer-watch tools in `transfer_watch.go`) | live | `inbound/mcp/tools.go`, `inbound/mcp/transfer_watch.go` |
+| Agentic / LLM hosts | OHS / Published Language (MCP tool schemas) | MCP `/mcp`: up to 10 read-only tools (7 registered in `tools.go`, of which `find_master_data_gaps` and `get_inbound_outlook` only when their upstream is configured; 3 transfer-watch tools in `transfer_watch.go` only when network-inventory-planning is configured) | live | `inbound/mcp/tools.go`, `inbound/mcp/transfer_watch.go` |
 
 Every `*-reports` read also calls that report's `/freshness` endpoint. MCP
 and REST calls carry no credentials — the fleet's auth was removed
@@ -148,7 +150,7 @@ publishes none of its own (see [Domain events](../ddd/domain-events.md)).
 It also has **no cross-repo Go dependency** on any upstream context:
 `internal/architecture/architecture_test.go`'s
 `TestNoDirectDependencyOnBoundedContexts` fails the build if one of the
-five original contexts' modules (or `warehouse-planning`'s, or `product-master`'s) is ever
+five original contexts' modules (or `warehouse-planning`'s, `product-master`'s or `inbound-receiving`'s) is ever
 introduced, and the domain-layer types in `internal/domain/policy`
 (`RebalanceAction`, `TaskType`, and so on) are hand-mirrored copies of the
 upstream enums, validated at the tool-boundary rather than imported.
