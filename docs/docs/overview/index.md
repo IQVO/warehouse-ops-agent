@@ -90,6 +90,19 @@ why that degrade-to-hold discipline is the whole point of the design.
 ## Where to go next
 
 - [Getting started](./getting-started.md) — run it locally.
+- [Architecture](./architecture.md) — the single binary, the hexagonal
+  layout and the dependency rules.
+- [Configuration](../operations/configuration.md),
+  [Runbook](../operations/runbook.md),
+  [Observability](../operations/observability.md) and
+  [Troubleshooting](../operations/troubleshooting.md) — operating it.
+- [Testing](../development/testing.md) — the test pyramid and CI jobs.
+- [Use cases](../ddd/use-cases.md) — what each query does and the rules
+  it applies.
+- [HTTP routes](../api/http-routes.md) and [MCP tools](../mcp/tools.md) —
+  the full REST and MCP contract.
+- [Integration](../ecosystem/integration.md) — every upstream and
+  downstream edge and its failure behaviour.
 - [Domain vision](../business-context/domain-vision.md) — why this agent
   exists the way it does, and the guardrails that keep it that way.
 - [Ubiquitous language](../business-context/ubiquitous-language.md) — the

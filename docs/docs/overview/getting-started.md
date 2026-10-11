@@ -10,9 +10,9 @@ description: Run warehouse-ops-agent locally, wired against the five sibling MCP
 `warehouse-ops-agent` is a single Go binary. It has no database of its own
 — it holds no persisted state — and needs no Postgres. What it does need
 is a Streamable HTTP endpoint for each upstream context's MCP server it
-should read (an unset endpoint simply skips that client; see
-[Configuration](https://github.com/IQVO/warehouse-ops-agent#configuration)
-in the repo README for the full environment-variable table).
+should read (an unset endpoint either fails that client's calls or turns
+an optional feature off; see [Configuration](../operations/configuration.md)
+for every environment variable).
 
 ## Run it against the full fleet
 
