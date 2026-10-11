@@ -135,4 +135,35 @@ func TestWarehousePlanning_ToolRejection_SharesTheClassifier(t *testing.T) {
 	if !strings.Contains(err.Error(), "process-path-not-found: no such path") {
 		t.Fatalf("message must be unchanged, got %v", err)
 	}
+	// ADR 0019: "*-not-found" additionally answers ErrUpstreamNotFound; it
+	// is opt-in and changes no existing classification.
+	if !errors.Is(err, ports.ErrUpstreamNotFound) {
+		t.Fatalf("a *-not-found slug must satisfy ErrUpstreamNotFound, got %v", err)
+	}
+}
+
+// The not-found sentinel is exactly the "-not-found" suffix: validation,
+// internal-error and slug-less text never satisfy it.
+func TestToolError_NotFoundSentinel(t *testing.T) {
+	cases := []struct {
+		text string
+		want bool
+	}{
+		{"transfer-not-found: transfer t-1 not found", true},
+		{"site-not-found: no such site", true},
+		{"invalid-query: unknown state", false},
+		{"internal-error: an unexpected internal error occurred", false},
+		{"read-models-incomplete: facts are stale", false},
+		{"transfer not found", false}, // slug-less prose is never inspected
+		{"", false},
+	}
+	for _, tc := range cases {
+		e := newToolError("up", "tool", tc.text)
+		if got := errors.Is(e, ports.ErrUpstreamNotFound); got != tc.want {
+			t.Errorf("errors.Is(%q, ErrUpstreamNotFound) = %v, want %v", tc.text, got, tc.want)
+		}
+		if errors.Is(e, ports.ErrUpstreamNotFound) && errors.Is(e, ports.ErrUpstreamInvalidInput) {
+			t.Errorf("%q must not be both not-found and invalid input", tc.text)
+		}
+	}
 }

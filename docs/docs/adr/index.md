@@ -37,6 +37,10 @@ accepted.
 | [0016](./0016-rest-error-mapping-cors-and-strict-path-target-config.md) | REST error mapping for explain-travel-factor, GET-only CORS, and strict DAILY_BRIEF_PATH_TARGETS config | Accepted |
 | [0017](./0017-empty-path-targets-is-a-config-error.md) | An empty DAILY_BRIEF_PATH_TARGETS list is a startup config error | Accepted |
 | [0018](./0018-mcp-tool-error-slug-classification.md) | Classify upstream MCP tool rejections by the fleet's slug convention (validation slug → 400, else 502) | Accepted |
+| [0019](./0019-network-inventory-planning-transfer-watch.md) | Read-only transfer watch over network-inventory-planning (stuck-transfer triage, transfer status, network imbalance) | Accepted |
+| [0020](./0020-product-master-mcp-client-and-master-data-gaps.md) | product-master MCP client (read-only, schema-pinned) and the master-data gaps report | Accepted |
+| [0021](./0021-inbound-receiving-mcp-client-and-inbound-outlook.md) | inbound-receiving MCP client (read-only, schema-pinned) and the inbound outlook | Accepted |
+| [0022](./0022-godog-bdd-acceptance-tests.md) | godog/Gherkin acceptance tests as executable specification | Accepted |
 
 ## Proposing a new one
 

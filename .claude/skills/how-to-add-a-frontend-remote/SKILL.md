@@ -10,7 +10,7 @@ description: Add or change a micro-frontend remote under web/ (vite federation c
 a Vite/React Module Federation remote under a bounded-context repo's own
 `web/` directory. `warehouse-ops-agent` has **no `web/` directory and no
 frontend remote of its own, by design** — it is not a bounded context
-(ADR 0001) and it is not one of the fleet's eight Module-Federation
+(ADR 0001) and it is not one of the fleet's twelve Module-Federation
 remotes.
 
 ## Why there is nothing to adapt here
@@ -58,7 +58,7 @@ agent's REST/console-bff surface from its own React code, see
 
 - `warehouse-console/docs/docs/architecture/module-federation.md` — the
   shell-side remote-hosting contract (`RemoteBoundary`, lazy-loading
-  convention) for the eight bounded-context remotes.
+  convention) for the twelve bounded-context remotes.
 - `warehouse-console/docs/docs/architecture/cross-cutting-screens.md` —
   how the Floor/Order-Lifecycle/WMS/WES screens consume THIS agent's
   REST and console-bff routes from the browser side.

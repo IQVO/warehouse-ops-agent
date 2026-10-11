@@ -17,7 +17,7 @@ const sidebars: SidebarsConfig = {
       label: 'Overview',
       collapsed: false,
       link: {type: 'doc', id: 'overview/index'},
-      items: ['overview/getting-started'],
+      items: ['overview/architecture', 'overview/getting-started'],
     },
     {
       type: 'category',
@@ -34,6 +34,7 @@ const sidebars: SidebarsConfig = {
       collapsed: false,
       items: [
         'ddd/subdomain-classification',
+        'ddd/use-cases',
         {
           type: 'category',
           label: 'DDD artifacts (ddd-crew)',
@@ -57,19 +58,36 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'API Surface',
       collapsed: false,
-      items: ['api-surface'],
+      items: ['api-surface', 'api/http-routes'],
     },
     {
       type: 'category',
       label: 'Ecosystem',
       collapsed: false,
-      items: ['ecosystem/context-map'],
+      items: ['ecosystem/context-map', 'ecosystem/integration'],
     },
     {
       type: 'category',
       label: 'AI Ecosystem (MCP)',
       collapsed: false,
-      items: ['mcp/governance-note'],
+      items: ['mcp/tools', 'mcp/governance-note'],
+    },
+    {
+      type: 'category',
+      label: 'Operations',
+      collapsed: false,
+      items: [
+        'operations/configuration',
+        'operations/runbook',
+        'operations/observability',
+        'operations/troubleshooting',
+      ],
+    },
+    {
+      type: 'category',
+      label: 'Development',
+      collapsed: false,
+      items: ['development/testing'],
     },
     {
       type: 'category',
@@ -95,6 +113,10 @@ const sidebars: SidebarsConfig = {
         'adr/0016-rest-error-mapping-cors-and-strict-path-target-config',
         'adr/0017-empty-path-targets-is-a-config-error',
         'adr/0018-mcp-tool-error-slug-classification',
+        'adr/0019-network-inventory-planning-transfer-watch',
+        'adr/0020-product-master-mcp-client-and-master-data-gaps',
+        'adr/0021-inbound-receiving-mcp-client-and-inbound-outlook',
+        'adr/0022-godog-bdd-acceptance-tests',
       ],
     },
   ],

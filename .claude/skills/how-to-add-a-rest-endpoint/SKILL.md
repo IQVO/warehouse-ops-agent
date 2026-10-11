@@ -11,7 +11,7 @@ adapter. **Adapted from inventory-storage's `.claude/skills/` reference
 not a bounded context — it owns no aggregate and enforces no domain
 invariant (ADR 0001), so there is no "domain first" step here the way
 inventory-storage's guide has one. Every route here is either (a) a
-read-only correlation over facts gathered from the eight upstream
+read-only correlation over facts gathered from the eleven upstream
 contexts' MCP tools, or (b) a console-bff fan-out over plain REST reads
 (ADR 0002/0003) — never a place a write can be introduced. This repo also
 has **no OpenAPI spec**: its REST surface is hand-documented in
