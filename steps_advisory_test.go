@@ -211,6 +211,13 @@ func (w *world) wfmWasAskedAbout(building, shift string) error {
 	return fmt.Errorf("expected workforce-management to be asked about %q, got %v", want, w.wfm.asked)
 }
 
+func (w *world) wfmWasNotAsked() error {
+	if len(w.wfm.asked) != 0 {
+		return fmt.Errorf("expected workforce-management not to be asked, got %v", w.wfm.asked)
+	}
+	return nil
+}
+
 func (w *world) facilityWasAskedForTheRoute(from, to string) error {
 	want := from + "|" + to
 	for _, call := range w.facility.calls {
@@ -256,6 +263,7 @@ func registerAdvisorySteps(sc *godog.ScenarioContext, w *world) {
 	sc.Step(`^the rationale mentions "([^"]*)"$`, w.theRationaleMentions)
 	sc.Step(`^the evidence cites "([^"]*)"$`, w.theEvidenceCites)
 	sc.Step(`^workforce-management was asked about building "([^"]*)" and shift "([^"]*)"$`, w.wfmWasAskedAbout)
+	sc.Step(`^workforce-management was not asked$`, w.wfmWasNotAsked)
 	sc.Step(`^facility-layout was asked for the route from "([^"]*)" to "([^"]*)"$`, w.facilityWasAskedForTheRoute)
 	sc.Step(`^facility-layout was not called$`, w.facilityWasNotCalled)
 }
