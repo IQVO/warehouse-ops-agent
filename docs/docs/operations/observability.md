@@ -43,8 +43,8 @@ default), pointing at
 
 | Instrument | Type | Unit | Attributes | When it is recorded | Source |
 |---|---|---|---|---|---|
-| `ops_agent_llm_arbitrations_total` | Int64Counter | `{arbitration}` | `use_case` (today only `flow_balance_advisory`), `mode` (`shadow` or `on`), `source` (`deterministic`, `llm`, `fallback`) | once per flow-balance decision that went through the reasoner | `internal/adapters/outbound/telemetry/arbitration_metrics.go` |
-| `ops_agent_llm_agreement_total` | Int64Counter | `{agreement}` | `use_case`, `mode`, `agree` (bool) | only when the model returned a valid plan; `agree` is `true` when its action equals the deterministic one | same file |
+| `ops_agent.llm.arbitrations` | Int64Counter | `{arbitration}` | `use.case` (today only `flow_balance_advisory`), `mode` (`shadow` or `on`), `source` (`deterministic`, `llm`, `fallback`) | once per flow-balance decision that went through the reasoner | `internal/adapters/outbound/telemetry/arbitration_metrics.go` |
+| `ops_agent.llm.agreement` | Int64Counter | `{agreement}` | `use.case`, `mode`, `agree` (bool) | only when the model returned a valid plan; `agree` is `true` when its action equals the deterministic one | same file |
 | `circuit_breaker.state` | Int64Gauge | `{state}` | `dependency` (today only `anthropic-llm`) | on every breaker state change: `0` closed, `1` half-open, `2` open | `internal/adapters/outbound/telemetry/circuit_breaker_metrics.go` |
 
 All three are registered by `wireReasoner` (`cmd/agent/reasoner.go`), and
@@ -54,8 +54,14 @@ change, so "no series" means "closed since startup", not "unknown".
 
 The meters are named `warehouse-ops-agent/llm` and
 `warehouse-ops-agent/resilience`. Through the Collector's Prometheus
-exporter the series become `ops_agent_llm_arbitrations_total`,
-`ops_agent_llm_agreement_total` and `circuit_breaker_state`.
+exporter the dot-separated OTel instrument names and attribute keys above
+(ADR-0013's Tier-2 naming convention) still become the SAME Prometheus
+series as before this convention was adopted —
+`ops_agent_llm_arbitrations_total`, `ops_agent_llm_agreement_total` and
+`circuit_breaker_state`, with the `use_case` label unchanged — because the
+exporter already converts `.` to `_` and appends `_total` to a counter
+whose name doesn't already end in it. No dashboard or alert built on
+those Prometheus names needs to change.
 
 The shadow-mode rollout gate from
 [ADR 0004](../adr/0004-llm-reasoner-behind-the-policy-layer.md) is the
