@@ -16,6 +16,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/claudioed/warehouse-ops-agent/internal/domain/policy"
@@ -92,7 +93,22 @@ type FlowBalanceAdvisory struct {
 // shiftId scope the workforce-management staffing-gap lookup (that tool's
 // published contract requires them); pathId scopes both the wes rebalance
 // recommendation and the staffing gap.
+//
+// All three are REQUIRED. Without a building and shift the staffing lookup
+// cannot be made, and the advisory would silently drop that signal and answer
+// "partial" about a question the caller never fully asked; a blank or
+// whitespace-only value is an error wrapping ErrInvalidInput, before any
+// upstream is called.
 func (uc *FlowBalanceAdvisory) Execute(ctx context.Context, buildingId, shiftId, pathId string) (policy.Decision, error) {
+	var missing []string
+	for _, p := range []struct{ name, value string }{{"buildingId", buildingId}, {"shiftId", shiftId}, {"pathId", pathId}} {
+		if strings.TrimSpace(p.value) == "" {
+			missing = append(missing, p.name)
+		}
+	}
+	if len(missing) > 0 {
+		return policy.Decision{}, fmt.Errorf("%w: flow_balance_advisory: %s required", ErrInvalidInput, strings.Join(missing, ", "))
+	}
 	logger := uc.Logger
 	if logger == nil {
 		logger = slog.Default()
