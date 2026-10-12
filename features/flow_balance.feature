@@ -53,6 +53,23 @@ Feature: Flow-balance advisory (deterministic policy layer)
     Then the response status is 200
     And workforce-management was asked about building "B7" and shift "NIGHT"
 
+  Scenario Outline: A request that does not say which building and shift is a 400
+    Given wes-work-planning recommends "ReassignLabor" for path "pick-zone-a" with backlog depth 120 and WIP 30
+    And workforce-management reports 5 planned and 2 active heads for path "pick-zone-a"
+    And fulfillment-execution reports 0 stuck tasks
+    When I GET "<target>"
+    Then the response status is 400
+    And the response error mentions "<missing>"
+    And workforce-management was not asked
+
+    Examples: buildingId and shiftId are both required
+      | target                                              | missing                |
+      | /flow-balance/pick-zone-a                           | buildingId, shiftId    |
+      | /flow-balance/pick-zone-a?shiftId=S1                | buildingId required    |
+      | /flow-balance/pick-zone-a?buildingId=B1             | shiftId required       |
+      | /flow-balance/pick-zone-a?buildingId=&shiftId=S1    | buildingId required    |
+      | /flow-balance/pick-zone-a?buildingId=B1&shiftId=%20 | shiftId required       |
+
   Scenario: Without the anchor signal the agent holds and says what is missing
     Given wes-work-planning's MCP tools are unreachable
     And workforce-management reports 5 planned and 2 active heads for path "pick-zone-a"
