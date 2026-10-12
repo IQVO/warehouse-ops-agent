@@ -3,6 +3,7 @@ package usecases_test
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/claudioed/warehouse-ops-agent/internal/application/usecases"
@@ -415,5 +416,42 @@ func assertUnboundPathSkipsLP(t *testing.T, lp *fbFakeLP) {
 	}
 	if lp.calledTaskType != "" {
 		t.Errorf("LP must never be called for an unbound pathId, got calledTaskType=%q", lp.calledTaskType)
+	}
+}
+
+// buildingId, shiftId and pathId are all required: the advisory must refuse a
+// request that cannot be scoped, before any upstream is asked, instead of
+// answering a "partial" decision for a question the caller never fully posed.
+func TestFlowBalanceAdvisory_Execute_RequiresBuildingShiftAndPath(t *testing.T) {
+	cases := []struct {
+		name                    string
+		building, shift, pathId string
+		wantMentioned           string
+	}{
+		{"no building", "", "S1", "p", "buildingId"},
+		{"no shift", "B1", "", "p", "shiftId"},
+		{"no path", "B1", "S1", "", "pathId"},
+		{"blank building", "  ", "S1", "p", "buildingId"},
+		{"blank shift", "B1", "\t", "p", "shiftId"},
+		{"nothing", "", "", "", "buildingId, shiftId, pathId"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			wes := &fbFakeWes{}
+			wfm := &fbFakeWFM{}
+			fe := &fbFakeFE{}
+			uc := &usecases.FlowBalanceAdvisory{Wes: wes, WFM: wfm, FE: fe}
+
+			_, err := uc.Execute(context.Background(), tc.building, tc.shift, tc.pathId)
+			if !errors.Is(err, usecases.ErrInvalidInput) {
+				t.Fatalf("err = %v, want one wrapping ErrInvalidInput", err)
+			}
+			if !strings.Contains(err.Error(), tc.wantMentioned) {
+				t.Errorf("err = %q, want it to name %q", err, tc.wantMentioned)
+			}
+			if wes.calledPathId != "" || wfm.calledPathId != "" || fe.calledSeconds != 0 {
+				t.Errorf("an upstream was asked for an unscoped request: wes=%q wfm=%q fe=%d", wes.calledPathId, wfm.calledPathId, fe.calledSeconds)
+			}
+		})
 	}
 }

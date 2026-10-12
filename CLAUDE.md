@@ -47,12 +47,16 @@ LLM reasoner behind that layer (ADR 0004).
   no flat envelope, no dual-write/dual-read, no envelope toggle. Full standard:
   `.claude/rules/events-cloudevents.md` — read it BEFORE adding any Kafka code.
 - **No OpenAPI/AsyncAPI spec, by design.** The REST + MCP surface is documented
-  by hand in `docs/docs/api-surface.md`; the code is authoritative if they
+  by hand in `docs/docs/api/http-routes.md` (every REST route) and
+  `docs/docs/mcp/tools.md` (every MCP tool), summarised in
+  `docs/docs/api-surface.md`; the code is authoritative if they
   drift. If asked to "add OpenAPI docs", check whether the ask belongs in an
   upstream repo.
-- **Tests: no env-var skip gates.** The one exception is the `-tags=integration`
-  test that hits the real Anthropic API only when `ANTHROPIC_API_KEY` is set
-  (ADR 0004); every other integration-style test must use testcontainers.
+- **Tests: no env-var skip gates.** No `-tags=integration` test exists today
+  (no file carries `//go:build integration`); reasoner tests use a fake
+  Anthropic server. A future live-Anthropic test must sit behind the
+  `integration` build tag (ADR 0004); every other integration-style test must
+  use testcontainers.
   Unit tests use fakes — no DB, no live MCP. Coverage gate is 90%.
 
 ## Commands

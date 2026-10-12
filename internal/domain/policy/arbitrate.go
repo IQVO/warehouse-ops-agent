@@ -68,6 +68,13 @@ func ValidatePlan(p PlanProposal) error {
 	default:
 		return fmt.Errorf("%w: unrecognized action %q", ErrInvalidPlan, string(p.RecommendedAction))
 	}
+	// An assign_labor plan must assign at least one head: the deterministic
+	// path floors its gap at 1 for the same reason (see proposedHeads), and
+	// "assign labor" with zero heads is a no-op the advisory must never
+	// present as an action.
+	if p.RecommendedAction == ActionAssignLabor && (p.ProposedHeads < 1 || p.ProposedHeads > MaxProposedHeads) {
+		return fmt.Errorf("%w: proposedHeads %d outside [1,%d] for %s", ErrInvalidPlan, p.ProposedHeads, MaxProposedHeads, ActionAssignLabor)
+	}
 	if p.ProposedHeads < 0 || p.ProposedHeads > MaxProposedHeads {
 		return fmt.Errorf("%w: proposedHeads %d outside [0,%d]", ErrInvalidPlan, p.ProposedHeads, MaxProposedHeads)
 	}
