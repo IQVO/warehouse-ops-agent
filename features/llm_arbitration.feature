@@ -64,6 +64,7 @@ Feature: LLM reasoner behind the policy layer
       | action        | heads | rationale            |
       | launch_rocket | 0     | outside the vocabulary |
       | assign_labor  | 51    | above the head bound |
+      | assign_labor  | 0     | at least one head is required |
       | assign_labor  | -1    | below zero           |
       | hold          | 2     | heads without assign |
       | assign_labor  | 3     |                      |
