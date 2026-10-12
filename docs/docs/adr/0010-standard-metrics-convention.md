@@ -148,14 +148,32 @@ this ADR's sense (they measure the LLM arbitration mechanism, not a
 domain event), but worth naming here so "stops at Tier 1" is not read as
 "has no other instruments":
 
-- `ops_agent_llm_arbitrations_total{use_case,mode,source}` (unit
-  `{arbitration}`)
-- `ops_agent_llm_agreement_total{use_case,mode,agree}` (unit
-  `{agreement}`)
-- `circuit_breaker_state{dependency}` gauge (ADR-0011, the Anthropic
-  Messages API breaker)
+- `ops_agent.llm.arbitrations{use.case,mode,source}` — OTel instrument
+  name (unit `{arbitration}`); exported to Prometheus unchanged as
+  `ops_agent_llm_arbitrations_total{use_case,mode,source}`
+- `ops_agent.llm.agreement{use.case,mode,agree}` — OTel instrument name
+  (unit `{agreement}`); exported to Prometheus unchanged as
+  `ops_agent_llm_agreement_total{use_case,mode,agree}`
+- `circuit_breaker.state{dependency}` gauge (ADR-0011, the Anthropic
+  Messages API breaker); exported as `circuit_breaker_state{dependency}`
 
 No Tier-2 counter is owed now or later unless its architecture changes.
+
+**ADR-0013 Tier-2 naming conformance (2026-10 fix).** The two LLM-arbitration
+instruments above were renamed from the Prometheus-exported underscore form
+(`ops_agent_llm_arbitrations_total`, `ops_agent_llm_agreement_total`) to the
+dot-separated OTel instrument names shown, and the `use_case` attribute key
+was renamed `use.case`, per ADR-0013's Tier-2 convention
+(`wes-work-planning`'s `path_id` -> `path.id` is the fleet's precedent for
+this exact transform). This is non-breaking: the OTel Collector's
+Prometheus exporter converts `.` to `_` and appends `_total` to a counter
+name that doesn't already end in it, so both instruments still export as
+the same Prometheus series/labels as before — verified empirically with
+`go.opentelemetry.io/otel/exporters/prometheus` before merging. The second
+instrument is kept singular (`agreement`, not `agreements`) specifically
+because the plural form would export as a different series name
+(`ops_agent_llm_agreements_total`) and break that guarantee. See
+`arbitration_metrics.go`'s package doc comment for the full detail.
 
 ## Consequences
 
