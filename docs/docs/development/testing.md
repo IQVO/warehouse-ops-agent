@@ -144,6 +144,7 @@ the baseline. Install the pinned version with
 | `vuln` | govulncheck v1.1.4 | every push and PR |
 | `drift` | deadcode, `go mod tidy -diff`, coverage-quality (`scripts/coverage-quality.py` over coverage plus gremlins output); opens or closes a `harness:red` issue on scheduled runs | schedule and manual dispatch only |
 | `helm-lint` | chart-testing `ct lint` on `charts/warehouse-ops-agent` | PRs into `main` only |
+| `chart-tests` | `charts/warehouse-ops-agent/tests/render_test.sh` (helm v3.16.4): the ConfigMap is mounted with `envFrom`, `config.corsAllowedOrigins` renders as `CORS_ALLOWED_ORIGINS` only when set, `config.logLevel=warning` passes through | every push and PR |
 | `trivy-scan` | builds the image and scans it; blocks on fixable CRITICAL/HIGH | PRs into `main` only |
 | `docker-publish` | multi-arch image to GHCR, cosign signature, SPDX SBOM attestation | push to `main` only |
 | `release` | next `vX.Y.Z` tag, image re-tag, Helm chart push to `oci://ghcr.io/iqvo`, GitHub release | push to `main` only, after `docker-publish` |
@@ -153,9 +154,10 @@ On a PR into `develop`, `drift`, `helm-lint`, `trivy-scan`,
 
 Other workflows: `codeql.yml` (push and PR to `main`/`develop`, weekly),
 `scorecard.yml` (push to `develop`, weekly), `ai-review.yml` (advisory
-review on PRs into `develop`) and `docs.yml`, which builds and deploys
-this site only on push to `main` or manual dispatch. A PR therefore never
-builds the docs; run `npm run build` in `docs/` yourself.
+review on PRs into `develop`) and `docs.yml`, which builds this site on every pull request that touches
+`docs/**` (build only, nothing is published) and builds and deploys it on
+push to `main` or manual dispatch. Run `npm run build` in `docs/` to catch
+a broken sidebar id, link or MDX before pushing.
 
 ## Writing a new test
 
