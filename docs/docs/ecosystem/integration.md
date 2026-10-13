@@ -24,26 +24,30 @@ event and publishes none.
 | Loki HTTP API | `internal/adapters/outbound/logs` | 5 s | none | any error marks `loki` unavailable |
 | Anthropic Messages API | `internal/adapters/outbound/llm/anthropic` | 12 s per call, 8 s per reasoning run (`LLM_TIMEOUT`) | `x-api-key` header | 5xx and transport errors retried (3 attempts), 4xx permanent, breaker per process |
 
-No outbound call carries a `traceparent` header (no `otelhttp` transport);
-see [Observability](../operations/observability.md#traces).
+Every outbound call goes through an `otelhttp` transport
+(`internal/adapters/outbound/httpclient`): it gets a client span and
+carries a W3C `traceparent` header, so the upstream's span joins the
+agent's trace; see [Observability](../operations/observability.md#traces).
 
 ## Upstream MCP servers
 
 Configured by one `*_MCP_ENDPOINT` variable each
 ([Configuration](../operations/configuration.md#upstream-mcp-endpoints)).
-"Always built" means the client exists even with an empty endpoint and
-every call then fails; "optional" means no client and the feature is off.
+An empty endpoint builds no client
+([ADR 0023](../adr/0023-skip-mcp-clients-without-an-endpoint.md)). For a
+"core" upstream the use cases report it as unavailable (the "On failure"
+column); for an "optional" one the feature is off.
 
 | Upstream | Endpoint variable | Tools called (live) | Tools wired, not called | Used by | On failure |
 |---|---|---|---|---|---|
-| wes-work-planning | `WES_WORK_PLANNING_MCP_ENDPOINT` (always built) | `get_backlog_telemetry`, `get_rebalance_recommendation` | none | daily brief, flow balance; LLM allow-list by default | brief: `"wes-work-planning: <error>"` in the path's `unavailable`; flow balance: `hold`, `partial: true`, missing `wes-work-planning.get_rebalance_recommendation`, no utilization overlay |
-| fulfillment-execution | `FULFILLMENT_EXECUTION_MCP_ENDPOINT` (always built) | `get_queue_status`, `diagnose_stuck_tasks` | `find_claimable_work` | daily brief, flow balance, `detect_stranded_reservation`; LLM allow-list by default | brief: `unavailable` entry; flow balance: partial; stranded reservation: `hold` ("expired-lease signal is unavailable") |
-| workforce-management | `WORKFORCE_MANAGEMENT_MCP_ENDPOINT` (always built) | `get_staffing_gap` | `propose_path_heads` | daily brief, flow balance; LLM allow-list by default | brief: `unavailable` entry; flow balance: partial, never guesses a labor gap |
-| facility-layout | `FACILITY_LAYOUT_MCP_ENDPOINT` (always built) | `list_sites`, `estimate_travel_distance` | `get_site_layout`, `get_zone_grid` | daily brief (site names), explain-travel-factor | brief: empty `siteName`; explain-travel-factor: `502`, or `400` for a validation slug |
-| inventory-storage | `INVENTORY_STORAGE_MCP_ENDPOINT` (always built) | `check_availability`, `get_bin_occupancy` | none | `detect_stranded_reservation` | `hold` with the reason in `rationale`; never a revoke recommendation on partial evidence |
-| labor-performance | `LABOR_PERFORMANCE_MCP_ENDPOINT` (always built) | `get_task_type_utilization` | `get_associate_scorecard`, `get_task_type_performance`, `get_labor_standard` | flow-balance utilization overlay ([ADR 0008](../adr/0008-labor-utilization-advisory-correlation.md)) | overlay omitted; the decision is unchanged |
-| order-management | `ORDER_MANAGEMENT_MCP_ENDPOINT` (always built) | none | `get_order` | nothing (`_ = om` in `cmd/agent/main.go`) | n/a |
-| process-path-management | `PROCESS_PATH_MANAGEMENT_MCP_ENDPOINT` (always built) | none | `get_process_path`, `list_process_paths` | nothing (`_ = ppm`) | n/a |
+| wes-work-planning | `WES_WORK_PLANNING_MCP_ENDPOINT` (core) | `get_backlog_telemetry`, `get_rebalance_recommendation` | none | daily brief, flow balance; LLM allow-list by default | brief: `"wes-work-planning: <error>"` in the path's `unavailable`; flow balance: `hold`, `partial: true`, missing `wes-work-planning.get_rebalance_recommendation`, no utilization overlay |
+| fulfillment-execution | `FULFILLMENT_EXECUTION_MCP_ENDPOINT` (core) | `get_queue_status`, `diagnose_stuck_tasks` | `find_claimable_work` | daily brief, flow balance, `detect_stranded_reservation`; LLM allow-list by default | brief: `unavailable` entry; flow balance: partial; stranded reservation: `hold` ("expired-lease signal is unavailable") |
+| workforce-management | `WORKFORCE_MANAGEMENT_MCP_ENDPOINT` (core) | `get_staffing_gap` | `propose_path_heads` | daily brief, flow balance; LLM allow-list by default | brief: `unavailable` entry; flow balance: partial, never guesses a labor gap |
+| facility-layout | `FACILITY_LAYOUT_MCP_ENDPOINT` (core) | `list_sites`, `estimate_travel_distance` | `get_site_layout`, `get_zone_grid` | daily brief (site names), explain-travel-factor | brief: empty `siteName`; explain-travel-factor: `502`, or `400` for a validation slug; `503` and no `explain_travel_factor` tool when the endpoint is empty |
+| inventory-storage | `INVENTORY_STORAGE_MCP_ENDPOINT` (core) | `check_availability`, `get_bin_occupancy` | none | `detect_stranded_reservation` | `hold` with the reason in `rationale`; never a revoke recommendation on partial evidence |
+| labor-performance | `LABOR_PERFORMANCE_MCP_ENDPOINT` (core) | `get_task_type_utilization` | `get_associate_scorecard`, `get_task_type_performance`, `get_labor_standard` | flow-balance utilization overlay ([ADR 0008](../adr/0008-labor-utilization-advisory-correlation.md)) | overlay omitted; the decision is unchanged |
+| order-management | `ORDER_MANAGEMENT_MCP_ENDPOINT` (core) | none | `get_order` | nothing (wired as `outboundClients.om` in `cmd/agent/main.go`) | n/a |
+| process-path-management | `PROCESS_PATH_MANAGEMENT_MCP_ENDPOINT` (core) | none | `get_process_path`, `list_process_paths` | nothing (`outboundClients.ppm`) | n/a |
 | warehouse-planning | `WAREHOUSE_PLANNING_MCP_ENDPOINT` (optional) | `get_process_path_capacity` | `get_capacity_plan`, `get_storage_capacity`, `list_station_standards` | daily-brief `capacityOutlook` ([ADR 0013](../adr/0013-warehouse-planning-mcp-client-and-capacity-outlook.md)) | the path's `capacityOutlook` carries an `omittedReason`; the brief is still `200` |
 | product-master | `PRODUCT_MASTER_MCP_ENDPOINT` (optional) | `list_products` | `get_product`, `get_product_classification`, `get_physical_profile` | `GET /master-data-gaps`, `find_master_data_gaps` ([ADR 0020](../adr/0020-product-master-mcp-client-and-master-data-gaps.md)) | `502`, no partial report; `400` for a rejected cursor |
 | inbound-receiving | `INBOUND_RECEIVING_MCP_ENDPOINT` (optional) | `list_asns`, `list_appointments`, `list_receipts` | `get_asn`, `get_appointment`, `get_receipt`, `list_docks` | `GET /inbound-outlook`, `get_inbound_outlook` ([ADR 0021](../adr/0021-inbound-receiving-mcp-client-and-inbound-outlook.md)) | the failing section is `omitted` with a reason; `502` only when every attempted section failed |
