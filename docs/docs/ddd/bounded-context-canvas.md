@@ -17,10 +17,10 @@ HTTP path in `internal/adapters/outbound/`.
 
 ## Canvas at a glance
 
-One picture of the sections below, laid out like the ddd-crew canvas:
-inbound collaborators on the left, this context in the middle (purpose,
-domain roles and the business decisions it enforces), outbound
-collaborators on the right. Arrows follow the message type: **solid blue**
+Two pictures of the sections below, laid out like the ddd-crew canvas:
+first the inbound collaborators feeding this context (purpose, domain roles
+and the business decisions it enforces), then the outbound collaborators it
+calls or notifies. Arrows follow the message type: **solid blue**
 commands (`cmd`), **dotted green** queries (`qry`), **thick orange** events
 (`evt`); each arrow names its channel and the messages it carries. Box shapes
 mark the collaborator kind: rounded = people, UI or any client; blue =
@@ -31,8 +31,10 @@ abbreviated (REST, MCP, Kafka, HTTP, port); the Inbound and Outbound
 Communication tables carry the exact route, tool, topic and CloudEvents
 type for every message.
 
+### Inbound
+
 ```mermaid
-%%{init: {"flowchart": {"nodeSpacing": 18, "rankSpacing": 36, "padding": 8}}}%%
+%%{init: {"flowchart": {"nodeSpacing": 14, "rankSpacing": 40, "padding": 6}}}%%
 flowchart LR
     classDef bc fill:#fff3bf,stroke:#e67700,stroke-width:1.5px,color:#000
     classDef card fill:#fff9db,stroke:#f08c00,color:#000,text-align:left
@@ -43,49 +45,67 @@ flowchart LR
     classDef none fill:#f8f9fa,stroke:#adb5bd,stroke-dasharray:5 5,color:#495057
     subgraph IN["Inbound - who commands, queries or feeds it"]
         direction TB
-        in0(["warehouse-console and HTTP clients"]):::actor
+        in0(["warehouse-console and HTTP<br/>clients"]):::actor
         in1(["Agentic / LLM host"]):::actor
     end
     subgraph BC["warehouse-ops-agent - Supporting, owns no aggregate - read-side agent and console BFF"]
         direction TB
-        purpose["<b>Purpose</b><br/>Correlate read-only facts fanned out<br/>from the bounded contexts into<br/>ranked, evidence-carrying,<br/>human-gated recommendations (daily<br/>brief, flow-balance and<br/>stranded-reservation exceptions,<br/>travel factor, runtime signals) and<br/>serve the console its order<br/>lifecycle and dashboards. It<br/>recommends; it never acts."]:::card
+        purpose["<b>Purpose</b><br/>Correlate read-only facts fanned out from the bounded<br/>contexts into ranked, evidence-carrying, human-gated<br/>recommendations (daily brief, flow-balance and<br/>stranded-reservation exceptions, travel factor, runtime<br/>signals) and serve the console its order lifecycle and<br/>dashboards. It recommends; it never acts."]:::card
         roles["<b>Domain roles</b><br/>- Analysis context (no invariant of its own)<br/>- Gateway / BFF for warehouse-console"]:::card
-        rules["<b>Business decisions it enforces</b><br/>- Correlate, do not alert on one<br/>metric: two signals = warning, three<br/>= critical<br/>- Degrade to hold, never guess<br/>- No revoke without a blast radius<br/>- Reject, never default, untrusted<br/>enums<br/>- Model output never bypasses policy;<br/>LLM mode off by default<br/>- Each console-bff section degrades<br/>independently"]:::card
+        rules["<b>Business decisions it enforces</b><br/>- Correlate, do not alert on one metric: two signals =<br/>warning, three = critical<br/>- Degrade to hold, never guess<br/>- No revoke without a blast radius<br/>- Reject, never default, untrusted enums<br/>- Model output never bypasses policy; LLM mode off by<br/>default<br/>- Each console-bff section degrades independently"]:::card
         purpose ~~~ roles ~~~ rules
-    end
-    subgraph OUT["Outbound - whom it calls or notifies"]
-        direction TB
-        out0["wes-work-planning (Core)"]:::ctx
-        out1["fulfillment-execution (Core)"]:::ctx
-        out2["inventory-storage (Core)"]:::ctx
-        out3["warehouse-planning (Core)"]:::ctx
-        out4["workforce-management (Supporting)"]:::ctx
-        out5["labor-performance (Supporting)"]:::ctx
-        out6["order-management (Generic/Supporting)"]:::ctx
-        out7["facility-layout (Generic)"]:::ctx
-        out8["process-path-management (Generic)"]:::ctx
-        out9[["Prometheus and Loki (observability)"]]:::ext
-        out10[["Anthropic Messages API (LLM_MODE shadow or on)"]]:::ext
     end
     in0 -.->|"qry - REST<br/>daily brief, flow-balance<br/>exception, explain travel<br/>factor, runtime signals, order<br/>lifecycle, WMS dashboard, WES<br/>dashboard"| BC
     in1 -.->|"qry - MCP<br/>get_daily_brief,<br/>list_open_exceptions,<br/>get_flow_balance_exception,<br/>explain_travel_factor,<br/>detect_stranded_reservation"| BC
+    linkStyle 0 stroke:#2f9e44,stroke-width:1.5px
+    linkStyle 1 stroke:#2f9e44,stroke-width:1.5px
+    class BC bc
+```
+
+### Outbound
+
+```mermaid
+%%{init: {"flowchart": {"nodeSpacing": 14, "rankSpacing": 40, "padding": 6}}}%%
+flowchart LR
+    classDef bc fill:#fff3bf,stroke:#e67700,stroke-width:1.5px,color:#000
+    classDef card fill:#fff9db,stroke:#f08c00,color:#000,text-align:left
+    classDef ctx fill:#e7f5ff,stroke:#1c7ed6,color:#000
+    classDef actor fill:#fff4e6,stroke:#e8590c,color:#000
+    classDef ext fill:#ffe3e3,stroke:#c92a2a,color:#000
+    classDef self fill:#f1f3f5,stroke:#868e96,color:#000
+    classDef none fill:#f8f9fa,stroke:#adb5bd,stroke-dasharray:5 5,color:#495057
+    BC["<b>warehouse-ops-agent - Supporting, owns no aggregate - read-side agent and console BFF</b>"]:::bc
+    subgraph OUT["Outbound - whom it calls or notifies"]
+        direction TB
+        out0["wes-work-planning (Core)"]:::ctx
+        out1["fulfillment-execution<br/>(Core)"]:::ctx
+        out2["inventory-storage (Core)"]:::ctx
+        out3["warehouse-planning (Core)"]:::ctx
+        out4["workforce-management<br/>(Supporting)"]:::ctx
+        out5["labor-performance<br/>(Supporting)"]:::ctx
+        out6["order-management<br/>(Generic/Supporting)"]:::ctx
+        out7["facility-layout (Generic)"]:::ctx
+        out8["process-path-management<br/>(Generic)"]:::ctx
+        out9[["Prometheus and Loki<br/>(observability)"]]:::ext
+        out10[["Anthropic Messages API<br/>(LLM_MODE shadow or on)"]]:::ext
+    end
     BC -.->|"qry - MCP<br/>get_backlog_telemetry,<br/>get_rebalance_recommendation"| out0
     BC -.->|"qry - REST<br/>work units by reference,<br/>throughput report"| out0
     BC -.->|"qry - MCP<br/>get_queue_status,<br/>diagnose_stuck_tasks,<br/>find_claimable_work (wired)"| out1
     BC -.->|"qry - REST<br/>tasks by order ref, throughput<br/>report"| out1
     BC -.->|"qry - MCP<br/>check_availability,<br/>get_bin_occupancy"| out2
-    BC -.->|"qry - REST<br/>reservations by demand ref, flow<br/>accuracy report"| out2
+    BC -.->|"qry - REST<br/>reservations by demand ref,<br/>flow accuracy report"| out2
     BC -.->|"qry - MCP<br/>get_process_path_capacity;<br/>get_capacity_plan,<br/>get_storage_capacity,<br/>list_station_standards (wired)"| out3
     BC -.->|"qry - MCP<br/>get_staffing_gap,<br/>propose_path_heads (wired)"| out4
     BC -.->|"qry - REST<br/>labor report"| out4
-    BC -.->|"qry - MCP<br/>get_task_type_utilization;<br/>scorecard, performance, standard<br/>(wired)"| out5
+    BC -.->|"qry - MCP<br/>get_task_type_utilization;<br/>scorecard, performance,<br/>standard (wired)"| out5
     BC -.->|"qry - REST<br/>performance report"| out5
     BC -.->|"qry - MCP<br/>get_order (wired)"| out6
     BC -.->|"qry - REST<br/>order header, order funnel<br/>report"| out6
     BC -.->|"qry - MCP<br/>list_sites,<br/>estimate_travel_distance;<br/>get_site_layout, get_zone_grid<br/>(wired)"| out7
     BC -.->|"qry - REST<br/>catalog growth report"| out7
     BC -.->|"qry - MCP<br/>get_process_path,<br/>list_process_paths (wired)"| out8
-    BC -.->|"qry - HTTP<br/>Istio error rate and p99, error<br/>log lines"| out9
+    BC -.->|"qry - HTTP<br/>Istio error rate and p99,<br/>error log lines"| out9
     BC -.->|"qry - HTTP<br/>plan via tool use"| out10
     linkStyle 0 stroke:#2f9e44,stroke-width:1.5px
     linkStyle 1 stroke:#2f9e44,stroke-width:1.5px
@@ -105,9 +125,6 @@ flowchart LR
     linkStyle 15 stroke:#2f9e44,stroke-width:1.5px
     linkStyle 16 stroke:#2f9e44,stroke-width:1.5px
     linkStyle 17 stroke:#2f9e44,stroke-width:1.5px
-    linkStyle 18 stroke:#2f9e44,stroke-width:1.5px
-    linkStyle 19 stroke:#2f9e44,stroke-width:1.5px
-    class BC bc
 ```
 
 Source: the Inbound Communication and Outbound Communication tables of this
