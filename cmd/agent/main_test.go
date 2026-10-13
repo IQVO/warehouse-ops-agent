@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"log/slog"
 	"strings"
 	"testing"
 	"time"
@@ -183,6 +184,28 @@ func TestNewDecisionSupport_ExplainTravelFactorOnlyWiredWhenFacilityConfigured(t
 	got := newDecisionSupport(cfg, newOutboundClients(cfg)).explainTravelFactor
 	if got == nil || got.Facility == nil {
 		t.Fatalf("a configured facility-layout must wire explain-travel-factor: %+v", got)
+	}
+}
+
+// TestNewLogger_LevelNames: LOG_LEVEL=warning is accepted exactly like
+// warn (D22, fleet-wide), and an unknown name falls back to info.
+func TestNewLogger_LevelNames(t *testing.T) {
+	ctx := context.Background()
+	for _, tc := range []struct {
+		level    string
+		enabled  slog.Level
+		disabled slog.Level
+	}{
+		{"warn", slog.LevelWarn, slog.LevelInfo},
+		{"warning", slog.LevelWarn, slog.LevelInfo},
+		{"debug", slog.LevelDebug, slog.LevelDebug - 1},
+		{"error", slog.LevelError, slog.LevelWarn},
+		{"verbose", slog.LevelInfo, slog.LevelDebug},
+	} {
+		l := newLogger(tc.level)
+		if !l.Enabled(ctx, tc.enabled) || l.Enabled(ctx, tc.disabled) {
+			t.Errorf("LOG_LEVEL=%s: want %v enabled and %v disabled", tc.level, tc.enabled, tc.disabled)
+		}
 	}
 }
 

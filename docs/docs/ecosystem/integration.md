@@ -117,7 +117,7 @@ section, up to the 5 s timeout.
 
 | Caller | Protocol | Contract | Notes |
 |---|---|---|---|
-| warehouse-console (browser) | REST over Kong (`/api/warehouse-ops-agent`) or `http://localhost:8096` in dev | `GET /daily-brief` (Floor screen, polled every 15 s), `GET /console/orders/{id}/lifecycle` (Order Lifecycle screen), `GET /console/reports/wms` and `/wes` (report dashboards) | DTOs are kept in sync by hand with the console's `types.ts` files; CORS must allow the console origin (`CORS_ALLOWED_ORIGINS`) |
+| warehouse-console (browser) | REST over Kong (`/api/warehouse-ops-agent`) or `http://localhost:8096` in dev | `GET /daily-brief` (Floor screen, polled every 15 s), `GET /console/orders/{id}/lifecycle` (Order Lifecycle screen), `GET /console/reports/wms` and `/wes` (report dashboards) | DTOs are kept in sync by hand with the console's `types.ts` files; CORS must allow the console origin (`CORS_ALLOWED_ORIGINS`, chart value `config.corsAllowedOrigins`) |
 | MCP hosts and LLM agents | MCP Streamable HTTP at `/mcp`, stateless | up to ten read-only tools ([MCP tools](../mcp/tools.md)) | errors are plain messages, not ADR 0018 slugs |
 | Operators | REST | every route on [HTTP routes](../api/http-routes.md) | no auth |
 

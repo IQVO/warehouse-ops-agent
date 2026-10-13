@@ -288,6 +288,20 @@ jobs:
       - name: Run chart-testing (lint)
         run: ct lint --charts charts/warehouse-ops-agent --validate-maintainers=false --check-version-increment=false
 
+  # Chart render assertions (charts/warehouse-ops-agent/tests/render_test.sh):
+  # the ConfigMap is mounted with envFrom and config.* values such as
+  # corsAllowedOrigins really render. Runs on every push and PR.
+  chart-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5
+        with:
+          version: v3.16.4
+      - name: Chart render assertions
+        run: bash charts/warehouse-ops-agent/tests/render_test.sh
+
   # Shift-left container scan: builds the image (no push) on every push AND
   # every PR, so a vulnerable base image or dependency is caught before
   # merge, not just at publish time. Blocks on CRITICAL/HIGH with a known

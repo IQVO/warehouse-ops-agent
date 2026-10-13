@@ -41,7 +41,7 @@ renders the variable. "none" means the chart does not set it; use
 |---|---|---|---|---|---|
 | `AGENT_ADDR` | `:8095` | no | Listen address for every REST route and for `/mcp`. | `internal/config/config.go` | `config.agentAddr` |
 | `LOG_LEVEL` | `info` | no | `debug`, `warn` (or `warning`), `error`; any other value means `info`. Logs are JSON on stdout. | `cmd/agent/main.go` | `config.logLevel` |
-| `CORS_ALLOWED_ORIGINS` | `http://localhost:5173` | no | Comma-separated origins allowed to call the API from a browser (warehouse-console). | `internal/adapters/inbound/http/router.go` | none |
+| `CORS_ALLOWED_ORIGINS` | `http://localhost:5173` | no | Comma-separated origins allowed to call the API from a browser (warehouse-console). | `internal/adapters/inbound/http/router.go` | `config.corsAllowedOrigins` (rendered only when non-empty; `charts/warehouse-ops-agent/tests/render_test.sh` asserts it) |
 
 ### Daily brief
 
