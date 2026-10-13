@@ -41,7 +41,7 @@ renders the variable. "none" means the chart does not set it; use
 |---|---|---|---|---|---|
 | `AGENT_ADDR` | `:8095` | no | Listen address for every REST route and for `/mcp`. | `internal/config/config.go` | `config.agentAddr` |
 | `LOG_LEVEL` | `info` | no | `debug`, `warn` (or `warning`), `error`; any other value means `info`. Logs are JSON on stdout. | `cmd/agent/main.go` | `config.logLevel` |
-| `CORS_ALLOWED_ORIGINS` | `http://localhost:5173` | no | Comma-separated origins allowed to call the API from a browser (warehouse-console). | `internal/adapters/inbound/http/router.go` | none |
+| `CORS_ALLOWED_ORIGINS` | `http://localhost:5173` | no | Comma-separated origins allowed to call the API from a browser (warehouse-console). | `internal/adapters/inbound/http/router.go` | `config.corsAllowedOrigins` (rendered only when non-empty; `charts/warehouse-ops-agent/tests/render_test.sh` asserts it) |
 
 ### Daily brief
 
@@ -55,13 +55,20 @@ renders the variable. "none" means the chart does not set it; use
 Each value is a Streamable HTTP endpoint, for example
 `http://wes-work-planning-mcp.warehouse-systems.svc.cluster.local:8090/mcp`.
 No credentials are sent ([ADR 0006](../adr/0006-fleet-wide-auth-removal.md)).
-The two groups below behave differently when the variable is empty.
+When a variable is empty, no client is built for that upstream
+(`newMCPClient` in `cmd/agent/main.go`,
+[ADR 0023](../adr/0023-skip-mcp-clients-without-an-endpoint.md)). Nothing
+is ever dialled to an empty URL, and each use case treats the missing
+client as an unavailable upstream. The two groups below differ only in
+what that costs.
 
-**Always-built clients.** The composition root builds these eight clients
-even when the variable is empty. Every call then fails with
-`unsupported protocol scheme ""`, and the use cases that need the client
-degrade: an `unavailable` entry in the daily brief, a `hold` in the flow
-balance, a `502` from explain-travel-factor.
+**Core upstreams.** The daily brief, the flow balance and
+`detect_stranded_reservation` stay wired without these clients and report
+the missing signal: an `unavailable` entry in the daily brief, a partial
+`hold` in the flow balance, an undetected `hold` from the stranded
+reservation check. Without facility-layout, `GET /explain-travel-factor`
+answers `503` (`explain travel factor not configured`) and the
+`explain_travel_factor` tool is not registered.
 
 | Variable | Default | Required | Upstream and use | Source | Chart value |
 |---|---|---|---|---|---|
@@ -74,8 +81,8 @@ balance, a `502` from explain-travel-factor.
 | `ORDER_MANAGEMENT_MCP_ENDPOINT` | empty | no; the client is wired but no use case calls it | `get_order` | `internal/config/config.go` | `upstreams.orderManagement.endpoint` |
 | `PROCESS_PATH_MANAGEMENT_MCP_ENDPOINT` | empty | no; the client is wired but no use case calls it | `get_process_path`, `list_process_paths` | `internal/config/config.go` | `upstreams.processPathManagement.endpoint` |
 
-**Optional clients.** When the variable is empty no client is built and
-the feature is off. Nothing else changes.
+**Optional upstreams.** Without the client the feature is off. Nothing
+else changes.
 
 | Variable | Default | Required | Effect when empty | Source | Chart value |
 |---|---|---|---|---|---|

@@ -117,6 +117,7 @@ const sidebars: SidebarsConfig = {
         'adr/0020-product-master-mcp-client-and-master-data-gaps',
         'adr/0021-inbound-receiving-mcp-client-and-inbound-outlook',
         'adr/0022-godog-bdd-acceptance-tests',
+        'adr/0023-skip-mcp-clients-without-an-endpoint',
       ],
     },
   ],

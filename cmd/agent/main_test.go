@@ -1,15 +1,105 @@
 package main
 
 import (
+	"context"
+	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
+	inboundhttp "github.com/claudioed/warehouse-ops-agent/internal/adapters/inbound/http"
+	"github.com/claudioed/warehouse-ops-agent/internal/application/usecases"
 	"github.com/claudioed/warehouse-ops-agent/internal/config"
 )
 
 func TestNewProductMasterClient_UnsetEndpoint_IsANilInterface(t *testing.T) {
 	if got := newProductMasterClient(config.Config{}); got != nil {
 		t.Fatalf("an unset PRODUCT_MASTER_MCP_ENDPOINT must yield a nil client (fail-open), got %T", got)
+	}
+}
+
+// TestNewOutboundClients_EmptyEndpointBuildsNoMCPClient: an MCP client
+// whose endpoint is empty is not built at all (a genuinely nil
+// interface, never a typed nil), so no call is ever dialled to "" and
+// each use case degrades through its existing nil-port path.
+func TestNewOutboundClients_EmptyEndpointBuildsNoMCPClient(t *testing.T) {
+	c := newOutboundClients(config.Config{})
+	for name, got := range map[string]any{
+		"wes-work-planning":          c.wes,
+		"fulfillment-execution":      c.fe,
+		"workforce-management":       c.wfm,
+		"facility-layout":            c.facility,
+		"inventory-storage":          c.inv,
+		"labor-performance":          c.lp,
+		"order-management":           c.om,
+		"process-path-management":    c.ppm,
+		"warehouse-planning":         c.planning,
+		"product-master":             c.productMaster,
+		"inbound-receiving":          c.inboundReceiving,
+		"network-inventory-planning": c.nip,
+	} {
+		if got != nil {
+			t.Errorf("%s: an empty endpoint must build no client, got %T", name, got)
+		}
+	}
+}
+
+func TestNewOutboundClients_SetEndpointBuildsEveryMCPClient(t *testing.T) {
+	up := func(name string) config.UpstreamConfig {
+		return config.UpstreamConfig{Endpoint: "http://" + name + "-mcp:8090/mcp"}
+	}
+	c := newOutboundClients(config.Config{
+		WesWorkPlanning:          up("wes-work-planning"),
+		FulfillmentExecution:     up("fulfillment-execution"),
+		WorkforceManagement:      up("workforce-management"),
+		FacilityLayout:           up("facility-layout"),
+		InventoryStorage:         up("inventory-storage"),
+		LaborPerformance:         up("labor-performance"),
+		OrderManagement:          up("order-management"),
+		ProcessPathManagement:    up("process-path-management"),
+		WarehousePlanning:        up("warehouse-planning"),
+		ProductMaster:            up("product-master"),
+		InboundReceiving:         up("inbound-receiving"),
+		NetworkInventoryPlanning: up("network-inventory-planning"),
+	})
+	for name, got := range map[string]any{
+		"wes-work-planning":          c.wes,
+		"fulfillment-execution":      c.fe,
+		"workforce-management":       c.wfm,
+		"facility-layout":            c.facility,
+		"inventory-storage":          c.inv,
+		"labor-performance":          c.lp,
+		"order-management":           c.om,
+		"process-path-management":    c.ppm,
+		"warehouse-planning":         c.planning,
+		"product-master":             c.productMaster,
+		"inbound-receiving":          c.inboundReceiving,
+		"network-inventory-planning": c.nip,
+	} {
+		if got == nil {
+			t.Errorf("%s: a set endpoint must build the client", name)
+		}
+	}
+}
+
+// TestNewDecisionSupport_NoUpstreamsConfigured_DegradesWithoutPanicking:
+// with every MCP endpoint empty the use cases still run and report their
+// signals as unavailable instead of dereferencing a nil client.
+func TestNewDecisionSupport_NoUpstreamsConfigured_DegradesWithoutPanicking(t *testing.T) {
+	cfg := config.Config{PathTargets: []config.PathTarget{{SiteCode: "WH1", PathId: "p", ProcessPath: "PICK", BuildingId: "B1", ShiftId: "S1"}}}
+	d := newDecisionSupport(cfg, newOutboundClients(cfg))
+	ctx := context.Background()
+
+	_ = d.dailyBrief.Execute(ctx)
+	decision, err := d.flowBalance.Execute(ctx, "B1", "S1", "p")
+	if err != nil {
+		t.Fatalf("flow balance: %v", err)
+	}
+	if !decision.Partial {
+		t.Fatalf("flow balance with no upstream must be partial, got %+v", decision)
+	}
+	if _, err := d.strandedReservation.Execute(ctx, usecases.StrandedReservationRequest{TaskType: "PICK", SKU: "SKU-1", ReservationId: "r", BinId: "b"}); err != nil {
+		t.Fatalf("stranded reservation: %v", err)
 	}
 }
 
@@ -82,6 +172,53 @@ func TestNewDecisionSupport_OutlookOnlyWiredWhenPlanningConfigured(t *testing.T)
 	configured := newDecisionSupport(cfg, outboundClients{planning: newPlanningClient(cfg)})
 	if configured.dailyBrief.Outlook == nil || configured.dailyBrief.Outlook.Planning == nil || configured.dailyBrief.Outlook.Horizon != 6*time.Hour {
 		t.Fatalf("a configured planning client must wire the outlook with the configured horizon: %+v", configured.dailyBrief.Outlook)
+	}
+}
+
+func TestNewDecisionSupport_ExplainTravelFactorOnlyWiredWhenFacilityConfigured(t *testing.T) {
+	if got := newDecisionSupport(config.Config{}, outboundClients{}).explainTravelFactor; got != nil {
+		t.Fatalf("no facility-layout client => no explain-travel-factor (a genuine nil, so REST answers 503 and the tool is not registered), got %+v", got)
+	}
+
+	cfg := config.Config{FacilityLayout: config.UpstreamConfig{Endpoint: "http://facility-layout-mcp:8090/mcp"}}
+	got := newDecisionSupport(cfg, newOutboundClients(cfg)).explainTravelFactor
+	if got == nil || got.Facility == nil {
+		t.Fatalf("a configured facility-layout must wire explain-travel-factor: %+v", got)
+	}
+}
+
+// TestNewLogger_LevelNames: LOG_LEVEL=warning is accepted exactly like
+// warn (D22, fleet-wide), and an unknown name falls back to info.
+func TestNewLogger_LevelNames(t *testing.T) {
+	ctx := context.Background()
+	for _, tc := range []struct {
+		level    string
+		enabled  slog.Level
+		disabled slog.Level
+	}{
+		{"warn", slog.LevelWarn, slog.LevelInfo},
+		{"warning", slog.LevelWarn, slog.LevelInfo},
+		{"debug", slog.LevelDebug, slog.LevelDebug - 1},
+		{"error", slog.LevelError, slog.LevelWarn},
+		{"verbose", slog.LevelInfo, slog.LevelDebug},
+	} {
+		l := newLogger(tc.level)
+		if !l.Enabled(ctx, tc.enabled) || l.Enabled(ctx, tc.disabled) {
+			t.Errorf("LOG_LEVEL=%s: want %v enabled and %v disabled", tc.level, tc.enabled, tc.disabled)
+		}
+	}
+}
+
+func TestHTTPRouteList_NamesEveryRegisteredRESTRoute(t *testing.T) {
+	router := inboundhttp.NewRouter(&inboundhttp.Handlers{}, "test")
+	got := httpRouteList(router)
+	for _, want := range []string{"/healthz", "/daily-brief", "/inbound-outlook", "/transfer-watch/stuck", "/transfer-watch/transfers/{id}", "/transfer-watch/imbalance"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("startup route list %q is missing %s", got, want)
+		}
+	}
+	if strings.Contains(got, "/mcp") {
+		t.Errorf("the REST route list must not repeat the MCP route: %q", got)
 	}
 }
 

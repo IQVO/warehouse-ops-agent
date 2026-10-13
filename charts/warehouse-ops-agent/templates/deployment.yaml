@@ -39,28 +39,20 @@ spec:
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
-            # A single containerPort: every inbound HTTP route
-            # (/healthz, /daily-brief, /flow-balance/{pathId},
-            # /explain-travel-factor, /console/..., /runtime-signals) and
-            # the inbound MCP server (/mcp) are both served off the same
+            # A single containerPort: every inbound REST route and the
+            # inbound MCP server (/mcp) are both served off the same
             # chi.Mux on AGENT_ADDR (see cmd/agent/main.go) -- no second
             # port.
             - name: http
               containerPort: {{ .Values.service.targetPort }}
               protocol: TCP
-          # Real, pre-existing gap this fixes: the ConfigMap's conditional
-          # keys (*_REST_URL, *_REPORTS_REST_URL) were only ever referenced
-          # by the checksum/config annotation above (which just forces a pod
-          # restart on config change) -- nothing actually mounted the
-          # ConfigMap's data into the container, so every restUrls.*/
-          # reportsUrls.* value silently never reached the binary despite
-          # rendering correctly in `helm template`. envFrom picks up every
-          # ConfigMap key (AGENT_ADDR, LOG_LEVEL, DAILY_BRIEF_PATH_TARGETS,
-          # every *_MCP_ENDPOINT, *_REST_URL, *_REPORTS_REST_URL,
-          # PROMETHEUS_URL) at once; explicit `env:` entries below for a
-          # subset of those same names safely take precedence over envFrom
-          # (standard Kubernetes container env merge behavior), so this is
-          # additive and changes nothing for any value already working.
+          # envFrom mounts every ConfigMap key (AGENT_ADDR, LOG_LEVEL,
+          # CORS_ALLOWED_ORIGINS, DAILY_BRIEF_PATH_TARGETS, the
+          # *_MCP_ENDPOINT, *_REST_URL and *_REPORTS_REST_URL keys,
+          # PROMETHEUS_URL, LOKI_URL, RUNTIME_SIGNALS_*, LLM_*, OTEL_*). The
+          # checksum/config annotation above restarts the pod when it
+          # changes. Explicit `env:` entries below for some of the same
+          # names take precedence over envFrom (standard Kubernetes merge).
           envFrom:
             - configMapRef:
                 name: {{ include "warehouse-ops-agent.fullname" . }}

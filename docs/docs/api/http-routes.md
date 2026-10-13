@@ -35,7 +35,7 @@ REST contract. If they disagree with the router, the router is correct.
 | `GET /healthz` | none | none | 200 |
 | `GET /daily-brief` | `DailyBrief` (E3) | facility-layout, wes-work-planning, workforce-management, fulfillment-execution over MCP; warehouse-planning when configured | 200 |
 | `GET /flow-balance/{pathId}` | `FlowBalanceAdvisory` (E1) | wes-work-planning, workforce-management, fulfillment-execution, labor-performance over MCP; Anthropic when `LLM_MODE` is not `off` | 200, 400 |
-| `GET /explain-travel-factor` | `ExplainTravelFactor` | facility-layout over MCP | 200, 400, 502 |
+| `GET /explain-travel-factor` | `ExplainTravelFactor` | facility-layout over MCP | 200, 400, 502, 503 |
 | `GET /console/orders/{id}/lifecycle` | `OrderLifecycle` (console-bff) | order-management, inventory-storage, wes-work-planning, fulfillment-execution over REST | 200, 404, 500 |
 | `GET /console/reports/wms` | `ConsoleReports.ExecuteWMS` | order-management, inventory-storage and facility-layout `*-reports` readers over REST | 200, 400 |
 | `GET /console/reports/wes` | `ConsoleReports.ExecuteWES` | wes-work-planning, fulfillment-execution, workforce-management and labor-performance `*-reports` readers over REST | 200, 400 |
@@ -231,6 +231,7 @@ seven-segment facility-layout codes such as `WH1-STOR-AMB-A07-01-01-A`) and
 |---|---|
 | `400` | a location code is missing, or facility-layout rejects the call with a validation slug (`malformed-*`, `invalid-*`, `*-required`, `validation-failed`, `missing-location-code`) |
 | `502` | facility-layout is unreachable or rejects the call with any other slug, or with text that has no slug |
+| `503` | `FACILITY_LAYOUT_MCP_ENDPOINT` is unset, so no facility-layout client and no use case is wired (`{"error":"explain travel factor not configured"}`, [ADR 0023](../adr/0023-skip-mcp-clients-without-an-endpoint.md)) |
 
 ## Order lifecycle — `GET /console/orders/{id}/lifecycle`
 

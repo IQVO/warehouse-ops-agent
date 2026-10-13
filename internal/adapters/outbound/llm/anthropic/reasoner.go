@@ -43,6 +43,7 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/claudioed/warehouse-ops-agent/internal/adapters/outbound/httpclient"
 	"github.com/claudioed/warehouse-ops-agent/internal/ports"
 	"github.com/claudioed/warehouse-ops-agent/internal/resilience"
 )
@@ -105,7 +106,8 @@ type Config struct {
 	MaxTurns int
 	// Timeout bounds one Reason call end to end. Defaults to 8s.
 	Timeout time.Duration
-	// HTTPClient defaults to http.DefaultClient.
+	// HTTPClient defaults to httpclient.New(0): an otelhttp transport, no
+	// client-side timeout (Timeout above bounds the call).
 	HTTPClient *http.Client
 	Logger     *slog.Logger
 
@@ -151,7 +153,7 @@ func New(cfg Config, invoker ports.ToolInvoker) (*Reasoner, error) {
 		cfg.Timeout = 8 * time.Second
 	}
 	if cfg.HTTPClient == nil {
-		cfg.HTTPClient = http.DefaultClient
+		cfg.HTTPClient = httpclient.New(0)
 	}
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()

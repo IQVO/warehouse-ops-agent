@@ -31,7 +31,7 @@ every field without `omitempty` as required.
 | `get_daily_brief` | yes | always | none | none | `GET /daily-brief` (without `generatedAt`) |
 | `list_open_exceptions` | yes | always | none | `severity` | the `openExceptions` of `GET /daily-brief` |
 | `get_flow_balance_exception` | yes | always (the use case is always wired) | `buildingId`, `shiftId`, `pathId` | none | `GET /flow-balance/{pathId}` |
-| `explain_travel_factor` | yes | always | `pathId`, `fromLocationCode`, `toLocationCode` | none | `GET /explain-travel-factor` |
+| `explain_travel_factor` | yes | `FACILITY_LAYOUT_MCP_ENDPOINT` set ([ADR 0023](../adr/0023-skip-mcp-clients-without-an-endpoint.md)) | `pathId`, `fromLocationCode`, `toLocationCode` | none | `GET /explain-travel-factor` |
 | `detect_stranded_reservation` | yes | always | `taskType`, `sku`, `minUsableThreshold` | `withinSeconds`, `reservationId`, `binId` | no REST route |
 | `find_master_data_gaps` | yes | `PRODUCT_MASTER_MCP_ENDPOINT` is set | none | `kind`, `cursor` | `GET /master-data-gaps` |
 | `get_inbound_outlook` | yes | `INBOUND_RECEIVING_MCP_ENDPOINT` is set | none | none | `GET /inbound-outlook` |

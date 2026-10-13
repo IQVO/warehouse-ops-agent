@@ -16,6 +16,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/claudioed/warehouse-ops-agent/internal/adapters/outbound/httpclient"
 	"github.com/claudioed/warehouse-ops-agent/internal/ports"
 )
 
@@ -50,9 +51,12 @@ func httpGetJSON(ctx context.Context, client *http.Client, baseURL, path string,
 	return nil
 }
 
+// newHTTPClient is every REST client's transport: httpclient.New's
+// otelhttp-instrumented client, so the console-bff fan-out continues the
+// inbound request's trace into each upstream.
 func newHTTPClient(timeout time.Duration) *http.Client {
 	if timeout <= 0 {
 		timeout = 5 * time.Second
 	}
-	return &http.Client{Timeout: timeout}
+	return httpclient.New(timeout)
 }
