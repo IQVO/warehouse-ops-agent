@@ -48,3 +48,18 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- include "warehouse-ops-agent.fullname" . }}-credentials
 {{- end }}
 {{- end }}
+
+{{/*
+Comma-joined names of this chart's enabled KongPlugins, for the
+konghq.com/plugins annotation on every HTTPRoute this chart renders.
+Empty string (annotation omitted) when none are enabled.
+*/}}
+{{- define "warehouse-ops-agent.kongPluginNames" -}}
+{{- $names := list -}}
+{{- range $name, $cfg := .Values.kongPlugins -}}
+{{- if $cfg.enabled -}}
+{{- $names = append $names (printf "%s-%s" (include "warehouse-ops-agent.fullname" $) $name) -}}
+{{- end -}}
+{{- end -}}
+{{- join "," $names -}}
+{{- end -}}
