@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/claudioed/warehouse-ops-agent/internal/adapters/outbound/httpclient"
 	"github.com/claudioed/warehouse-ops-agent/internal/ports"
 )
 
@@ -28,7 +29,7 @@ type LokiReader struct {
 func NewLokiReader(baseURL string, timeout time.Duration) *LokiReader {
 	return &LokiReader{
 		baseURL: baseURL,
-		client:  &http.Client{Timeout: timeout},
+		client:  httpclient.New(timeout),
 	}
 }
 

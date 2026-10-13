@@ -9,7 +9,7 @@ description: Adding three outbound MCP-client adapters for order-management, lab
 
 ## Status
 
-Accepted
+Accepted. Amended by [ADR 0023](./0023-skip-mcp-clients-without-an-endpoint.md) (a client is built only when its endpoint is set).
 
 **Date:** 2026-09-11
 

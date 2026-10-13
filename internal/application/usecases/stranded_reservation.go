@@ -67,11 +67,25 @@ func (uc DetectStrandedReservation) Execute(ctx context.Context, req StrandedRes
 		ReservationId:      req.ReservationId,
 	}
 
-	if stuck, err := uc.FulfillmentExecution.DiagnoseStuckTasks(ctx, req.WithinSeconds); err == nil {
-		in.StuckTasksAvailable = true
-		in.StuckTasks = toStuckTaskSignals(stuck)
+	// A nil port means the upstream is not configured (the composition
+	// root builds no MCP client for an empty endpoint): the signal is
+	// unavailable, exactly like a failed call.
+	if uc.FulfillmentExecution != nil {
+		if stuck, err := uc.FulfillmentExecution.DiagnoseStuckTasks(ctx, req.WithinSeconds); err == nil {
+			in.StuckTasksAvailable = true
+			in.StuckTasks = toStuckTaskSignals(stuck)
+		}
+	}
+	if uc.InventoryStorage != nil {
+		uc.gatherInventorySignals(ctx, req, &in)
 	}
 
+	return policy.Evaluate(in)
+}
+
+// gatherInventorySignals reads availability and bin occupancy from
+// inventory-storage into in; a failed read leaves the field nil.
+func (uc DetectStrandedReservation) gatherInventorySignals(ctx context.Context, req StrandedReservationRequest, in *policy.Inputs) {
 	if req.SKU != "" {
 		if avail, err := uc.InventoryStorage.CheckAvailability(ctx, req.SKU); err == nil {
 			in.Availability = &policy.AvailabilitySignal{SKU: avail.SKU, Usable: avail.Usable}
@@ -83,8 +97,6 @@ func (uc DetectStrandedReservation) Execute(ctx context.Context, req StrandedRes
 			in.Bin = toBlastRadius(occ, req.SKU, req.ReservationId)
 		}
 	}
-
-	return policy.Evaluate(in)
 }
 
 // toStuckTaskSignals maps the outbound-port DTO into the pure domain shape,

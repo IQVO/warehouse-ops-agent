@@ -17,15 +17,16 @@ To reach it locally:
 {{- end }}
 
 This agent is a stateless MCP-client aggregator: no database, no queue, no
-persisted state of its own. It reads across five upstream bounded-context
-MCP servers (wes-work-planning, fulfillment-execution, inventory-storage,
-workforce-management, facility-layout) plus Prometheus.
+persisted state of its own. It reads up to twelve upstream bounded-context
+MCP servers (upstreams.*), the console-bff REST and *-reports APIs, plus
+Prometheus and Loki.
 
 {{- $anyEndpoint := or .Values.upstreams.wesWorkPlanning.endpoint .Values.upstreams.fulfillmentExecution.endpoint .Values.upstreams.inventoryStorage.endpoint .Values.upstreams.workforceManagement.endpoint .Values.upstreams.facilityLayout.endpoint }}
 {{- if not $anyEndpoint }}
 
-NOTE: no upstream *.endpoint value is set — every outbound MCP client will
-fail to connect and the daily brief will come back partial/empty. Set
+NOTE: none of the core upstream *.endpoint values is set, so no MCP client
+is built for them (ADR 0023) and the daily brief reports every signal as
+unavailable. Set
 upstreams.<context>.endpoint for each bounded context you want this agent
 to read from.
 {{- end }}

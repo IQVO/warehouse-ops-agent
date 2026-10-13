@@ -41,6 +41,7 @@ accepted.
 | [0020](./0020-product-master-mcp-client-and-master-data-gaps.md) | product-master MCP client (read-only, schema-pinned) and the master-data gaps report | Accepted |
 | [0021](./0021-inbound-receiving-mcp-client-and-inbound-outlook.md) | inbound-receiving MCP client (read-only, schema-pinned) and the inbound outlook | Accepted |
 | [0022](./0022-godog-bdd-acceptance-tests.md) | godog/Gherkin acceptance tests as executable specification | Accepted |
+| [0023](./0023-skip-mcp-clients-without-an-endpoint.md) | Build an upstream MCP client only when its endpoint is set | Accepted |
 
 ## Proposing a new one
 

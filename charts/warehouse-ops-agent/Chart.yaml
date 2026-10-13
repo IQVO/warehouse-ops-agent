@@ -1,6 +1,6 @@
 apiVersion: v2
 name: warehouse-ops-agent
-description: Warehouse Ops Agent — stateless MCP-client aggregator that reads across the fleet's five bounded contexts (fulfillment-execution, wes-work-planning, inventory-storage, workforce-management, facility-layout) plus Prometheus to synthesize a daily brief and flag cross-service exceptions
+description: Warehouse Ops Agent — stateless, read-only decision-support aggregator that reads the fleet's bounded contexts over their MCP tools (up to twelve upstreams) and REST/reports APIs, plus Prometheus and Loki, to synthesize a daily brief, flag cross-service exceptions and serve the console-bff views
 type: application
 version: 0.1.0
 appVersion: "0.1.0"

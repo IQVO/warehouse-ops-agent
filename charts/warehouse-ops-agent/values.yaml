@@ -111,16 +111,23 @@ autoscaling:
 
 # This agent is a stateless MCP-client aggregator: no database, no Kafka.
 # config.agentAddr is its own listen address, serving BOTH every inbound
-# HTTP route (/healthz, /daily-brief, /flow-balance/{pathId},
-# /explain-travel-factor, /console/orders/{id}/lifecycle,
-# /console/reports/wms, /console/reports/wes, /runtime-signals) and the
-# inbound MCP server (/mcp) on the SAME chi.Mux -- one containerPort
-# covers both, and /mcp gets the identical otelchi/otelchimetric/
-# RequestLogger middleware chain every REST route does (ADR 0010; see
-# cmd/agent/main.go and internal/adapters/inbound/http/router.go).
+# REST route (all GET; the full list is docs/docs/api/http-routes.md and
+# the startup log line's http_routes field) and the inbound MCP server
+# (/mcp) on the SAME chi.Mux -- one containerPort covers both, and /mcp
+# gets the identical otelchi/otelchimetric/RequestLogger middleware chain
+# every REST route does (ADR 0010; see cmd/agent/main.go and
+# internal/adapters/inbound/http/router.go).
 config:
   agentAddr: ":8095"
+  # LOG_LEVEL: debug, info, warn (or warning), error; anything else = info.
   logLevel: "info"
+  # corsAllowedOrigins sets CORS_ALLOWED_ORIGINS: the comma-separated
+  # browser origins (warehouse-console) allowed to call the REST routes,
+  # e.g. "http://console.warehouse.local,http://localhost:5173". Left
+  # empty the key is not rendered and the binary allows only its local-dev
+  # default, http://localhost:5173. Only GET and OPTIONS are allowed
+  # cross-origin either way (ADR 0016).
+  corsAllowedOrigins: ""
   # dailyBriefPathTargets overrides DAILY_BRIEF_PATH_TARGETS (a JSON array).
   # Left empty, the binary falls back to its own built-in default target
   # (see internal/config/config.go) so an unset override still produces a
@@ -171,19 +178,15 @@ reportsUrls:
   laborPerformance: ""
 
 # Every upstream is a Streamable-HTTP MCP endpoint on one of the fleet's
-# eight bounded-context services. All default to "" (unconfigured); the
-# binary itself decides how to degrade a missing upstream (skip vs.
-# partial brief) — this chart never guesses on its behalf.
+# twelve bounded-context services. All default to "" (unconfigured): an
+# empty endpoint builds no client (ADR 0023) and the use cases report
+# that upstream as unavailable, or switch the feature off for the four
+# optional upstreams at the end of this block. This chart never guesses
+# an endpoint on the binary's behalf.
 #
-# orderManagement/laborPerformance/processPathManagement are the second
-# wave (warehouse-ops-agent PR #44): their outbound mcpclient ports and
-# concrete clients exist in the composition root, but until a consuming
-# use case is wired the endpoint here is inert plumbing — see each one's
-# own consumption status. labor-performance graduated to actually
-# consumed by FlowBalanceAdvisory in PR #45 (ADR 0008); this chart's
-# upstreams block was not updated in that PR, which is the bug this
-# change fixes — the client existed and was called, but the endpoint
-# reaching it from a real deploy was always "".
+# orderManagement and processPathManagement have a client but no
+# consuming use case yet; laborPerformance feeds the flow-balance
+# utilization overlay (ADR 0008).
 upstreams:
   wesWorkPlanning:
     endpoint: ""

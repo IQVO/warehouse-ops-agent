@@ -106,11 +106,13 @@ internal/
                                      Reasoner, console-bff REST ports
   adapters/
     inbound/
-      http/                           chi router (8 GET routes, see below)
-      mcp/                            this agent's own MCP server (5
-                                        read-only tools)
+      http/                           chi router (13 GET routes, see below)
+      mcp/                            this agent's own MCP server (up
+                                        to 10 read-only tools)
     outbound/mcpclient/             one thin, schema-typed MCP client per
-                                     upstream context (9), Streamable HTTP
+                                     upstream context (12), Streamable HTTP
+    outbound/httpclient/            the otelhttp-instrumented http.Client
+                                     every outbound adapter uses
     outbound/restclient/            console-bff REST clients: 4 OLTP APIs
                                      + 7 *-reports analytics readers
     outbound/telemetry/             Prometheus HTTP API reader (stub when
@@ -151,9 +153,11 @@ context map, EventStorming, class / ER / sequence diagrams, and an honest
 
 One Streamable-HTTP endpoint per upstream context, read from the
 environment (no bearer keys — every upstream MCP server is
-unauthenticated). The first eight clients are always built, so an empty
-endpoint makes every call to that context fail and the use cases degrade;
-the last four are optional and an empty endpoint turns their feature off.
+unauthenticated). An empty endpoint builds no client (ADR 0023): for the
+first eight contexts the use cases report that upstream as unavailable
+(explain-travel-factor answers 503 without facility-layout); for the last
+four the feature is off. Every outbound HTTP client carries an otelhttp
+transport, so traces continue into the upstreams.
 Every variable, default and chart value is on the
 [Configuration](./docs/docs/operations/configuration.md) page:
 

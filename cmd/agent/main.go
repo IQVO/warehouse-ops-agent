@@ -1,18 +1,19 @@
 // Command agent is the composition root for warehouse-ops-agent: it wires
-// env config to the ten outbound MCP-client adapters (one per upstream
-// bounded context; warehouse-planning, product-master and inbound-receiving
-// only when their
-// endpoint is set), the REST clients for the console-bff, and the telemetry
-// and log readers (a real Prometheus reader when PROMETHEUS_URL is set, a
-// no-op stub otherwise; a Loki reader when LOKI_URL is set), then wires
-// those into the decision-support use cases (daily brief, flow balance,
-// explain travel factor, stranded reservation, master-data gaps, inbound
-// outlook) and the
-// console-bff and runtime-signals use cases. It serves them over BOTH an
-// inbound HTTP endpoint and this agent's own inbound MCP server (up to six
-// tools: see internal/adapters/inbound/mcp/tools.go) — a single process, two
-// driving adapters over the same use cases, exactly the pattern the five
-// bounded contexts use for their own HTTP+MCP pair.
+// env config to the twelve outbound MCP-client adapters (one per upstream
+// bounded context; each is built only when its *_MCP_ENDPOINT is set, so
+// an empty endpoint means no client and the use case reports that
+// upstream as unavailable), the REST clients for the console-bff, and the
+// telemetry and log readers (a real Prometheus reader when PROMETHEUS_URL
+// is set, a no-op stub otherwise; a Loki reader when LOKI_URL is set),
+// then wires those into the decision-support use cases (daily brief, flow
+// balance, explain travel factor, stranded reservation, master-data gaps,
+// inbound outlook, transfer watch) and the console-bff and
+// runtime-signals use cases. Every outbound http.Client carries an
+// otelhttp transport (internal/adapters/outbound/httpclient). It serves
+// them over BOTH an inbound HTTP endpoint and this agent's own inbound MCP
+// server (up to ten tools: see internal/adapters/inbound/mcp/tools.go) —
+// a single process, two driving adapters over the same use cases, exactly
+// the pattern the bounded contexts use for their own HTTP+MCP pair.
 package main
 
 import (
@@ -21,8 +22,11 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
+
+	"github.com/go-chi/chi/v5"
 
 	inboundhttp "github.com/claudioed/warehouse-ops-agent/internal/adapters/inbound/http"
 	inboundmcp "github.com/claudioed/warehouse-ops-agent/internal/adapters/inbound/mcp"
@@ -114,8 +118,14 @@ func run() error {
 // outboundClients bundles every outbound adapter the use cases consume,
 // built from env config. Each MCP client satisfies its internal/ports
 // interface at compile time (see the var _ assertions in
-// internal/adapters/outbound/mcpclient/*.go).
+// internal/adapters/outbound/mcpclient/*.go) and is a genuinely nil
+// interface when its endpoint is unset (newMCPClient), so a nil check on
+// any of them means "not configured".
 type outboundClients struct {
+	// om and ppm are wired for a future use case; no use case reads them
+	// yet.
+	om       ports.OrderManagementMCPClient
+	ppm      ports.ProcessPathManagementClient
 	wes      ports.WesWorkPlanningClient
 	fe       ports.FulfillmentExecutionClient
 	wfm      ports.WorkforceManagementClient
@@ -123,121 +133,98 @@ type outboundClients struct {
 	inv      ports.InventoryStorageClient
 	lp       ports.LaborPerformanceClient
 	// planning is nil when WAREHOUSE_PLANNING_MCP_ENDPOINT is unset: the
-	// capacity outlook is then not wired at all (ADR 0013). Unlike its
-	// siblings it is assigned only when configured, so a nil check on this
-	// interface is a genuine "not configured".
+	// capacity outlook is then not wired at all (ADR 0013).
 	planning ports.WarehousePlanningClient
 	// productMaster is nil when PRODUCT_MASTER_MCP_ENDPOINT is unset: the
-	// master-data-gaps use case is then not wired (ADR 0020). Assigned only
-	// when configured, so a nil check is a genuine "not configured".
+	// master-data-gaps use case is then not wired (ADR 0020).
 	productMaster ports.ProductMasterClient
 	// inboundReceiving is nil when INBOUND_RECEIVING_MCP_ENDPOINT is unset:
-	// the inbound outlook is then not wired (ADR 0021). Assigned only when
-	// configured, so a nil check is a genuine "not configured".
+	// the inbound outlook is then not wired (ADR 0021).
 	inboundReceiving ports.InboundReceivingClient
 	// nip is nil when NETWORK_INVENTORY_PLANNING_MCP_ENDPOINT is unset:
-	// the transfer watch is then not wired at all (ADR 0019). Assigned
-	// only when configured, so a nil check is a genuine "not configured".
+	// the transfer watch is then not wired at all (ADR 0019).
 	nip       ports.NetworkInventoryPlanningClient
 	telemetry ports.TelemetryReader
 	logs      ports.LogReader
 }
 
-// newProductMasterClient builds the product-master MCP client (its four
-// read tools only), or returns a nil interface when no endpoint is
-// configured so boot never depends on product-master (fail-open).
-func newProductMasterClient(cfg config.Config) ports.ProductMasterClient {
-	if cfg.ProductMaster.Endpoint == "" {
-		return nil
+// newMCPClient builds one upstream's MCP client, or returns the zero
+// value of the port interface P (a genuinely nil interface, never a
+// non-nil interface around a nil pointer) when endpoint is empty. No
+// client is ever built for an empty endpoint, so boot never depends on an
+// upstream and no call is ever dialled to "".
+func newMCPClient[P any](name, endpoint string, build func(mcpclient.Config) P) P {
+	var none P
+	if endpoint == "" {
+		return none
 	}
-	return mcpclient.NewProductMaster(mcpclient.Config{
-		Name:     "product-master",
-		Endpoint: cfg.ProductMaster.Endpoint,
+	return build(mcpclient.Config{Name: name, Endpoint: endpoint})
+}
+
+// newProductMasterClient builds the product-master MCP client (its four
+// read tools only), or nil when no endpoint is configured (fail-open).
+func newProductMasterClient(cfg config.Config) ports.ProductMasterClient {
+	return newMCPClient("product-master", cfg.ProductMaster.Endpoint, func(c mcpclient.Config) ports.ProductMasterClient {
+		return mcpclient.NewProductMaster(c)
 	})
 }
 
 // newInboundReceivingClient builds the inbound-receiving MCP client (its
-// seven read tools only), or returns a nil interface when no endpoint is
-// configured so boot never depends on inbound-receiving (fail-open).
+// seven read tools only), or nil when no endpoint is configured
+// (fail-open).
 func newInboundReceivingClient(cfg config.Config) ports.InboundReceivingClient {
-	if cfg.InboundReceiving.Endpoint == "" {
-		return nil
-	}
-	return mcpclient.NewInboundReceiving(mcpclient.Config{
-		Name:     "inbound-receiving",
-		Endpoint: cfg.InboundReceiving.Endpoint,
+	return newMCPClient("inbound-receiving", cfg.InboundReceiving.Endpoint, func(c mcpclient.Config) ports.InboundReceivingClient {
+		return mcpclient.NewInboundReceiving(c)
 	})
 }
 
 // newNIPClient builds the network-inventory-planning MCP client (read
-// tools only), or returns a nil interface when no endpoint is configured so
-// boot never depends on it.
+// tools only), or nil when no endpoint is configured.
 func newNIPClient(cfg config.Config) ports.NetworkInventoryPlanningClient {
-	if cfg.NetworkInventoryPlanning.Endpoint == "" {
-		return nil
-	}
-	return mcpclient.NewNetworkInventoryPlanning(mcpclient.Config{
-		Name:     "network-inventory-planning",
-		Endpoint: cfg.NetworkInventoryPlanning.Endpoint,
+	return newMCPClient("network-inventory-planning", cfg.NetworkInventoryPlanning.Endpoint, func(c mcpclient.Config) ports.NetworkInventoryPlanningClient {
+		return mcpclient.NewNetworkInventoryPlanning(c)
 	})
 }
 
 // newPlanningClient builds the warehouse-planning MCP client (read tools
-// only), or returns a nil interface when no endpoint is configured so boot
-// never depends on it and the capacity outlook degrades to "absent".
+// only), or nil when no endpoint is configured, so the capacity outlook
+// degrades to "absent".
 func newPlanningClient(cfg config.Config) ports.WarehousePlanningClient {
-	if cfg.WarehousePlanning.Endpoint == "" {
-		return nil
-	}
-	return mcpclient.NewWarehousePlanning(mcpclient.Config{
-		Name:     "warehouse-planning",
-		Endpoint: cfg.WarehousePlanning.Endpoint,
+	return newMCPClient("warehouse-planning", cfg.WarehousePlanning.Endpoint, func(c mcpclient.Config) ports.WarehousePlanningClient {
+		return mcpclient.NewWarehousePlanning(c)
 	})
 }
 
 // newOutboundClients builds every outbound MCP client (one per upstream
-// bounded context) plus the telemetry and log readers.
+// bounded context, each only when its endpoint is set) plus the telemetry
+// and log readers.
 func newOutboundClients(cfg config.Config) outboundClients {
-	var (
-		om ports.OrderManagementMCPClient = mcpclient.NewOrderManagement(mcpclient.Config{
-			Name:     "order-management",
-			Endpoint: cfg.OrderManagement.Endpoint,
-		})
-		ppm ports.ProcessPathManagementClient = mcpclient.NewProcessPathManagement(mcpclient.Config{
-			Name:     "process-path-management",
-			Endpoint: cfg.ProcessPathManagement.Endpoint,
-		})
-	)
-	_ = om  // not used by the E3 daily brief; kept wired for a future use case.
-	_ = ppm // not used by the E3 daily brief; kept wired for a future use case.
-	// inv (below) is consumed by strandedReservation; no `_ =` marker needed.
-
 	return outboundClients{
-		wes: mcpclient.NewWesWorkPlanning(mcpclient.Config{
-			Name:     "wes-work-planning",
-			Endpoint: cfg.WesWorkPlanning.Endpoint,
+		om: newMCPClient("order-management", cfg.OrderManagement.Endpoint, func(c mcpclient.Config) ports.OrderManagementMCPClient {
+			return mcpclient.NewOrderManagement(c)
 		}),
-		fe: mcpclient.NewFulfillmentExecution(mcpclient.Config{
-			Name:     "fulfillment-execution",
-			Endpoint: cfg.FulfillmentExecution.Endpoint,
+		ppm: newMCPClient("process-path-management", cfg.ProcessPathManagement.Endpoint, func(c mcpclient.Config) ports.ProcessPathManagementClient {
+			return mcpclient.NewProcessPathManagement(c)
 		}),
-		wfm: mcpclient.NewWorkforceManagement(mcpclient.Config{
-			Name:     "workforce-management",
-			Endpoint: cfg.WorkforceManagement.Endpoint,
+		wes: newMCPClient("wes-work-planning", cfg.WesWorkPlanning.Endpoint, func(c mcpclient.Config) ports.WesWorkPlanningClient {
+			return mcpclient.NewWesWorkPlanning(c)
 		}),
-		facility: mcpclient.NewFacilityLayout(mcpclient.Config{
-			Name:     "facility-layout",
-			Endpoint: cfg.FacilityLayout.Endpoint,
+		fe: newMCPClient("fulfillment-execution", cfg.FulfillmentExecution.Endpoint, func(c mcpclient.Config) ports.FulfillmentExecutionClient {
+			return mcpclient.NewFulfillmentExecution(c)
 		}),
-		inv: mcpclient.NewInventoryStorage(mcpclient.Config{
-			Name:     "inventory-storage",
-			Endpoint: cfg.InventoryStorage.Endpoint,
+		wfm: newMCPClient("workforce-management", cfg.WorkforceManagement.Endpoint, func(c mcpclient.Config) ports.WorkforceManagementClient {
+			return mcpclient.NewWorkforceManagement(c)
 		}),
-		telemetry: newTelemetryReader(cfg.PrometheusURL),
-		lp: mcpclient.NewLaborPerformance(mcpclient.Config{
-			Name:     "labor-performance",
-			Endpoint: cfg.LaborPerformance.Endpoint,
+		facility: newMCPClient("facility-layout", cfg.FacilityLayout.Endpoint, func(c mcpclient.Config) ports.FacilityLayoutClient {
+			return mcpclient.NewFacilityLayout(c)
 		}),
+		inv: newMCPClient("inventory-storage", cfg.InventoryStorage.Endpoint, func(c mcpclient.Config) ports.InventoryStorageClient {
+			return mcpclient.NewInventoryStorage(c)
+		}),
+		lp: newMCPClient("labor-performance", cfg.LaborPerformance.Endpoint, func(c mcpclient.Config) ports.LaborPerformanceClient {
+			return mcpclient.NewLaborPerformance(c)
+		}),
+		telemetry:        newTelemetryReader(cfg.PrometheusURL),
 		logs:             newLogReader(cfg.LokiURL),
 		planning:         newPlanningClient(cfg),
 		productMaster:    newProductMasterClient(cfg),
@@ -312,12 +299,23 @@ func newDecisionSupport(cfg config.Config, clients outboundClients) decisionSupp
 	return decisionSupport{
 		dailyBrief:          dailyBrief,
 		flowBalance:         flowBalance,
-		explainTravelFactor: &usecases.ExplainTravelFactor{Facility: clients.facility},
+		explainTravelFactor: newExplainTravelFactor(clients),
 		strandedReservation: strandedReservation,
 		masterDataGaps:      masterDataGaps,
 		inboundOutlook:      newInboundOutlook(cfg, clients),
 		transferWatch:       newTransferWatch(clients),
 	}
+}
+
+// newExplainTravelFactor wires the ADR-0009 use case, or returns nil when
+// facility-layout is not configured: GET /explain-travel-factor then
+// answers 503 "not configured" and explain_travel_factor is not
+// registered, the same as every other upstream-specific feature.
+func newExplainTravelFactor(clients outboundClients) *usecases.ExplainTravelFactor {
+	if clients.facility == nil {
+		return nil
+	}
+	return &usecases.ExplainTravelFactor{Facility: clients.facility}
 }
 
 // newInboundOutlook wires the ADR-0021 read-only inbound outlook, or returns
@@ -399,7 +397,7 @@ func serveAgent(cfg config.Config, logger *slog.Logger, serviceName string, hand
 	go func() {
 		logger.Info("warehouse-ops-agent listening",
 			"addr", cfg.Addr,
-			"http_routes", "/healthz, /daily-brief, /flow-balance/{pathId}, /explain-travel-factor, /console/orders/{id}/lifecycle, /console/reports/wms, /console/reports/wes, /runtime-signals, /master-data-gaps, /inbound-outlook",
+			"http_routes", httpRouteList(router),
 			"mcp_route", "/mcp",
 			"wes_work_planning_endpoint_configured", cfg.WesWorkPlanning.Endpoint != "",
 			"fulfillment_execution_endpoint_configured", cfg.FulfillmentExecution.Endpoint != "",
@@ -410,6 +408,9 @@ func serveAgent(cfg config.Config, logger *slog.Logger, serviceName string, hand
 			"product_master_endpoint_configured", cfg.ProductMaster.Endpoint != "",
 			"inbound_receiving_endpoint_configured", cfg.InboundReceiving.Endpoint != "",
 			"network_inventory_planning_endpoint_configured", cfg.NetworkInventoryPlanning.Endpoint != "",
+			"order_management_endpoint_configured", cfg.OrderManagement.Endpoint != "",
+			"process_path_management_endpoint_configured", cfg.ProcessPathManagement.Endpoint != "",
+			"labor_performance_endpoint_configured", cfg.LaborPerformance.Endpoint != "",
 			"path_targets", len(cfg.PathTargets),
 		)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -424,6 +425,20 @@ func serveAgent(cfg config.Config, logger *slog.Logger, serviceName string, hand
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	return srv.Shutdown(ctx)
+}
+
+// httpRouteList names every REST route the router serves (GET routes,
+// /mcp excluded: it is logged separately), read from the router itself so
+// the startup log can never drift from the registered routes.
+func httpRouteList(router chi.Routes) string {
+	var routes []string
+	_ = chi.Walk(router, func(method, route string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
+		if method == http.MethodGet && route != "/mcp" {
+			routes = append(routes, route)
+		}
+		return nil
+	})
+	return strings.Join(routes, ", ")
 }
 
 // toUseCaseTargets maps the config layer's []config.PathTarget onto the
