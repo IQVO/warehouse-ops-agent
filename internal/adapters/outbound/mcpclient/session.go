@@ -16,6 +16,8 @@ import (
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"github.com/claudioed/warehouse-ops-agent/internal/adapters/outbound/httpclient"
 )
 
 // Config is the connection info for one upstream context's MCP server: its
@@ -59,7 +61,12 @@ func New(cfg Config) *Session {
 // tool infrequently (interval sampling, not a hot path).
 func (s *Session) connect(ctx context.Context) (*mcp.ClientSession, error) {
 	client := mcp.NewClient(&mcp.Implementation{Name: "warehouse-ops-agent", Version: "0.1.0"}, nil)
-	transport := &mcp.StreamableClientTransport{Endpoint: s.cfg.Endpoint}
+	transport := &mcp.StreamableClientTransport{
+		Endpoint: s.cfg.Endpoint,
+		// otelhttp transport: the upstream's MCP span joins this trace.
+		// No client-side timeout; callTool's context bounds the call.
+		HTTPClient: httpclient.New(0),
+	}
 	session, err := client.Connect(ctx, transport, nil)
 	if err != nil {
 		return nil, fmt.Errorf("%s: connect: %w", s.cfg.Name, err)

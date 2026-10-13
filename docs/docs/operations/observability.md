@@ -106,12 +106,21 @@ only in logs.
 | the chi route pattern, e.g. `/daily-brief`, `/flow-balance/{pathId}`, `/mcp` | server | otelchi's standard HTTP attributes | `otelchi.Middleware` with `WithChiRoutes` (`router.go`) |
 | `mcp.tool <name>`, e.g. `mcp.tool get_daily_brief` | internal | `mcp.tool.name`; status `Error` with the message when the tool fails | `addTool` in `internal/adapters/inbound/mcp/tools.go` |
 | `llm.tool_call` | internal | `llm.tool_call.upstream`, `llm.tool_call.tool`; status `Error` on a refusal or a failed call | `executeToolCall` in `internal/adapters/outbound/llm/anthropic/reasoner.go` |
+| `HTTP GET`, `HTTP POST`, `HTTP DELETE` (otelhttp's default name) | client | otelhttp's standard HTTP client attributes (method, URL, server address, status code) | every outbound call: the MCP clients, the console-bff REST clients, the Prometheus and Loki readers and the Anthropic reasoner, all built by `httpclient.New` in `internal/adapters/outbound/httpclient/httpclient.go` |
 
-Outbound calls are **not** instrumented: the MCP client, the REST clients
-and the Prometheus, Loki and Anthropic clients use a plain `http.Client`
-with no `otelhttp` transport. They create no client spans and send no
-`traceparent`, so a trace stops at this agent and does not continue into
-the upstream context.
+Outbound calls are instrumented. Every outbound `http.Client` comes from
+`httpclient.New`, whose transport is `otelhttp.NewTransport`. Each call
+gets a client span and sends a W3C `traceparent`, so a trace continues
+from this agent into the upstream context (its MCP or REST server span
+becomes a child of the agent's client span). The same transport records
+otelhttp's client metrics `http.client.request.duration` and
+`http.client.request.body.size`.
+
+The fitness test `TestOutboundHTTPClientsUseOtelhttp`
+(`internal/architecture/otelhttp_fitness_test.go`) fails when a non-test
+file outside `internal/adapters/outbound/httpclient` builds an
+`http.Client` literal, calls `new(http.Client)` or uses
+`http.DefaultClient`.
 
 ## Logs
 
