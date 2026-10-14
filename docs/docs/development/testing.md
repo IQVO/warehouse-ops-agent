@@ -73,12 +73,15 @@ go test . -run 'TestFeatures/The_WMS_dashboard' -v
 
 | Where | Command | `-coverpkg` | Gate |
 |---|---|---|---|
-| `make coverage` (local, also part of `make check-all`) | `go test ./... -race -coverprofile=coverage.out -coverpkg=$(COVERPKG)` | `./internal/domain/...,./internal/application/...,./internal/adapters/inbound/...` | 90 % |
-| CI `test` job | same, but | `./internal/domain/...,./internal/application/...` | 90 % (`THRESHOLD: "90"`) |
+| `make coverage` (local, part of `make check-all`, and the CI `test` job's coverage step) | `go test ./... -race -coverprofile=coverage.out -coverpkg=$(COVERPKG)` | `./internal/domain/...,./internal/application/...,./internal/adapters/inbound/...` | 90 % (`COVERAGE_THRESHOLD`) |
 
-The two scopes differ: the local gate also counts the inbound adapters,
-CI does not. The local run on this branch printed
-`Coverage: 97.9% (gate: 90%)`.
+The Makefile is the single source of the coverage scope and threshold
+(gap 16d): the CI `test` job runs `make coverage` instead of its own
+`go test -coverpkg=...` command, which had drifted to
+`./internal/domain/...,./internal/application/...` only. `repo_lint.py`
+rule R11 (CI `guide-lint` job) fails a PR whose workflow passes
+`-coverpkg` itself, or whose Makefile gate no workflow runs. The local
+run on this branch printed `Coverage: 97.9% (gate: 90%)`.
 
 ## Mutation testing
 
@@ -134,9 +137,9 @@ the baseline. Install the pinned version with
 | Job | Runs | When |
 |---|---|---|
 | `lint` | golangci-lint v2.13.1 | every push and PR |
-| `guide-lint` | `scripts/harness/guide_lint.py`, `repo_lint.py`, `test_hook.py`, `test_repo_lint.py` | every push and PR |
+| `guide-lint` | `scripts/harness/guide_lint.py`, `repo_lint.py` (R1-R7 and R11; R11 = coverage scope only in the Makefile), `test_hook.py`, `test_repo_lint.py` | every push and PR |
 | `complexity` | golangci-lint with only `gocyclo,gocognit,cyclop,funlen,nestif`, plus an informational gocyclo report (over 10; the gate is 15) | every push and PR |
-| `test` | `go build`, `go vet`, `go test ./... -race` with coverage, 90 % gate, uploads `coverage.out` | every push and PR |
+| `test` | `go build`, `go vet`, then `make coverage` (`go test ./... -race` with the Makefile's coverage scope and 90 % gate), uploads `coverage.out` | every push and PR |
 | `bdd` | `go test ./... -run TestFeatures -v` | every push and PR |
 | `evals-tests` | `go test ./internal/adapters/outbound/mcpclient/... -race -run '^TestAgentEval' -v` | every push and PR |
 | `arch-test` | `go test ./internal/architecture/... -v` | every push and PR |
