@@ -65,7 +65,7 @@ integration: ## Integration tests (real MCP Streamable HTTP wire; -tags=integrat
 	go test -tags=integration ./... -race -count=1
 
 # The ONLY definition of the coverage scope and gate: CI's `test` job runs
-# `make coverage` (gap 16d), and repo_lint R8 fails any workflow that runs
+# `make coverage` (gap 16d), and repo_lint R11 fails any workflow that runs
 # `go test -coverpkg=...` itself, so the package set cannot drift again.
 coverage: ## Coverage run plus the CI coverage gate (CI runs this target)
 	go test ./... -race -coverprofile=coverage.out -coverpkg=$(COVERPKG)

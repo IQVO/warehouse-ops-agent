@@ -79,7 +79,7 @@ The Makefile is the single source of the coverage scope and threshold
 (gap 16d): the CI `test` job runs `make coverage` instead of its own
 `go test -coverpkg=...` command, which had drifted to
 `./internal/domain/...,./internal/application/...` only. `repo_lint.py`
-rule R8 (CI `guide-lint` job) fails a PR whose workflow passes
+rule R11 (CI `guide-lint` job) fails a PR whose workflow passes
 `-coverpkg` itself, or whose Makefile gate no workflow runs. The local
 run on this branch printed `Coverage: 97.9% (gate: 90%)`.
 
@@ -137,7 +137,7 @@ the baseline. Install the pinned version with
 | Job | Runs | When |
 |---|---|---|
 | `lint` | golangci-lint v2.13.1 | every push and PR |
-| `guide-lint` | `scripts/harness/guide_lint.py`, `repo_lint.py` (R1-R8; R8 = coverage scope only in the Makefile), `test_hook.py`, `test_repo_lint.py` | every push and PR |
+| `guide-lint` | `scripts/harness/guide_lint.py`, `repo_lint.py` (R1-R7 and R11; R11 = coverage scope only in the Makefile), `test_hook.py`, `test_repo_lint.py` | every push and PR |
 | `complexity` | golangci-lint with only `gocyclo,gocognit,cyclop,funlen,nestif`, plus an informational gocyclo report (over 10; the gate is 15) | every push and PR |
 | `test` | `go build`, `go vet`, then `make coverage` (`go test ./... -race` with the Makefile's coverage scope and 90 % gate), uploads `coverage.out` | every push and PR |
 | `bdd` | `go test ./... -run TestFeatures -v` | every push and PR |
