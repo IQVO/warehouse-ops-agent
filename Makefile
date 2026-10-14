@@ -64,12 +64,18 @@ test: ## Unit tests (no DB, no live MCP servers — see arch-test)
 integration: ## Integration tests (real MCP Streamable HTTP wire; -tags=integration)
 	go test -tags=integration ./... -race -count=1
 
-coverage: ## Coverage run plus the CI coverage gate
+# The ONLY definition of the coverage scope and gate: CI's `test` job runs
+# `make coverage` (gap 16d), and repo_lint R8 fails any workflow that runs
+# `go test -coverpkg=...` itself, so the package set cannot drift again.
+coverage: ## Coverage run plus the CI coverage gate (CI runs this target)
 	go test ./... -race -coverprofile=coverage.out -coverpkg=$(COVERPKG)
 	@COVERAGE=$$(go tool cover -func=coverage.out | awk '/^total:/ {print $$3}' | tr -d '%'); \
-	echo "Coverage: $${COVERAGE}% (gate: $(COVERAGE_THRESHOLD)%)"; \
+	echo "Coverage: $${COVERAGE}% (gate: $(COVERAGE_THRESHOLD)%, scope: $(COVERPKG))"; \
+	if [ -n "$$GITHUB_STEP_SUMMARY" ]; then \
+		echo "### Coverage: $${COVERAGE}% (gate: $(COVERAGE_THRESHOLD)%, scope: \`$(COVERPKG)\`)" >> "$$GITHUB_STEP_SUMMARY"; \
+	fi; \
 	if awk -v c="$$COVERAGE" -v t="$(COVERAGE_THRESHOLD)" 'BEGIN { exit !(c < t) }'; then \
-		echo "coverage $${COVERAGE}% is below the $(COVERAGE_THRESHOLD)% gate"; \
+		echo "::error::coverage $${COVERAGE}% is below the $(COVERAGE_THRESHOLD)% gate"; \
 		exit 1; \
 	fi
 
