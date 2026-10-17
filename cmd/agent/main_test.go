@@ -290,3 +290,21 @@ func TestNewDecisionSupport_SlotPlanWatchOnlyWiredWhenSlottingConfigured(t *test
 		t.Fatalf("a configured slotting client must wire the watch with the configured stale age: %+v", got)
 	}
 }
+
+func TestNewDecisionSupport_PromiseHealthOnlyWiredWhenOrderManagementConfigured(t *testing.T) {
+	cfg := config.Config{PathTargets: []config.PathTarget{{SiteCode: "WH1", PathId: "p", ProcessPath: "PICK"}}}
+
+	if got := newDecisionSupport(cfg, outboundClients{}).dailyBrief.PromiseHealth; got != nil {
+		t.Fatal("no order-management client => no promise-health section: the brief must be unchanged")
+	}
+
+	cfg.OrderManagement.Endpoint = "http://order-management-mcp:8090/mcp"
+	clients := newOutboundClients(cfg)
+	if clients.om == nil {
+		t.Fatal("a configured endpoint must build the order-management client")
+	}
+	got := newDecisionSupport(cfg, clients).dailyBrief.PromiseHealth
+	if got == nil || got.OrderMgmt == nil {
+		t.Fatalf("a configured order-management client must wire the promise-health section: %+v", got)
+	}
+}

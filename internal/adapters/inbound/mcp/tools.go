@@ -69,6 +69,9 @@ type dailyBriefOutput struct {
 	// configured (ADR 0024); absent otherwise, so the tool's output is
 	// unchanged.
 	SlotPlanWatch *slotPlanWatchDTO `json:"slotPlanWatch,omitempty"`
+	// PromiseHealth is present only when order-management is configured
+	// (ADR 0024); absent otherwise, so the tool's output is unchanged.
+	PromiseHealth *promiseHealthDTO `json:"promiseHealth,omitempty"`
 }
 
 func (d Deps) getDailyBrief(ctx context.Context, _ dailyBriefInput) (dailyBriefOutput, error) {
@@ -77,6 +80,7 @@ func (d Deps) getDailyBrief(ctx context.Context, _ dailyBriefInput) (dailyBriefO
 		Sites:          toSiteBriefDTOs(brief.Sites),
 		OpenExceptions: toOpenExceptionDTOs(brief.OpenExceptions),
 		SlotPlanWatch:  toSlotPlanWatchDTO(brief.SlotPlanWatch),
+		PromiseHealth:  toPromiseHealthDTO(brief.PromiseHealth),
 	}, nil
 }
 

@@ -246,6 +246,9 @@ type dailyBriefDTO struct {
 	// SlotPlanWatch is present only when slotting-optimization is
 	// configured (ADR 0024); absent otherwise, so the brief is unchanged.
 	SlotPlanWatch *slotPlanWatchDTO `json:"slotPlanWatch,omitempty"`
+	// PromiseHealth is present only when order-management is configured
+	// (ADR 0024); absent otherwise, so the brief is unchanged.
+	PromiseHealth *promiseHealthDTO `json:"promiseHealth,omitempty"`
 }
 
 type siteBriefDTO struct {
@@ -418,11 +421,51 @@ func toSlotPlanWatchDTO(s *policy.SlotPlanWatchSection) *slotPlanWatchDTO {
 	return dto
 }
 
+// promiseHealthDTO is the optional order-management promise-health section
+// of the daily brief (ADR 0024): the tool's own KPI fields over [from, to).
+// Unavailable carries the section's explicit degradation line and MUST be
+// read as "unknown", never "all clear".
+type promiseHealthDTO struct {
+	From                      time.Time `json:"from"`
+	To                        time.Time `json:"to"`
+	PromiseBasisCapability    int       `json:"promiseBasisCapability"`
+	PromiseBasisLeadTime      int       `json:"promiseBasisLeadTime"`
+	PromiseBasisNetwork       int       `json:"promiseBasisNetwork"`
+	OrdersAllocatedTotal      int       `json:"ordersAllocatedTotal"`
+	OrdersSplitShipment       int       `json:"ordersSplitShipment"`
+	SplitShipmentRate         float64   `json:"splitShipmentRate"`
+	OrdersRepromised          int       `json:"ordersRepromised"`
+	RepromiseRate             float64   `json:"repromiseRate"`
+	PromiseToCutoffGapSeconds float64   `json:"promiseToCutoffGapSeconds"`
+	Unavailable               []string  `json:"unavailable,omitempty"`
+}
+
+func toPromiseHealthDTO(s *policy.PromiseHealthSection) *promiseHealthDTO {
+	if s == nil {
+		return nil
+	}
+	return &promiseHealthDTO{
+		From:                      s.From,
+		To:                        s.To,
+		PromiseBasisCapability:    s.PromiseBasisCapability,
+		PromiseBasisLeadTime:      s.PromiseBasisLeadTime,
+		PromiseBasisNetwork:       s.PromiseBasisNetwork,
+		OrdersAllocatedTotal:      s.OrdersAllocatedTotal,
+		OrdersSplitShipment:       s.OrdersSplitShipment,
+		SplitShipmentRate:         s.SplitShipmentRate,
+		OrdersRepromised:          s.OrdersRepromised,
+		RepromiseRate:             s.RepromiseRate,
+		PromiseToCutoffGapSeconds: s.PromiseToCutoffGapSeconds,
+		Unavailable:               s.Unavailable,
+	}
+}
+
 func toDailyBriefDTO(b policy.DailyBrief) dailyBriefDTO {
 	dto := dailyBriefDTO{
 		GeneratedAt:    b.GeneratedAt,
 		OpenExceptions: toOpenExceptionDTOs(b.OpenExceptions),
 		SlotPlanWatch:  toSlotPlanWatchDTO(b.SlotPlanWatch),
+		PromiseHealth:  toPromiseHealthDTO(b.PromiseHealth),
 	}
 	for _, s := range b.Sites {
 		dto.Sites = append(dto.Sites, toSiteBriefDTO(s))

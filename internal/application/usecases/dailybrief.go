@@ -66,6 +66,12 @@ type DailyBrief struct {
 	// SLOT_PLAN_STALE_AGE. nil means "not configured": no section is added
 	// and the brief is identical to one produced before the watch existed.
 	SlotPlanWatch *SlotPlanWatch
+
+	// PromiseHealth is the optional order-management promise-health
+	// section (ADR 0024): get_promise_health over today so far. nil means
+	// "not configured": no section is added and the brief is identical to
+	// one produced before the section existed.
+	PromiseHealth *PromiseHealth
 }
 
 // now returns the injected clock, defaulting to time.Now so production
@@ -119,6 +125,10 @@ func (uc *DailyBrief) Execute(ctx context.Context) policy.DailyBrief {
 	// Slot-plan watch (ADR 0024): site-scoped, so one section for the whole
 	// brief; a nil watch (or a nil port) leaves the brief untouched.
 	brief.SlotPlanWatch = uc.SlotPlanWatch.Execute(ctx, uc.now())
+
+	// Promise health (ADR 0024): one network-wide section for the whole
+	// brief; a nil watch (or a nil port) leaves the brief untouched.
+	brief.PromiseHealth = uc.PromiseHealth.Execute(ctx, uc.now())
 
 	return brief
 }

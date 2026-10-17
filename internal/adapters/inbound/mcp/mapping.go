@@ -242,6 +242,46 @@ func toSlotPlanWatchDTO(s *policy.SlotPlanWatchSection) *slotPlanWatchDTO {
 	return dto
 }
 
+// promiseHealthDTO is the optional order-management promise-health section
+// of the daily brief (ADR 0024), mirroring internal/adapters/inbound/http's
+// own promiseHealthDTO: the tool's own KPI fields over [from, to).
+// Unavailable carries the section's explicit degradation line and MUST be
+// read as "unknown", never "all clear".
+type promiseHealthDTO struct {
+	From                      time.Time `json:"from"`
+	To                        time.Time `json:"to"`
+	PromiseBasisCapability    int       `json:"promiseBasisCapability"`
+	PromiseBasisLeadTime      int       `json:"promiseBasisLeadTime"`
+	PromiseBasisNetwork       int       `json:"promiseBasisNetwork"`
+	OrdersAllocatedTotal      int       `json:"ordersAllocatedTotal"`
+	OrdersSplitShipment       int       `json:"ordersSplitShipment"`
+	SplitShipmentRate         float64   `json:"splitShipmentRate"`
+	OrdersRepromised          int       `json:"ordersRepromised"`
+	RepromiseRate             float64   `json:"repromiseRate"`
+	PromiseToCutoffGapSeconds float64   `json:"promiseToCutoffGapSeconds"`
+	Unavailable               []string  `json:"unavailable,omitempty"`
+}
+
+func toPromiseHealthDTO(s *policy.PromiseHealthSection) *promiseHealthDTO {
+	if s == nil {
+		return nil
+	}
+	return &promiseHealthDTO{
+		From:                      s.From,
+		To:                        s.To,
+		PromiseBasisCapability:    s.PromiseBasisCapability,
+		PromiseBasisLeadTime:      s.PromiseBasisLeadTime,
+		PromiseBasisNetwork:       s.PromiseBasisNetwork,
+		OrdersAllocatedTotal:      s.OrdersAllocatedTotal,
+		OrdersSplitShipment:       s.OrdersSplitShipment,
+		SplitShipmentRate:         s.SplitShipmentRate,
+		OrdersRepromised:          s.OrdersRepromised,
+		RepromiseRate:             s.RepromiseRate,
+		PromiseToCutoffGapSeconds: s.PromiseToCutoffGapSeconds,
+		Unavailable:               s.Unavailable,
+	}
+}
+
 func toOpenExceptionDTOs(exceptions []policy.OpenException) []openExceptionDTO {
 	out := make([]openExceptionDTO, 0, len(exceptions))
 	for _, e := range exceptions {

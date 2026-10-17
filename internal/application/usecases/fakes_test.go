@@ -124,10 +124,27 @@ func (f *fakeSlotting) GetSlotPlan(ctx context.Context, planId string) (ports.Sl
 	return f.plans[planId], nil
 }
 
+// fakeOrderMgmtMCP is a table-driven fake of the order-management MCP
+// port: one canned promise-health reading, or an error.
+type fakeOrderMgmtMCP struct {
+	health ports.PromiseHealth
+	err    error
+	query  ports.PromiseHealthQuery
+}
+
+func (f *fakeOrderMgmtMCP) GetPromiseHealth(ctx context.Context, query ports.PromiseHealthQuery) (ports.PromiseHealth, error) {
+	f.query = query
+	if f.err != nil {
+		return ports.PromiseHealth{}, f.err
+	}
+	return f.health, nil
+}
+
 var (
 	_ ports.FacilityLayoutClient       = (*fakeFacility)(nil)
 	_ ports.WesWorkPlanningClient      = (*fakeWes)(nil)
 	_ ports.FulfillmentExecutionClient = (*fakeFe)(nil)
 	_ ports.WorkforceManagementClient  = (*fakeWfm)(nil)
 	_ ports.SlottingOptimizationClient = (*fakeSlotting)(nil)
+	_ ports.OrderManagementMCPClient   = (*fakeOrderMgmtMCP)(nil)
 )

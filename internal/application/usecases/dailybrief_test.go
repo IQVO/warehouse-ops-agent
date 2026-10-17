@@ -446,3 +446,67 @@ func TestDailyBrief_Execute_UnreachableSlottingDegradesInsideTheSection(t *testi
 		t.Fatalf("the rest of the brief must still be produced, got %+v", brief.Sites)
 	}
 }
+
+func TestDailyBrief_Execute_PromiseHealthSectionRidesTheBrief(t *testing.T) {
+	targets := []usecases.PathTarget{{SiteCode: "WH1", PathId: "pick-zone-a", ProcessPath: "PICK"}}
+	now := time.Date(2026, 10, 17, 12, 0, 0, 0, time.UTC)
+	uc := &usecases.DailyBrief{
+		Facility: &fakeFacility{},
+		Wes:      &fakeWes{},
+		Fe:       &fakeFe{},
+		Wfm:      &fakeWfm{},
+		Targets:  targets,
+		Now:      fixedClock(now),
+		PromiseHealth: &usecases.PromiseHealth{
+			OrderMgmt: &fakeOrderMgmtMCP{health: ports.PromiseHealth{OrdersAllocatedTotal: 40, RepromiseRate: 0.05}},
+		},
+	}
+	brief := uc.Execute(context.Background())
+	if brief.PromiseHealth == nil {
+		t.Fatal("a configured promise-health use case must attach its section to the brief")
+	}
+	if brief.PromiseHealth.OrdersAllocatedTotal != 40 || brief.PromiseHealth.RepromiseRate != 0.05 {
+		t.Fatalf("the section must carry the tool's KPIs, got %+v", brief.PromiseHealth)
+	}
+	if len(brief.OpenExceptions) != 0 {
+		t.Fatalf("the promise-health section is informational and must not raise path exceptions, got %v", brief.OpenExceptions)
+	}
+}
+
+func TestDailyBrief_Execute_NilPromiseHealthLeavesBriefUnchanged(t *testing.T) {
+	targets := []usecases.PathTarget{{SiteCode: "WH1", PathId: "pick-zone-a", ProcessPath: "PICK"}}
+	uc := &usecases.DailyBrief{
+		Facility: &fakeFacility{},
+		Wes:      &fakeWes{},
+		Fe:       &fakeFe{},
+		Wfm:      &fakeWfm{},
+		Targets:  targets,
+		Now:      fixedClock(time.Unix(0, 0)),
+	}
+	brief := uc.Execute(context.Background())
+	if brief.PromiseHealth != nil {
+		t.Fatalf("no promise-health configured => no section, got %+v", brief.PromiseHealth)
+	}
+}
+
+func TestDailyBrief_Execute_UnreachableOrderManagementDegradesInsideTheSection(t *testing.T) {
+	targets := []usecases.PathTarget{{SiteCode: "WH1", PathId: "pick-zone-a", ProcessPath: "PICK"}}
+	uc := &usecases.DailyBrief{
+		Facility: &fakeFacility{},
+		Wes:      &fakeWes{},
+		Fe:       &fakeFe{},
+		Wfm:      &fakeWfm{},
+		Targets:  targets,
+		Now:      fixedClock(time.Unix(0, 0)),
+		PromiseHealth: &usecases.PromiseHealth{
+			OrderMgmt: &fakeOrderMgmtMCP{err: errors.New("connect: connection refused")},
+		},
+	}
+	brief := uc.Execute(context.Background())
+	if brief.PromiseHealth == nil || len(brief.PromiseHealth.Unavailable) != 1 {
+		t.Fatalf("an unreachable order-management must degrade to an unavailable line on an attached section, got %+v", brief.PromiseHealth)
+	}
+	if len(brief.Sites) != 1 || len(brief.Sites[0].Paths) != 1 {
+		t.Fatalf("the rest of the brief must still be produced, got %+v", brief.Sites)
+	}
+}

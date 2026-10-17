@@ -122,8 +122,7 @@ func run() error {
 // interface when its endpoint is unset (newMCPClient), so a nil check on
 // any of them means "not configured".
 type outboundClients struct {
-	// om and ppm are wired for a future use case; no use case reads them
-	// yet.
+	// om backs the daily brief's promise-health section (ADR 0024).
 	om       ports.OrderManagementMCPClient
 	ppm      ports.ProcessPathManagementClient
 	wes      ports.WesWorkPlanningClient
@@ -300,6 +299,13 @@ func newDecisionSupport(cfg config.Config, clients outboundClients) decisionSupp
 			Slotting:   clients.slotting,
 			StaleAfter: cfg.SlotPlanStaleAge,
 		}
+	}
+
+	// Promise health (ADR 0024): only wired when order-management is
+	// configured. A nil section use case leaves the daily brief
+	// byte-for-byte as it was; a configured one is fail-open.
+	if clients.om != nil {
+		dailyBrief.PromiseHealth = &usecases.PromiseHealth{OrderMgmt: clients.om}
 	}
 
 	// StrandedReservation is the E2 correlation use case: read-only,

@@ -198,6 +198,13 @@ type DailyBrief struct {
 	// Unavailable lines means it was configured but could not fully read
 	// slotting-optimization.
 	SlotPlanWatch *SlotPlanWatchSection
+
+	// PromiseHealth is the optional order-management promise-health
+	// section (ADR 0024): the promise KPIs of today so far. nil means the
+	// section is not configured (the DTOs then omit it entirely); a
+	// non-nil section with Unavailable lines means it was configured but
+	// could not read order-management.
+	PromiseHealth *PromiseHealthSection
 }
 
 // SiteBrief groups every monitored PathBrief under the facility-layout site
