@@ -93,9 +93,41 @@ func (f *fakeWfm) ProposePathHeads(ctx context.Context, buildingId, pathId strin
 	return ports.ProposedHeads{}, errors.New("not implemented in fake")
 }
 
+// fakeSlotting is a table-driven fake of the slotting-optimization port:
+// canned list pages keyed by cursor, canned plans keyed by id, and optional
+// errors for either call.
+type fakeSlotting struct {
+	pages     map[string]ports.SlotPlanPage // cursor -> page ("" is the first)
+	plans     map[string]ports.SlotPlan
+	listErr   error
+	getErr    map[string]error
+	lastQuery ports.SlotPlanListQuery
+	getCalls  int
+}
+
+func (f *fakeSlotting) ListSlotPlans(ctx context.Context, query ports.SlotPlanListQuery) (ports.SlotPlanPage, error) {
+	f.lastQuery = query
+	if f.listErr != nil {
+		return ports.SlotPlanPage{}, f.listErr
+	}
+	if page, ok := f.pages[query.Cursor]; ok {
+		return page, nil
+	}
+	return ports.SlotPlanPage{}, nil
+}
+
+func (f *fakeSlotting) GetSlotPlan(ctx context.Context, planId string) (ports.SlotPlan, error) {
+	f.getCalls++
+	if err, ok := f.getErr[planId]; ok {
+		return ports.SlotPlan{}, err
+	}
+	return f.plans[planId], nil
+}
+
 var (
 	_ ports.FacilityLayoutClient       = (*fakeFacility)(nil)
 	_ ports.WesWorkPlanningClient      = (*fakeWes)(nil)
 	_ ports.FulfillmentExecutionClient = (*fakeFe)(nil)
 	_ ports.WorkforceManagementClient  = (*fakeWfm)(nil)
+	_ ports.SlottingOptimizationClient = (*fakeSlotting)(nil)
 )

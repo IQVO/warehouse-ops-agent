@@ -60,6 +60,12 @@ type DailyBrief struct {
 	// 0013). nil means "not configured": no section is added and the brief
 	// is identical to one produced before the outlook existed.
 	Outlook *CapacityOutlook
+
+	// SlotPlanWatch is the optional slotting-optimization section (ADR
+	// 0024): Approved slot plans whose moves are not fully executed after
+	// SLOT_PLAN_STALE_AGE. nil means "not configured": no section is added
+	// and the brief is identical to one produced before the watch existed.
+	SlotPlanWatch *SlotPlanWatch
 }
 
 // now returns the injected clock, defaulting to time.Now so production
@@ -109,6 +115,10 @@ func (uc *DailyBrief) Execute(ctx context.Context) policy.DailyBrief {
 		brief.Sites = append(brief.Sites, *bySite[code])
 	}
 	brief.OpenExceptions = rankBySeverity(brief.OpenExceptions)
+
+	// Slot-plan watch (ADR 0024): site-scoped, so one section for the whole
+	// brief; a nil watch (or a nil port) leaves the brief untouched.
+	brief.SlotPlanWatch = uc.SlotPlanWatch.Execute(ctx, uc.now())
 
 	return brief
 }

@@ -143,7 +143,10 @@ type outboundClients struct {
 	inboundReceiving ports.InboundReceivingClient
 	// nip is nil when NETWORK_INVENTORY_PLANNING_MCP_ENDPOINT is unset:
 	// the transfer watch is then not wired at all (ADR 0019).
-	nip       ports.NetworkInventoryPlanningClient
+	nip ports.NetworkInventoryPlanningClient
+	// slotting is nil when SLOTTING_OPTIMIZATION_MCP_ENDPOINT is unset:
+	// the daily brief's slot-plan watch is then not wired (ADR 0024).
+	slotting  ports.SlottingOptimizationClient
 	telemetry ports.TelemetryReader
 	logs      ports.LogReader
 }
@@ -183,6 +186,15 @@ func newInboundReceivingClient(cfg config.Config) ports.InboundReceivingClient {
 func newNIPClient(cfg config.Config) ports.NetworkInventoryPlanningClient {
 	return newMCPClient("network-inventory-planning", cfg.NetworkInventoryPlanning.Endpoint, func(c mcpclient.Config) ports.NetworkInventoryPlanningClient {
 		return mcpclient.NewNetworkInventoryPlanning(c)
+	})
+}
+
+// newSlottingClient builds the slotting-optimization MCP client (its two
+// slot-plan read tools only, ADR 0024), or nil when no endpoint is
+// configured (fail-open).
+func newSlottingClient(cfg config.Config) ports.SlottingOptimizationClient {
+	return newMCPClient("slotting-optimization", cfg.SlottingOptimization.Endpoint, func(c mcpclient.Config) ports.SlottingOptimizationClient {
+		return mcpclient.NewSlottingOptimization(c)
 	})
 }
 
@@ -230,6 +242,7 @@ func newOutboundClients(cfg config.Config) outboundClients {
 		productMaster:    newProductMasterClient(cfg),
 		inboundReceiving: newInboundReceivingClient(cfg),
 		nip:              newNIPClient(cfg),
+		slotting:         newSlottingClient(cfg),
 	}
 }
 
@@ -276,6 +289,16 @@ func newDecisionSupport(cfg config.Config, clients outboundClients) decisionSupp
 		dailyBrief.Outlook = &usecases.CapacityOutlook{
 			Planning: clients.planning,
 			Horizon:  cfg.CapacityOutlookHorizon,
+		}
+	}
+
+	// Slot-plan watch (ADR 0024): only wired when slotting-optimization is
+	// configured. A nil watch leaves the daily brief byte-for-byte as it
+	// was; a configured one is fail-open per plan.
+	if clients.slotting != nil {
+		dailyBrief.SlotPlanWatch = &usecases.SlotPlanWatch{
+			Slotting:   clients.slotting,
+			StaleAfter: cfg.SlotPlanStaleAge,
 		}
 	}
 
@@ -408,6 +431,7 @@ func serveAgent(cfg config.Config, logger *slog.Logger, serviceName string, hand
 			"product_master_endpoint_configured", cfg.ProductMaster.Endpoint != "",
 			"inbound_receiving_endpoint_configured", cfg.InboundReceiving.Endpoint != "",
 			"network_inventory_planning_endpoint_configured", cfg.NetworkInventoryPlanning.Endpoint != "",
+			"slotting_optimization_endpoint_configured", cfg.SlottingOptimization.Endpoint != "",
 			"order_management_endpoint_configured", cfg.OrderManagement.Endpoint != "",
 			"process_path_management_endpoint_configured", cfg.ProcessPathManagement.Endpoint != "",
 			"labor_performance_endpoint_configured", cfg.LaborPerformance.Endpoint != "",

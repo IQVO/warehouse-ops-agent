@@ -73,6 +73,34 @@ func TestInboundReceivingClientCallsOnlyPinnedTools(t *testing.T) {
 	}
 }
 
+// slottingOptimizationReadTools is the exact allow-list for the
+// slotting-optimization client (ADR 0024): the two of its four published
+// read tools the slot-plan watch consumes. get_forward_slots and
+// get_sku_velocity are deliberately NOT pinned — wiring tools no use case
+// calls is the bug class this change closes (gap A14).
+var slottingOptimizationReadTools = []string{"get_slot_plan", "list_slot_plans"}
+
+// TestSlottingOptimizationClientCallsOnlyPinnedTools scans
+// slotting_optimization.go and fails unless it names exactly the two pinned
+// read tools.
+func TestSlottingOptimizationClientCallsOnlyPinnedTools(t *testing.T) {
+	path := "../../adapters/outbound/mcpclient/slotting_optimization.go"
+	src, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+	names := calledToolNames(parseGoFile(t, path, src))
+	sort.Strings(names)
+	if strings.Join(names, ",") != strings.Join(slottingOptimizationReadTools, ",") {
+		t.Fatalf("%s calls %v; the slotting-optimization client may call exactly %v (read-only, ADR 0024)", path, names, slottingOptimizationReadTools)
+	}
+	for _, name := range names {
+		if prefix := writePrefixOf(name); prefix != "" {
+			t.Errorf("%s: tool %q starts with write verb %q", path, name, prefix)
+		}
+	}
+}
+
 // TestMCPClientsCallOnlyReadTools statically scans every non-test source
 // file in the mcpclient package for `callTool(ctx, "<tool>", ...)` calls
 // and fails when a tool-name literal starts with a write verb.

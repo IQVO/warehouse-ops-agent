@@ -119,6 +119,22 @@ type Config struct {
 	// routes answer 503 and the three MCP tools are not registered.
 	NetworkInventoryPlanning UpstreamConfig
 
+	// SlottingOptimization is slotting-optimization's read-only MCP server
+	// (ADR 0024), SLOTTING_OPTIMIZATION_MCP_ENDPOINT. An empty endpoint
+	// means "not configured": the composition root builds no client and no
+	// slot-plan watch, and the daily brief carries no slot-plan section --
+	// the agent boots fail-open.
+	SlottingOptimization UpstreamConfig
+
+	// SlotPlanStaleAge is the approval age past which an Approved slot
+	// plan with unexecuted moves is flagged in the daily brief's
+	// slot-plan section (SLOT_PLAN_STALE_AGE, a Go duration; default
+	// 24h). Unlike INBOUND_STALE_RECEIPT_AGE this HAS a default: a
+	// day-old half-executed re-slot is the operational question the
+	// section exists to answer, so an unset variable falls back to one
+	// day rather than disabling the section.
+	SlotPlanStaleAge time.Duration
+
 	// CapacityOutlookHorizon is how far ahead the daily brief's
 	// warehouse-planning capacity window extends from now
 	// (CAPACITY_OUTLOOK_HORIZON, a Go duration; default 8h). It is a time
@@ -273,6 +289,10 @@ func Load() (Config, error) {
 		NetworkInventoryPlanning: UpstreamConfig{
 			Endpoint: getenv("NETWORK_INVENTORY_PLANNING_MCP_ENDPOINT", ""),
 		},
+		SlottingOptimization: UpstreamConfig{
+			Endpoint: getenv("SLOTTING_OPTIMIZATION_MCP_ENDPOINT", ""),
+		},
+		SlotPlanStaleAge:       loadDuration("SLOT_PLAN_STALE_AGE", defaultSlotPlanStaleAge),
 		CapacityOutlookHorizon: loadDuration("CAPACITY_OUTLOOK_HORIZON", defaultCapacityOutlookHorizon),
 
 		OrderManagementRESTURL:      getenv("ORDER_MANAGEMENT_REST_URL", "http://localhost:8086"),
@@ -310,6 +330,11 @@ func Load() (Config, error) {
 // defaultCapacityOutlookHorizon is one shift: the capacity outlook looks
 // 8 hours ahead unless CAPACITY_OUTLOOK_HORIZON says otherwise.
 const defaultCapacityOutlookHorizon = 8 * time.Hour
+
+// defaultSlotPlanStaleAge is one day: an Approved slot plan whose moves are
+// still not fully executed a day after approval is flagged, unless
+// SLOT_PLAN_STALE_AGE says otherwise.
+const defaultSlotPlanStaleAge = 24 * time.Hour
 
 // defaultLLMToolAllowList is exactly the read surface the deterministic
 // flow-balance path consults, so shadow mode compares like with like.

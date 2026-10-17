@@ -190,6 +190,14 @@ type DailyBrief struct {
 	GeneratedAt    time.Time
 	Sites          []SiteBrief
 	OpenExceptions []OpenException
+
+	// SlotPlanWatch is the optional slotting-optimization section (ADR
+	// 0024): Approved slot plans whose moves are not fully executed after
+	// the configured staleness threshold. nil means the watch is not
+	// configured (the DTOs then omit it entirely); a non-nil section with
+	// Unavailable lines means it was configured but could not fully read
+	// slotting-optimization.
+	SlotPlanWatch *SlotPlanWatchSection
 }
 
 // SiteBrief groups every monitored PathBrief under the facility-layout site

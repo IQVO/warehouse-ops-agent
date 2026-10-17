@@ -369,3 +369,80 @@ func TestDailyBrief_Execute_NilFeClient_QueueAndStuckBothUnavailable(t *testing.
 		t.Errorf("expected exactly 1 unavailable note (fe covers both queue+stuck when nil), got %v", pb.Unavailable)
 	}
 }
+
+func TestDailyBrief_Execute_SlotPlanWatchSectionRidesTheBrief(t *testing.T) {
+	targets := []usecases.PathTarget{{SiteCode: "WH1", PathId: "pick-zone-a", ProcessPath: "PICK"}}
+	now := time.Date(2026, 10, 17, 12, 0, 0, 0, time.UTC)
+	slotting := &fakeSlotting{
+		pages: map[string]ports.SlotPlanPage{"": {Items: []ports.SlotPlanSummary{{
+			PlanId: "plan-stale", SiteId: "WH1", State: "Approved",
+			ApprovedAt: now.Add(-30 * time.Hour).UTC().Format(time.RFC3339), MoveCount: 6,
+		}}}},
+		plans: map[string]ports.SlotPlan{
+			"plan-stale": {Execution: &ports.SlotPlanExecution{MovesTotal: 6, MovesExecuted: 2}},
+		},
+	}
+	uc := &usecases.DailyBrief{
+		Facility: &fakeFacility{sites: ports.SitesResult{Sites: []ports.SiteRef{{Code: "WH1", Name: "One"}}}},
+		Wes:      &fakeWes{backlog: map[string]ports.BacklogTelemetry{"pick-zone-a": {}}},
+		Fe:       &fakeFe{queue: map[string]ports.QueueStatus{"PICK": {}}, stuck: ports.StuckTasksResult{}},
+		Wfm:      &fakeWfm{gaps: map[string]ports.StaffingGap{"pick-zone-a": {}}},
+		Targets:  targets,
+		Now:      fixedClock(now),
+		SlotPlanWatch: &usecases.SlotPlanWatch{
+			Slotting:   slotting,
+			StaleAfter: 24 * time.Hour,
+		},
+	}
+	brief := uc.Execute(context.Background())
+
+	if brief.SlotPlanWatch == nil {
+		t.Fatal("a configured slot-plan watch must attach its section to the brief")
+	}
+	if len(brief.SlotPlanWatch.Stale) != 1 || brief.SlotPlanWatch.Stale[0].PlanId != "plan-stale" {
+		t.Fatalf("the brief's slot-plan section must carry the flagged plan, got %+v", brief.SlotPlanWatch)
+	}
+	// The section must not leak into the per-path facts or exceptions.
+	if len(brief.OpenExceptions) != 0 {
+		t.Fatalf("the slot-plan watch is informational and must not raise path exceptions, got %v", brief.OpenExceptions)
+	}
+}
+
+func TestDailyBrief_Execute_NilSlotPlanWatchLeavesBriefUnchanged(t *testing.T) {
+	targets := []usecases.PathTarget{{SiteCode: "WH1", PathId: "pick-zone-a", ProcessPath: "PICK"}}
+	uc := &usecases.DailyBrief{
+		Facility: &fakeFacility{},
+		Wes:      &fakeWes{},
+		Fe:       &fakeFe{},
+		Wfm:      &fakeWfm{},
+		Targets:  targets,
+		Now:      fixedClock(time.Unix(0, 0)),
+	}
+	brief := uc.Execute(context.Background())
+	if brief.SlotPlanWatch != nil {
+		t.Fatalf("no slot-plan watch configured => no section, got %+v", brief.SlotPlanWatch)
+	}
+}
+
+func TestDailyBrief_Execute_UnreachableSlottingDegradesInsideTheSection(t *testing.T) {
+	targets := []usecases.PathTarget{{SiteCode: "WH1", PathId: "pick-zone-a", ProcessPath: "PICK"}}
+	uc := &usecases.DailyBrief{
+		Facility: &fakeFacility{},
+		Wes:      &fakeWes{},
+		Fe:       &fakeFe{},
+		Wfm:      &fakeWfm{},
+		Targets:  targets,
+		Now:      fixedClock(time.Unix(0, 0)),
+		SlotPlanWatch: &usecases.SlotPlanWatch{
+			Slotting:   &fakeSlotting{listErr: errors.New("connect: connection refused")},
+			StaleAfter: 24 * time.Hour,
+		},
+	}
+	brief := uc.Execute(context.Background())
+	if brief.SlotPlanWatch == nil || len(brief.SlotPlanWatch.Unavailable) != 1 {
+		t.Fatalf("an unreachable slotting-optimization must degrade to an unavailable line on an attached section, got %+v", brief.SlotPlanWatch)
+	}
+	if len(brief.Sites) != 1 || len(brief.Sites[0].Paths) != 1 {
+		t.Fatalf("the rest of the brief must still be produced, got %+v", brief.Sites)
+	}
+}
