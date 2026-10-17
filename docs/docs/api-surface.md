@@ -20,7 +20,7 @@ authoritative.
 | Method & path | What it returns |
 |---|---|
 | `GET /healthz` | `{"status": "ok"}` |
-| `GET /daily-brief` | The full synthesized `DailyBrief`: every monitored site's paths (the `DAILY_BRIEF_PATH_TARGETS` set: unset = built-in default target; unparseable JSON or an empty `[]` fails startup with a config error naming the variable, [ADR 0017](./adr/0017-empty-path-targets-is-a-config-error.md)) with backlog/staffing/queue/stuck-task facts, plus ranked `openExceptions`. When `WAREHOUSE_PLANNING_MCP_ENDPOINT` is set, each path also carries an optional `capacityOutlook` ([ADR 0013](./adr/0013-warehouse-planning-mcp-client-and-capacity-outlook.md)): `normalizedRate` (ORDER/hour), `bottleneckStep`, `bindingConstraint`, per-step `steps`, planning's `warnings`, over `[windowStart, windowEnd)` (`CAPACITY_OUTLOOK_HORIZON`, default 8h) — or only `omittedReason` when it could not be produced (path has no `planningPathId`, planning unreachable, no covering capacity window, …). The key is absent when planning is not configured; the section never fails the brief and never changes `openExceptions`. |
+| `GET /daily-brief` | The full synthesized `DailyBrief`: every monitored site's paths (the `DAILY_BRIEF_PATH_TARGETS` set: unset = built-in default target; unparseable JSON or an empty `[]` fails startup with a config error naming the variable, [ADR 0017](./adr/0017-empty-path-targets-is-a-config-error.md)) with backlog/staffing/queue/stuck-task facts, plus ranked `openExceptions`. When `WAREHOUSE_PLANNING_MCP_ENDPOINT` is set, each path also carries an optional `capacityOutlook` ([ADR 0013](./adr/0013-warehouse-planning-mcp-client-and-capacity-outlook.md)): `normalizedRate` (ORDER/hour), `bottleneckStep`, `bindingConstraint`, per-step `steps`, planning's `warnings`, over `[windowStart, windowEnd)` (`CAPACITY_OUTLOOK_HORIZON`, default 8h) — or only `omittedReason` when it could not be produced (path has no `planningPathId`, planning unreachable, no covering capacity window, …). The key is absent when planning is not configured; the section never fails the brief and never changes `openExceptions`. When `SLOTTING_OPTIMIZATION_MCP_ENDPOINT` is set the brief also carries one `slotPlanWatch` section, and when `ORDER_MANAGEMENT_MCP_ENDPOINT` is set one `promiseHealth` section ([ADR 0024](./adr/0024-slot-plan-watch-promise-health-and-ppm-client-removal.md)); both are fail-open (explicit `unavailable` lines, never a failed brief) and absent when unconfigured — see the [HTTP routes page](./api/http-routes.md) for their shapes. |
 | `GET /flow-balance/{pathId}?buildingId=&shiftId=` | The E1 `FlowBalanceException` correlation for one path; `buildingId` and `shiftId` are both REQUIRED (blank counts as missing) and scope the workforce-management staffing-gap lookup; 400 naming the missing parameter, before any upstream is asked. Optionally arbitrated by the ADR-0004 LLM reasoner (`LLM_MODE`) and enriched with the ADR-0008 labor-utilization correlation. 400 on a missing parameter or other use-case error; 503 if the use case isn't wired, which happens when `FACILITY_LAYOUT_MCP_ENDPOINT` is unset ([ADR 0023](./adr/0023-skip-mcp-clients-without-an-endpoint.md)). |
 | `GET /explain-travel-factor?pathId=&fromLocationCode=&toLocationCode=` | Calls facility-layout's `estimate_travel_distance` for the two REQUIRED, caller-supplied location codes and classifies the result (`travel_significant`/`travel_negligible`) against the ADR-0009 threshold. 400 if either location code is missing, or if facility-layout rejects the codes with a validation slug in its tool error (`malformed-*`, `invalid-*`, `*-required`, `validation-failed`, `missing-location-code`; fleet convention `<slug>: <detail>`, [ADR 0018](./adr/0018-mcp-tool-error-slug-classification.md)); 502 if facility-layout is unreachable or the call fails for any other reason — not-found, `internal-error`, any other slug, or slug-less text from an older facility-layout (an upstream degradation, not a caller error); 503 if the use case isn't wired. This agent never infers the two location codes itself — see [ADR 0009](./adr/0009-explain-travel-factor.md). |
 | `GET /console/orders/{id}/lifecycle` | The **console-bff** read model (see [ADR 0002](./adr/0002-micro-frontend-console-architecture.md)): fans out to order-management, inventory-storage, wes-work-planning, and fulfillment-execution and stitches one order's cross-service lifecycle for `warehouse-console`'s Order Lifecycle screen. Each stage degrades independently — one context being unreachable (including order-management itself, apart from a 404) leaves that stage `null` in a 200 response; there is no 502 path. 404 if order-management reports the order does not exist. |
@@ -56,12 +56,16 @@ is a v1 design choice, not an oversight.
 
 ## What is not yet exposed
 
-`order-management` and `process-path-management`'s outbound MCP clients
-are wired in the composition root (`cmd/agent/main.go`) but not yet
-consumed by any use case (`_ = om` / `_ = ppm`) — see
-[ADR 0007](./adr/0007-second-wave-outbound-mcp-clients.md) and its
-2026-09-26 addendum. That is a separate, still-open follow-up from the E2
-StrandedReservation wiring above.
+`order-management`'s outbound MCP client
+([ADR 0024](./adr/0024-slot-plan-watch-promise-health-and-ppm-client-removal.md))
+is consumed through `get_promise_health` (the daily brief's promise-health
+section); `get_order` stays published by order-management but is not wired
+here — no use case of this agent calls it. The `process-path-management`
+client was removed entirely (ADR 0024, gap A9): catalogue configuration is
+not an ops signal. `slotting-optimization`'s client (same ADR) is consumed
+through `get_slot_plan` and `list_slot_plans` (the daily brief's
+slot-plan watch); `get_forward_slots` and `get_sku_velocity` are
+deliberately not wired.
 
 `warehouse-planning`'s outbound client
 ([ADR 0013](./adr/0013-warehouse-planning-mcp-client-and-capacity-outlook.md))

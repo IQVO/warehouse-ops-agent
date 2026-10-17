@@ -122,10 +122,8 @@ func run() error {
 // interface when its endpoint is unset (newMCPClient), so a nil check on
 // any of them means "not configured".
 type outboundClients struct {
-	// om and ppm are wired for a future use case; no use case reads them
-	// yet.
+	// om backs the daily brief's promise-health section (ADR 0024).
 	om       ports.OrderManagementMCPClient
-	ppm      ports.ProcessPathManagementClient
 	wes      ports.WesWorkPlanningClient
 	fe       ports.FulfillmentExecutionClient
 	wfm      ports.WorkforceManagementClient
@@ -143,7 +141,10 @@ type outboundClients struct {
 	inboundReceiving ports.InboundReceivingClient
 	// nip is nil when NETWORK_INVENTORY_PLANNING_MCP_ENDPOINT is unset:
 	// the transfer watch is then not wired at all (ADR 0019).
-	nip       ports.NetworkInventoryPlanningClient
+	nip ports.NetworkInventoryPlanningClient
+	// slotting is nil when SLOTTING_OPTIMIZATION_MCP_ENDPOINT is unset:
+	// the daily brief's slot-plan watch is then not wired (ADR 0024).
+	slotting  ports.SlottingOptimizationClient
 	telemetry ports.TelemetryReader
 	logs      ports.LogReader
 }
@@ -186,6 +187,15 @@ func newNIPClient(cfg config.Config) ports.NetworkInventoryPlanningClient {
 	})
 }
 
+// newSlottingClient builds the slotting-optimization MCP client (its two
+// slot-plan read tools only, ADR 0024), or nil when no endpoint is
+// configured (fail-open).
+func newSlottingClient(cfg config.Config) ports.SlottingOptimizationClient {
+	return newMCPClient("slotting-optimization", cfg.SlottingOptimization.Endpoint, func(c mcpclient.Config) ports.SlottingOptimizationClient {
+		return mcpclient.NewSlottingOptimization(c)
+	})
+}
+
 // newPlanningClient builds the warehouse-planning MCP client (read tools
 // only), or nil when no endpoint is configured, so the capacity outlook
 // degrades to "absent".
@@ -202,9 +212,6 @@ func newOutboundClients(cfg config.Config) outboundClients {
 	return outboundClients{
 		om: newMCPClient("order-management", cfg.OrderManagement.Endpoint, func(c mcpclient.Config) ports.OrderManagementMCPClient {
 			return mcpclient.NewOrderManagement(c)
-		}),
-		ppm: newMCPClient("process-path-management", cfg.ProcessPathManagement.Endpoint, func(c mcpclient.Config) ports.ProcessPathManagementClient {
-			return mcpclient.NewProcessPathManagement(c)
 		}),
 		wes: newMCPClient("wes-work-planning", cfg.WesWorkPlanning.Endpoint, func(c mcpclient.Config) ports.WesWorkPlanningClient {
 			return mcpclient.NewWesWorkPlanning(c)
@@ -230,6 +237,7 @@ func newOutboundClients(cfg config.Config) outboundClients {
 		productMaster:    newProductMasterClient(cfg),
 		inboundReceiving: newInboundReceivingClient(cfg),
 		nip:              newNIPClient(cfg),
+		slotting:         newSlottingClient(cfg),
 	}
 }
 
@@ -277,6 +285,23 @@ func newDecisionSupport(cfg config.Config, clients outboundClients) decisionSupp
 			Planning: clients.planning,
 			Horizon:  cfg.CapacityOutlookHorizon,
 		}
+	}
+
+	// Slot-plan watch (ADR 0024): only wired when slotting-optimization is
+	// configured. A nil watch leaves the daily brief byte-for-byte as it
+	// was; a configured one is fail-open per plan.
+	if clients.slotting != nil {
+		dailyBrief.SlotPlanWatch = &usecases.SlotPlanWatch{
+			Slotting:   clients.slotting,
+			StaleAfter: cfg.SlotPlanStaleAge,
+		}
+	}
+
+	// Promise health (ADR 0024): only wired when order-management is
+	// configured. A nil section use case leaves the daily brief
+	// byte-for-byte as it was; a configured one is fail-open.
+	if clients.om != nil {
+		dailyBrief.PromiseHealth = &usecases.PromiseHealth{OrderMgmt: clients.om}
 	}
 
 	// StrandedReservation is the E2 correlation use case: read-only,
@@ -408,8 +433,8 @@ func serveAgent(cfg config.Config, logger *slog.Logger, serviceName string, hand
 			"product_master_endpoint_configured", cfg.ProductMaster.Endpoint != "",
 			"inbound_receiving_endpoint_configured", cfg.InboundReceiving.Endpoint != "",
 			"network_inventory_planning_endpoint_configured", cfg.NetworkInventoryPlanning.Endpoint != "",
+			"slotting_optimization_endpoint_configured", cfg.SlottingOptimization.Endpoint != "",
 			"order_management_endpoint_configured", cfg.OrderManagement.Endpoint != "",
-			"process_path_management_endpoint_configured", cfg.ProcessPathManagement.Endpoint != "",
 			"labor_performance_endpoint_configured", cfg.LaborPerformance.Endpoint != "",
 			"path_targets", len(cfg.PathTargets),
 		)

@@ -33,7 +33,7 @@ REST contract. If they disagree with the router, the router is correct.
 | Method and path | Use case | Upstream calls | Statuses |
 |---|---|---|---|
 | `GET /healthz` | none | none | 200 |
-| `GET /daily-brief` | `DailyBrief` (E3) | facility-layout, wes-work-planning, workforce-management, fulfillment-execution over MCP; warehouse-planning when configured | 200 |
+| `GET /daily-brief` | `DailyBrief` (E3) | facility-layout, wes-work-planning, workforce-management, fulfillment-execution over MCP; warehouse-planning, slotting-optimization and order-management for the optional sections when configured | 200 |
 | `GET /flow-balance/{pathId}` | `FlowBalanceAdvisory` (E1) | wes-work-planning, workforce-management, fulfillment-execution, labor-performance over MCP; Anthropic when `LLM_MODE` is not `off` | 200, 400 |
 | `GET /explain-travel-factor` | `ExplainTravelFactor` | facility-layout over MCP | 200, 400, 502, 503 |
 | `GET /console/orders/{id}/lifecycle` | `OrderLifecycle` (console-bff) | order-management, inventory-storage, wes-work-planning, fulfillment-execution over REST | 200, 404, 500 |
@@ -119,6 +119,9 @@ for both the liveness and the readiness probe. There is no `/readyz` route.
 | per path | fulfillment-execution `get_queue_status` | `processPath` | `queue` |
 | per path | fulfillment-execution `diagnose_stuck_tasks` | `withinSeconds = 0` (already-expired leases only) | `stuck`, filtered to tasks whose type equals the path's `processPath` |
 | per path, optional | warehouse-planning `get_process_path_capacity` | `pathId = planningPathId`, `location = siteCode`, window `[now, now + CAPACITY_OUTLOOK_HORIZON)`, `unitsPerOrder` and `packagesPerOrder` when set | `capacityOutlook` |
+| once, optional | slotting-optimization `list_slot_plans` | `state = "Approved"`, pages of 500 (at most 10) | `slotPlanWatch` (ADR 0024) |
+| per approved plan past the threshold, optional | slotting-optimization `get_slot_plan` | `plan_id` | the plan's execution counters in `slotPlanWatch.stale[]` |
+| once, optional | order-management `get_promise_health` | `from` = start of today, `to` = now, no `pathId` | `promiseHealth` (ADR 0024) |
 
 **Status:** always `200`. A failed call adds an entry such as
 `"wes-work-planning: <error>"` to that path's `unavailable` list and leaves
@@ -158,7 +161,30 @@ time. It does not skip the path.
       "summary": "2 independent flow-imbalance signal(s) correlated for path pick-zone-a",
       "evidence": ["wes-work-planning get_backlog_telemetry: over alarm threshold (backlogDepth=120, wip=8)", "..."]
     }
-  ]
+  ],
+  "slotPlanWatch": {
+    "staleAfterNs": 86400000000000,
+    "stale": [
+      {"planId": "plan-1", "siteId": "WH1", "approvedAt": "2026-10-15T09:00:00Z", "ageSeconds": 97200, "movesExecuted": 3, "movesTotal": 10}
+    ],
+    "checked": 2,
+    "noApproved": false,
+    "unavailable": ["only when a call failed or a plan broke the contract"]
+  },
+  "promiseHealth": {
+    "from": "2026-10-17T00:00:00Z",
+    "to": "2026-10-17T12:00:00Z",
+    "promiseBasisCapability": 70,
+    "promiseBasisLeadTime": 25,
+    "promiseBasisNetwork": 5,
+    "ordersAllocatedTotal": 100,
+    "ordersSplitShipment": 10,
+    "splitShipmentRate": 0.1,
+    "ordersRepromised": 4,
+    "repromiseRate": 0.04,
+    "promiseToCutoffGapSeconds": 5400,
+    "unavailable": ["only when order-management could not be read"]
+  }
 }
 ```
 
@@ -175,6 +201,23 @@ has `planningPathId`, `windowStart`, `windowEnd`, and either
 `omittedReason` alone or `normalizedRate` (orders per hour),
 `bottleneckStep`, `bindingConstraint`, `steps[]` (`step`, `normalizedRate`,
 `bindingConstraint`) and `warnings[]`.
+
+`slotPlanWatch` ([ADR 0024](../adr/0024-slot-plan-watch-promise-health-and-ppm-client-removal.md),
+present only when `SLOTTING_OPTIMIZATION_MCP_ENDPOINT` is set) flags
+Approved slot plans whose moves are not fully executed
+`SLOT_PLAN_STALE_AGE` (default 24 h) after approval, oldest first, with
+plan id, site, approval instant, age and `movesExecuted`/`movesTotal`. A
+plan with no execution recorded reads as 0/N. `checked` counts every
+Approved plan examined; `noApproved` is the explicit "no plans" state; a
+non-empty `unavailable` means the section is incomplete (unreachable
+slotting-optimization, a failed call, a contract-breaking plan, or the
+10-page scan bound), never "all clear".
+
+`promiseHealth` ([ADR 0024](../adr/0024-slot-plan-watch-promise-health-and-ppm-client-removal.md),
+present only when `ORDER_MANAGEMENT_MCP_ENDPOINT` is set) carries
+order-management's `get_promise_health` KPIs over `[from, to)` = today so
+far, exactly as the tool returned them (the tool has no site dimension);
+`unavailable` means unknown, not healthy.
 
 ## Flow-balance exception — `GET /flow-balance/{pathId}`
 

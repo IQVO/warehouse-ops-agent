@@ -17,15 +17,18 @@ and persists no domain state; its "domain" layer is decision **policy**
 (correlation rules over facts read from the upstream contexts, plus a
 runtime-signals classifier over Prometheus/Loki telemetry).
 
-It holds an outbound MCP client for eleven contexts: the five original ones
+It holds an outbound MCP client for twelve contexts: the five original ones
 (`wes-work-planning`, `fulfillment-execution`, `workforce-management`,
-`facility-layout`, `inventory-storage`) and three second-wave ones
-(`labor-performance`, `order-management`, `process-path-management`,
+`facility-layout`, `inventory-storage`) and two second-wave ones
+(`labor-performance`, `order-management`,
 [ADR 0007](./docs/docs/adr/0007-second-wave-outbound-mcp-clients.md)).
 `labor-performance` is consumed by the flow-balance utilization overlay
 ([ADR 0008](./docs/docs/adr/0008-labor-utilization-advisory-correlation.md));
-`order-management` and `process-path-management` are wired but not yet
-consumed by any use case. `warehouse-planning` (read tools only; its MCP
+`order-management` feeds the daily brief's promise-health section and
+`slotting-optimization` its slot-plan watch
+([ADR 0024](./docs/docs/adr/0024-slot-plan-watch-promise-health-and-ppm-client-removal.md)).
+The `process-path-management` client was removed (ADR 0024): catalogue
+configuration is not an ops signal. `warehouse-planning` (read tools only; its MCP
 server is read+write) feeds an optional, fail-open capacity outlook in the
 daily brief and has three more read tools wired but unconsumed
 ([ADR 0013](./docs/docs/adr/0013-warehouse-planning-mcp-client-and-capacity-outlook.md)).
@@ -169,12 +172,12 @@ Every variable, default and chart value is on the
 | workforce-management | `WORKFORCE_MANAGEMENT_MCP_ENDPOINT` |
 | facility-layout | `FACILITY_LAYOUT_MCP_ENDPOINT` |
 | labor-performance | `LABOR_PERFORMANCE_MCP_ENDPOINT` |
-| order-management | `ORDER_MANAGEMENT_MCP_ENDPOINT` |
-| process-path-management | `PROCESS_PATH_MANAGEMENT_MCP_ENDPOINT` |
+| order-management | `ORDER_MANAGEMENT_MCP_ENDPOINT` (daily-brief promise-health section; ADR 0024) |
 | warehouse-planning | `WAREHOUSE_PLANNING_MCP_ENDPOINT` |
 | product-master | `PRODUCT_MASTER_MCP_ENDPOINT` (unset = client disabled, fail-open; ADR 0020) |
 | inbound-receiving | `INBOUND_RECEIVING_MCP_ENDPOINT` (unset = client disabled, fail-open; ADR 0021) |
 | network-inventory-planning | `NETWORK_INVENTORY_PLANNING_MCP_ENDPOINT` (unset = client disabled; ADR 0019) |
+| slotting-optimization | `SLOTTING_OPTIMIZATION_MCP_ENDPOINT` (unset = no slot-plan watch, fail-open; ADR 0024) |
 
 Plus:
 
@@ -200,6 +203,10 @@ Plus:
   the outlook's `staleReceipts` section is then omitted with that reason
   rather than guessing a threshold. Only meaningful when
   `INBOUND_RECEIVING_MCP_ENDPOINT` is set.
+- `SLOT_PLAN_STALE_AGE` (Go duration, default `24h`) — the approval age
+  past which an Approved slot plan with unexecuted moves is flagged in the
+  daily brief's `slotPlanWatch` section (ADR 0024). Only meaningful when
+  `SLOTTING_OPTIMIZATION_MCP_ENDPOINT` is set.
 - `PROMETHEUS_URL`, `LOKI_URL` — back `GET /runtime-signals`. An unset
   `LOKI_URL` (or a failing Loki query) lists `loki` in `unavailableSources`;
   an unset `PROMETHEUS_URL` falls back to a no-op stub reader, so metrics
