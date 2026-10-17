@@ -16,6 +16,9 @@ data:
   {{- if .Values.config.capacityOutlookHorizon }}
   CAPACITY_OUTLOOK_HORIZON: {{ .Values.config.capacityOutlookHorizon | quote }}
   {{- end }}
+  {{- if .Values.config.slotPlanStaleAge }}
+  SLOT_PLAN_STALE_AGE: {{ .Values.config.slotPlanStaleAge | quote }}
+  {{- end }}
   WES_WORK_PLANNING_MCP_ENDPOINT: {{ .Values.upstreams.wesWorkPlanning.endpoint | quote }}
   FULFILLMENT_EXECUTION_MCP_ENDPOINT: {{ .Values.upstreams.fulfillmentExecution.endpoint | quote }}
   INVENTORY_STORAGE_MCP_ENDPOINT: {{ .Values.upstreams.inventoryStorage.endpoint | quote }}

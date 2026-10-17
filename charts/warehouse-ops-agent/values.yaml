@@ -148,6 +148,13 @@ config:
   # packagesPerOrder -- no defaults, operator-supplied only) lives in the
   # dailyBriefPathTargets JSON above.
   capacityOutlookHorizon: ""
+  # slotPlanStaleAge overrides SLOT_PLAN_STALE_AGE (a Go duration, e.g.
+  # "12h"): the approval age past which an Approved slot plan with
+  # unexecuted moves is flagged in the daily brief's slotPlanWatch
+  # section (ADR 0024). Left empty the binary uses its own 24h default.
+  # Only has an effect when upstreams.slottingOptimization.endpoint is
+  # set.
+  slotPlanStaleAge: ""
 
 # The console-bff order-lifecycle fan-out's own plain REST base URLs — a
 # SEPARATE concern from the MCP `upstreams` block below (that block backs
@@ -178,15 +185,15 @@ reportsUrls:
   laborPerformance: ""
 
 # Every upstream is a Streamable-HTTP MCP endpoint on one of the fleet's
-# twelve bounded-context services. All default to "" (unconfigured): an
-# empty endpoint builds no client (ADR 0023) and the use cases report
-# that upstream as unavailable, or switch the feature off for the four
-# optional upstreams at the end of this block. This chart never guesses
-# an endpoint on the binary's behalf.
+# bounded-context services. All default to "" (unconfigured): an empty
+# endpoint builds no client (ADR 0023) and the use cases report that
+# upstream as unavailable, or switch the feature off for the optional
+# upstreams at the end of this block. This chart never guesses an
+# endpoint on the binary's behalf.
 #
-# orderManagement and processPathManagement have a client but no
-# consuming use case yet; laborPerformance feeds the flow-balance
-# utilization overlay (ADR 0008).
+# orderManagement feeds the daily brief's promiseHealth section and
+# laborPerformance the flow-balance utilization overlay; the
+# process-path-management client was removed entirely (ADR 0024, gap A9).
 upstreams:
   wesWorkPlanning:
     endpoint: ""
@@ -201,8 +208,6 @@ upstreams:
   orderManagement:
     endpoint: ""
   laborPerformance:
-    endpoint: ""
-  processPathManagement:
     endpoint: ""
   # warehouse-planning (ADR 0013): its MCP server is read+write, but this
   # agent calls ONLY its four read tools. Empty = not configured: the
@@ -237,6 +242,17 @@ upstreams:
   # explain_network_imbalance MCP tools are not registered. Moving,
   # approving or cancelling a transfer stays an operator action in NIP.
   networkInventoryPlanning:
+    endpoint: ""
+  # slotting-optimization (ADR 0024): its MCP server is read-only (four
+  # tools published; this agent calls only get_slot_plan and
+  # list_slot_plans). Empty = not configured: the binary builds no
+  # client and the daily brief carries no slotPlanWatch section; nothing
+  # else changes. When set, the section is fail-open per plan: an
+  # unreachable slotting-optimization, a failed call or a
+  # contract-breaking plan degrades to an explicit unavailable line on
+  # the section, never a failed brief. In-cluster value:
+  # http://slotting-optimization-mcp.warehouse-systems.svc.cluster.local:8090/mcp
+  slottingOptimization:
     endpoint: ""
 
 # warehouse-infra Prometheus base URL, for the telemetry-reader port's

@@ -32,11 +32,11 @@ func TestNewOutboundClients_EmptyEndpointBuildsNoMCPClient(t *testing.T) {
 		"inventory-storage":          c.inv,
 		"labor-performance":          c.lp,
 		"order-management":           c.om,
-		"process-path-management":    c.ppm,
 		"warehouse-planning":         c.planning,
 		"product-master":             c.productMaster,
 		"inbound-receiving":          c.inboundReceiving,
 		"network-inventory-planning": c.nip,
+		"slotting-optimization":      c.slotting,
 	} {
 		if got != nil {
 			t.Errorf("%s: an empty endpoint must build no client, got %T", name, got)
@@ -56,11 +56,11 @@ func TestNewOutboundClients_SetEndpointBuildsEveryMCPClient(t *testing.T) {
 		InventoryStorage:         up("inventory-storage"),
 		LaborPerformance:         up("labor-performance"),
 		OrderManagement:          up("order-management"),
-		ProcessPathManagement:    up("process-path-management"),
 		WarehousePlanning:        up("warehouse-planning"),
 		ProductMaster:            up("product-master"),
 		InboundReceiving:         up("inbound-receiving"),
 		NetworkInventoryPlanning: up("network-inventory-planning"),
+		SlottingOptimization:     up("slotting-optimization"),
 	})
 	for name, got := range map[string]any{
 		"wes-work-planning":          c.wes,
@@ -70,11 +70,11 @@ func TestNewOutboundClients_SetEndpointBuildsEveryMCPClient(t *testing.T) {
 		"inventory-storage":          c.inv,
 		"labor-performance":          c.lp,
 		"order-management":           c.om,
-		"process-path-management":    c.ppm,
 		"warehouse-planning":         c.planning,
 		"product-master":             c.productMaster,
 		"inbound-receiving":          c.inboundReceiving,
 		"network-inventory-planning": c.nip,
+		"slotting-optimization":      c.slotting,
 	} {
 		if got == nil {
 			t.Errorf("%s: a set endpoint must build the client", name)
@@ -257,5 +257,51 @@ func TestNewDecisionSupport_TransferWatchOnlyWiredWhenNIPConfigured(t *testing.T
 	got := newDecisionSupport(cfg, outboundClients{nip: newNIPClient(cfg)}).transferWatch
 	if got == nil || got.NIP == nil {
 		t.Fatalf("a configured NIP client must wire the transfer watch: %+v", got)
+	}
+}
+
+func TestNewSlottingClient_UnsetEndpoint_IsANilInterface(t *testing.T) {
+	// Same typed-nil trap as the planning client: a non-nil interface around a
+	// nil pointer would pass the "configured?" check and crash on first call.
+	if got := newSlottingClient(config.Config{}); got != nil {
+		t.Fatalf("an unset SLOTTING_OPTIMIZATION_MCP_ENDPOINT must yield a nil client (fail-open), got %T", got)
+	}
+}
+
+func TestNewDecisionSupport_SlotPlanWatchOnlyWiredWhenSlottingConfigured(t *testing.T) {
+	cfg := config.Config{PathTargets: []config.PathTarget{{SiteCode: "WH1", PathId: "p", ProcessPath: "PICK"}}}
+
+	unconfigured := newDecisionSupport(cfg, outboundClients{})
+	if unconfigured.dailyBrief.SlotPlanWatch != nil {
+		t.Fatal("no slotting client => no slot-plan watch: the brief must be unchanged")
+	}
+
+	cfg.SlottingOptimization.Endpoint = "http://slotting-optimization-mcp:8090/mcp"
+	cfg.SlotPlanStaleAge = 12 * time.Hour
+	clients := newOutboundClients(cfg)
+	if clients.slotting == nil {
+		t.Fatal("a configured endpoint must build the slotting client")
+	}
+	got := newDecisionSupport(cfg, clients).dailyBrief.SlotPlanWatch
+	if got == nil || got.Slotting == nil || got.StaleAfter != 12*time.Hour {
+		t.Fatalf("a configured slotting client must wire the watch with the configured stale age: %+v", got)
+	}
+}
+
+func TestNewDecisionSupport_PromiseHealthOnlyWiredWhenOrderManagementConfigured(t *testing.T) {
+	cfg := config.Config{PathTargets: []config.PathTarget{{SiteCode: "WH1", PathId: "p", ProcessPath: "PICK"}}}
+
+	if got := newDecisionSupport(cfg, outboundClients{}).dailyBrief.PromiseHealth; got != nil {
+		t.Fatal("no order-management client => no promise-health section: the brief must be unchanged")
+	}
+
+	cfg.OrderManagement.Endpoint = "http://order-management-mcp:8090/mcp"
+	clients := newOutboundClients(cfg)
+	if clients.om == nil {
+		t.Fatal("a configured endpoint must build the order-management client")
+	}
+	got := newDecisionSupport(cfg, clients).dailyBrief.PromiseHealth
+	if got == nil || got.OrderMgmt == nil {
+		t.Fatalf("a configured order-management client must wire the promise-health section: %+v", got)
 	}
 }

@@ -42,6 +42,7 @@ accepted.
 | [0021](./0021-inbound-receiving-mcp-client-and-inbound-outlook.md) | inbound-receiving MCP client (read-only, schema-pinned) and the inbound outlook | Accepted |
 | [0022](./0022-godog-bdd-acceptance-tests.md) | godog/Gherkin acceptance tests as executable specification | Accepted |
 | [0023](./0023-skip-mcp-clients-without-an-endpoint.md) | Build an upstream MCP client only when its endpoint is set | Accepted |
+| [0024](./0024-slot-plan-watch-promise-health-and-ppm-client-removal.md) | slotting-optimization client + slot-plan watch and order-management promise health in the daily brief (fail-open); process-path-management client removed | Accepted |
 
 ## Proposing a new one
 

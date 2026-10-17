@@ -73,18 +73,19 @@ type Config struct {
 	WorkforceManagement  UpstreamConfig
 	FacilityLayout       UpstreamConfig
 
-	// OrderManagement, LaborPerformance, ProcessPathManagement are the
-	// second-wave upstream contexts whose MCP servers came online in a
-	// later fleet-wide wiring pass (ADR 0007). Like the five above, an
-	// empty endpoint means "skip this client". LaborPerformance has
-	// since graduated from "wired but unconsumed" to actually consumed
+	// OrderManagement and LaborPerformance are the second-wave upstream
+	// contexts whose MCP servers came online in a later fleet-wide wiring
+	// pass (ADR 0007). Like the five above, an empty endpoint means
+	// "skip this client". LaborPerformance has since graduated to consumed
 	// by FlowBalanceAdvisory's labor-utilization correlation overlay
-	// (ADR 0008 Phase 3); OrderManagement and ProcessPathManagement
-	// remain wired-but-unconsumed, the ADR-0007 precedent they were
-	// both added under.
-	OrderManagement       UpstreamConfig
-	LaborPerformance      UpstreamConfig
-	ProcessPathManagement UpstreamConfig
+	// (ADR 0008 Phase 3); OrderManagement is consumed by the daily brief's
+	// promise-health section (ADR 0024). ProcessPathManagement was REMOVED
+	// (ADR 0024, gap A9): catalogue configuration is not an ops signal,
+	// and the client's PROCESS_PATH_MANAGEMENT_MCP_ENDPOINT is no longer
+	// read. The endpoint itself stays configured in warehouse-infra's
+	// terraform until the orchestrator removes it in a later infra change.
+	OrderManagement  UpstreamConfig
+	LaborPerformance UpstreamConfig
 
 	// WarehousePlanning is the third-wave upstream (ADR 0013). An empty
 	// endpoint means "not configured": the composition root then builds no
@@ -118,6 +119,22 @@ type Config struct {
 	// builds no client and no transfer watch, the three /transfer-watch
 	// routes answer 503 and the three MCP tools are not registered.
 	NetworkInventoryPlanning UpstreamConfig
+
+	// SlottingOptimization is slotting-optimization's read-only MCP server
+	// (ADR 0024), SLOTTING_OPTIMIZATION_MCP_ENDPOINT. An empty endpoint
+	// means "not configured": the composition root builds no client and no
+	// slot-plan watch, and the daily brief carries no slot-plan section --
+	// the agent boots fail-open.
+	SlottingOptimization UpstreamConfig
+
+	// SlotPlanStaleAge is the approval age past which an Approved slot
+	// plan with unexecuted moves is flagged in the daily brief's
+	// slot-plan section (SLOT_PLAN_STALE_AGE, a Go duration; default
+	// 24h). Unlike INBOUND_STALE_RECEIPT_AGE this HAS a default: a
+	// day-old half-executed re-slot is the operational question the
+	// section exists to answer, so an unset variable falls back to one
+	// day rather than disabling the section.
+	SlotPlanStaleAge time.Duration
 
 	// CapacityOutlookHorizon is how far ahead the daily brief's
 	// warehouse-planning capacity window extends from now
@@ -257,9 +274,6 @@ func Load() (Config, error) {
 		LaborPerformance: UpstreamConfig{
 			Endpoint: getenv("LABOR_PERFORMANCE_MCP_ENDPOINT", ""),
 		},
-		ProcessPathManagement: UpstreamConfig{
-			Endpoint: getenv("PROCESS_PATH_MANAGEMENT_MCP_ENDPOINT", ""),
-		},
 		WarehousePlanning: UpstreamConfig{
 			Endpoint: getenv("WAREHOUSE_PLANNING_MCP_ENDPOINT", ""),
 		},
@@ -273,6 +287,10 @@ func Load() (Config, error) {
 		NetworkInventoryPlanning: UpstreamConfig{
 			Endpoint: getenv("NETWORK_INVENTORY_PLANNING_MCP_ENDPOINT", ""),
 		},
+		SlottingOptimization: UpstreamConfig{
+			Endpoint: getenv("SLOTTING_OPTIMIZATION_MCP_ENDPOINT", ""),
+		},
+		SlotPlanStaleAge:       loadDuration("SLOT_PLAN_STALE_AGE", defaultSlotPlanStaleAge),
 		CapacityOutlookHorizon: loadDuration("CAPACITY_OUTLOOK_HORIZON", defaultCapacityOutlookHorizon),
 
 		OrderManagementRESTURL:      getenv("ORDER_MANAGEMENT_REST_URL", "http://localhost:8086"),
@@ -310,6 +328,11 @@ func Load() (Config, error) {
 // defaultCapacityOutlookHorizon is one shift: the capacity outlook looks
 // 8 hours ahead unless CAPACITY_OUTLOOK_HORIZON says otherwise.
 const defaultCapacityOutlookHorizon = 8 * time.Hour
+
+// defaultSlotPlanStaleAge is one day: an Approved slot plan whose moves are
+// still not fully executed a day after approval is flagged, unless
+// SLOT_PLAN_STALE_AGE says otherwise.
+const defaultSlotPlanStaleAge = 24 * time.Hour
 
 // defaultLLMToolAllowList is exactly the read surface the deterministic
 // flow-balance path consults, so shadow mode compares like with like.

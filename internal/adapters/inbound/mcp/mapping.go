@@ -195,6 +195,93 @@ func toCapacityOutlookDTO(o *policy.CapacityOutlook) *capacityOutlookDTO {
 	return dto
 }
 
+// slotPlanWatchDTO is the optional slotting-optimization section of the
+// daily brief (ADR 0024), mirroring internal/adapters/inbound/http's own
+// slotPlanWatchDTO. Stale is empty-but-present when the watch ran and found
+// nothing; unavailable carries the section's explicit degradation lines and
+// MUST be read as "incomplete", never "all clear".
+type slotPlanWatchDTO struct {
+	StaleAfter  time.Duration      `json:"staleAfterNs"`
+	Stale       []staleSlotPlanDTO `json:"stale"`
+	Checked     int                `json:"checked"`
+	NoApproved  bool               `json:"noApproved,omitempty"`
+	Unavailable []string           `json:"unavailable,omitempty"`
+}
+
+// staleSlotPlanDTO is one flagged plan: id, site, approval instant, age and
+// how much of the plan's moves has been executed.
+type staleSlotPlanDTO struct {
+	PlanId        string    `json:"planId"`
+	SiteId        string    `json:"siteId"`
+	ApprovedAt    time.Time `json:"approvedAt"`
+	AgeSeconds    int64     `json:"ageSeconds"`
+	MovesExecuted int       `json:"movesExecuted"`
+	MovesTotal    int       `json:"movesTotal"`
+}
+
+func toSlotPlanWatchDTO(s *policy.SlotPlanWatchSection) *slotPlanWatchDTO {
+	if s == nil {
+		return nil
+	}
+	dto := &slotPlanWatchDTO{
+		StaleAfter:  s.StaleAfter,
+		Checked:     s.Checked,
+		NoApproved:  s.NoApproved,
+		Unavailable: s.Unavailable,
+	}
+	for _, p := range s.Stale {
+		dto.Stale = append(dto.Stale, staleSlotPlanDTO{
+			PlanId:        p.PlanId,
+			SiteId:        p.SiteId,
+			ApprovedAt:    p.ApprovedAt,
+			AgeSeconds:    int64(p.Age.Seconds()),
+			MovesExecuted: p.MovesExecuted,
+			MovesTotal:    p.MovesTotal,
+		})
+	}
+	return dto
+}
+
+// promiseHealthDTO is the optional order-management promise-health section
+// of the daily brief (ADR 0024), mirroring internal/adapters/inbound/http's
+// own promiseHealthDTO: the tool's own KPI fields over [from, to).
+// Unavailable carries the section's explicit degradation line and MUST be
+// read as "unknown", never "all clear".
+type promiseHealthDTO struct {
+	From                      time.Time `json:"from"`
+	To                        time.Time `json:"to"`
+	PromiseBasisCapability    int       `json:"promiseBasisCapability"`
+	PromiseBasisLeadTime      int       `json:"promiseBasisLeadTime"`
+	PromiseBasisNetwork       int       `json:"promiseBasisNetwork"`
+	OrdersAllocatedTotal      int       `json:"ordersAllocatedTotal"`
+	OrdersSplitShipment       int       `json:"ordersSplitShipment"`
+	SplitShipmentRate         float64   `json:"splitShipmentRate"`
+	OrdersRepromised          int       `json:"ordersRepromised"`
+	RepromiseRate             float64   `json:"repromiseRate"`
+	PromiseToCutoffGapSeconds float64   `json:"promiseToCutoffGapSeconds"`
+	Unavailable               []string  `json:"unavailable,omitempty"`
+}
+
+func toPromiseHealthDTO(s *policy.PromiseHealthSection) *promiseHealthDTO {
+	if s == nil {
+		return nil
+	}
+	return &promiseHealthDTO{
+		From:                      s.From,
+		To:                        s.To,
+		PromiseBasisCapability:    s.PromiseBasisCapability,
+		PromiseBasisLeadTime:      s.PromiseBasisLeadTime,
+		PromiseBasisNetwork:       s.PromiseBasisNetwork,
+		OrdersAllocatedTotal:      s.OrdersAllocatedTotal,
+		OrdersSplitShipment:       s.OrdersSplitShipment,
+		SplitShipmentRate:         s.SplitShipmentRate,
+		OrdersRepromised:          s.OrdersRepromised,
+		RepromiseRate:             s.RepromiseRate,
+		PromiseToCutoffGapSeconds: s.PromiseToCutoffGapSeconds,
+		Unavailable:               s.Unavailable,
+	}
+}
+
 func toOpenExceptionDTOs(exceptions []policy.OpenException) []openExceptionDTO {
 	out := make([]openExceptionDTO, 0, len(exceptions))
 	for _, e := range exceptions {

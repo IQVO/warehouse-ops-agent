@@ -85,7 +85,7 @@ flowchart LR
         out5["labor-performance<br/>(Supporting)"]:::ctx
         out6["order-management<br/>(Generic/Supporting)"]:::ctx
         out7["facility-layout (Generic)"]:::ctx
-        out8["process-path-management<br/>(Generic)"]:::ctx
+        out8["slotting-optimization<br/>(Supporting)"]:::ctx
         out9[["Prometheus and Loki<br/>(observability)"]]:::ext
         out10[["Anthropic Messages API<br/>(LLM_MODE shadow or on)"]]:::ext
     end
@@ -100,11 +100,11 @@ flowchart LR
     BC -.->|"qry - REST<br/>labor report"| out4
     BC -.->|"qry - MCP<br/>get_task_type_utilization;<br/>scorecard, performance,<br/>standard (wired)"| out5
     BC -.->|"qry - REST<br/>performance report"| out5
-    BC -.->|"qry - MCP<br/>get_order (wired)"| out6
+    BC -.->|"qry - MCP<br/>get_promise_health"| out6
     BC -.->|"qry - REST<br/>order header, order funnel<br/>report"| out6
     BC -.->|"qry - MCP<br/>list_sites,<br/>estimate_travel_distance;<br/>get_site_layout, get_zone_grid<br/>(wired)"| out7
     BC -.->|"qry - REST<br/>catalog growth report"| out7
-    BC -.->|"qry - MCP<br/>get_process_path,<br/>list_process_paths (wired)"| out8
+    BC -.->|"qry - MCP<br/>list_slot_plans,<br/>get_slot_plan"| out8
     BC -.->|"qry - HTTP<br/>Istio error rate and p99,<br/>error log lines"| out9
     BC -.->|"qry - HTTP<br/>plan via tool use"| out10
     linkStyle 0 stroke:#2f9e44,stroke-width:1.5px
@@ -229,8 +229,8 @@ Every outbound call is a read. "Live" means a use case calls it today;
 | `labor-performance` (Supporting) | scorecard, performance, standard | Query | MCP `get_associate_scorecard`, `get_task_type_performance`, `get_labor_standard` — wired | Customer / Conformist of OHS |
 | `warehouse-planning` (Core) | path capacity | Query | MCP `get_process_path_capacity` — live (capacity outlook, only when `WAREHOUSE_PLANNING_MCP_ENDPOINT` is set) | Customer / Conformist of OHS (read tools only) |
 | `warehouse-planning` (Core) | capacity plan, storage capacity, station standards | Query | MCP `get_capacity_plan`, `get_storage_capacity`, `list_station_standards` — wired | Customer / Conformist of OHS (read tools only) |
-| `order-management` (Generic/Supporting) | order | Query | MCP `get_order` — wired | Customer / Conformist of OHS |
-| `process-path-management` (Generic) | process paths | Query | MCP `get_process_path`, `list_process_paths` — wired | Customer / Conformist of OHS |
+| `order-management` (Generic/Supporting) | promise KPIs | Query | MCP `get_promise_health` — live (daily brief `promiseHealth` section, ADR 0024; `get_order` published but unwired) | Customer / Conformist of OHS |
+| `slotting-optimization` (Supporting) | slot plans | Query | MCP `list_slot_plans`, `get_slot_plan` — live (daily brief `slotPlanWatch` section, ADR 0024; `get_forward_slots` and `get_sku_velocity` unwired) | Customer / Conformist of OHS |
 | `order-management` (Generic/Supporting) | order header | Query | REST `GET /orders/{id}` — live (order lifecycle) | Conformist |
 | `inventory-storage` (Core) | reservations by demand ref | Query | REST `GET /reservations?demandRef=` — live (order lifecycle) | Conformist |
 | `wes-work-planning` (Core) | work units by reference | Query | REST `GET /work-units?reference=` — live (order lifecycle) | Conformist |
@@ -306,10 +306,11 @@ Top terms: **DailyBrief**, **PathBrief**, **OpenException**,
 
 ## Open Questions
 
-- `order-management` and `process-path-management` MCP clients, three
-  warehouse-planning read tools, three labor-performance tools,
+- Three warehouse-planning read tools, three labor-performance tools,
   `find_claimable_work`, `propose_path_heads`, `get_site_layout` and
-  `get_zone_grid` are wired but unconsumed (ADR 0007, ADR 0013).
+  `get_zone_grid` are wired but unconsumed (ADR 0013). The
+  order-management client is consumed (`get_promise_health`) and the
+  process-path-management client was removed (ADR 0024).
 - E2 has an MCP tool but no REST route.
 - DailyBrief (E3) LLM-reasoner coverage is a documented next phase of
   ADR 0004, not implemented.

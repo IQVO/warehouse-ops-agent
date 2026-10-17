@@ -79,8 +79,6 @@ spec:
               value: {{ .Values.upstreams.orderManagement.endpoint | quote }}
             - name: LABOR_PERFORMANCE_MCP_ENDPOINT
               value: {{ .Values.upstreams.laborPerformance.endpoint | quote }}
-            - name: PROCESS_PATH_MANAGEMENT_MCP_ENDPOINT
-              value: {{ .Values.upstreams.processPathManagement.endpoint | quote }}
             - name: WAREHOUSE_PLANNING_MCP_ENDPOINT
               value: {{ .Values.upstreams.warehousePlanning.endpoint | quote }}
             - name: PRODUCT_MASTER_MCP_ENDPOINT
@@ -93,9 +91,15 @@ spec:
             {{- end }}
             - name: NETWORK_INVENTORY_PLANNING_MCP_ENDPOINT
               value: {{ .Values.upstreams.networkInventoryPlanning.endpoint | quote }}
+            - name: SLOTTING_OPTIMIZATION_MCP_ENDPOINT
+              value: {{ .Values.upstreams.slottingOptimization.endpoint | quote }}
             {{- if .Values.config.capacityOutlookHorizon }}
             - name: CAPACITY_OUTLOOK_HORIZON
               value: {{ .Values.config.capacityOutlookHorizon | quote }}
+            {{- end }}
+            {{- if .Values.config.slotPlanStaleAge }}
+            - name: SLOT_PLAN_STALE_AGE
+              value: {{ .Values.config.slotPlanStaleAge | quote }}
             {{- end }}
             - name: PROMETHEUS_URL
               value: {{ .Values.prometheus.url | quote }}
