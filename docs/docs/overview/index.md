@@ -18,8 +18,8 @@ representative of any real-world company**.
 that sees, analyzes, and recommends" over the warehouse-systems bounded
 contexts — originally five (`inventory-storage`, `wes-work-planning`,
 `fulfillment-execution`, `workforce-management`, `facility-layout`), plus
-three second-wave MCP clients (`labor-performance`, `order-management`,
-`process-path-management`; see
+two second-wave MCP clients (`labor-performance`, `order-management`;
+see
 [ADR 0007](../adr/0007-second-wave-outbound-mcp-clients.md)), plus
 `warehouse-planning` (read tools only,
 [ADR 0013](../adr/0013-warehouse-planning-mcp-client-and-capacity-outlook.md)), plus
@@ -28,7 +28,11 @@ three second-wave MCP clients (`labor-performance`, `order-management`,
 `inbound-receiving` (read-only,
 [ADR 0021](../adr/0021-inbound-receiving-mcp-client-and-inbound-outlook.md)), plus
 `network-inventory-planning` (read tools only,
-[ADR 0019](../adr/0019-network-inventory-planning-transfer-watch.md)). It is a
+[ADR 0019](../adr/0019-network-inventory-planning-transfer-watch.md)), plus
+`slotting-optimization` (read tools only,
+[ADR 0024](../adr/0024-slot-plan-watch-promise-health-and-ppm-client-removal.md)). The
+`process-path-management` client was removed (ADR 0024): catalogue
+configuration is not an ops signal. It is a
 **Customer** of those contexts' published MCP Open Host Services — it owns
 no aggregate, enforces no new business invariant, and persists no domain
 state. Its "domain" layer is decision **policy**: pure correlation rules
@@ -58,8 +62,8 @@ import of any sibling's internal packages:
 | `facility-layout` | `list_sites`, `get_site_layout`, `get_zone_grid`, `estimate_travel_distance` | daily brief (`list_sites`), explain travel factor |
 | `inventory-storage` | `check_availability`, `get_bin_occupancy` | E2 stranded reservation (MCP tool `detect_stranded_reservation`) |
 | `labor-performance` | `get_associate_scorecard`, `get_task_type_performance`, `get_labor_standard`, `get_task_type_utilization` | flow-balance utilization overlay (`get_task_type_utilization`, [ADR 0008](../adr/0008-labor-utilization-advisory-correlation.md)) |
-| `order-management` | `get_order` | nothing yet (wired, unconsumed) |
-| `process-path-management` | `get_process_path`, `list_process_paths` | nothing yet (wired, unconsumed) |
+| `order-management` | `get_promise_health` | daily brief `promiseHealth` section (today so far; [ADR 0024](../adr/0024-slot-plan-watch-promise-health-and-ppm-client-removal.md)); `get_order` stays published but unwired |
+| `slotting-optimization` | `get_slot_plan`, `list_slot_plans` (two of its four published read tools) | daily brief `slotPlanWatch` section: Approved plans with unexecuted moves after `SLOT_PLAN_STALE_AGE` ([ADR 0024](../adr/0024-slot-plan-watch-promise-health-and-ppm-client-removal.md)); `get_forward_slots` and `get_sku_velocity` deliberately unwired |
 | `warehouse-planning` | `get_process_path_capacity`, `get_capacity_plan`, `get_storage_capacity`, `list_station_standards` (read tools only; its write tools are never called) | daily brief capacity outlook (`get_process_path_capacity`, [ADR 0013](../adr/0013-warehouse-planning-mcp-client-and-capacity-outlook.md)); the other three wired, unconsumed |
 | `product-master` | `get_product`, `list_products`, `get_product_classification`, `get_physical_profile` (its whole, read-only surface) | master-data gaps report (`list_products`, `GET /master-data-gaps` / `find_master_data_gaps`, [ADR 0020](../adr/0020-product-master-mcp-client-and-master-data-gaps.md)); the other three wired, unconsumed. Switched on in the kind cluster (warehouse-infra sets `PRODUCT_MASTER_MCP_ENDPOINT`) |
 | `inbound-receiving` | `get_asn`, `list_asns`, `get_appointment`, `list_appointments`, `get_receipt`, `list_receipts`, `list_docks` (its whole, read-only surface) | inbound outlook (`list_asns`, `list_appointments`, `list_receipts`; `GET /inbound-outlook` / `get_inbound_outlook`, [ADR 0021](../adr/0021-inbound-receiving-mcp-client-and-inbound-outlook.md)); the other four wired, unconsumed. Off until `INBOUND_RECEIVING_MCP_ENDPOINT` is set |

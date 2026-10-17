@@ -78,8 +78,7 @@ answers `503` (`explain travel factor not configured`) and the
 | `FACILITY_LAYOUT_MCP_ENDPOINT` | empty | needed by explain-travel-factor; the brief only loses site names | `list_sites`, `estimate_travel_distance` | `internal/config/config.go` | `upstreams.facilityLayout.endpoint` |
 | `INVENTORY_STORAGE_MCP_ENDPOINT` | empty | needed by `detect_stranded_reservation` | `check_availability`, `get_bin_occupancy` | `internal/config/config.go` | `upstreams.inventoryStorage.endpoint` |
 | `LABOR_PERFORMANCE_MCP_ENDPOINT` | empty | no; without it the flow balance has no `utilization` overlay | `get_task_type_utilization` | `internal/config/config.go` | `upstreams.laborPerformance.endpoint` |
-| `ORDER_MANAGEMENT_MCP_ENDPOINT` | empty | no; the client is wired but no use case calls it | `get_order` | `internal/config/config.go` | `upstreams.orderManagement.endpoint` |
-| `PROCESS_PATH_MANAGEMENT_MCP_ENDPOINT` | empty | no; the client is wired but no use case calls it | `get_process_path`, `list_process_paths` | `internal/config/config.go` | `upstreams.processPathManagement.endpoint` |
+| `ORDER_MANAGEMENT_MCP_ENDPOINT` | empty | no; without it the daily brief carries no `promiseHealth` section | `get_promise_health` ([ADR 0024](../adr/0024-slot-plan-watch-promise-health-and-ppm-client-removal.md)) | `internal/config/config.go` | `upstreams.orderManagement.endpoint` |
 
 **Optional upstreams.** Without the client the feature is off. Nothing
 else changes.
@@ -90,7 +89,14 @@ else changes.
 | `PRODUCT_MASTER_MCP_ENDPOINT` | empty | no | `GET /master-data-gaps` answers `503` and `find_master_data_gaps` is not registered ([ADR 0020](../adr/0020-product-master-mcp-client-and-master-data-gaps.md)). | `internal/config/config.go` | `upstreams.productMaster.endpoint` |
 | `INBOUND_RECEIVING_MCP_ENDPOINT` | empty | no | `GET /inbound-outlook` answers `503` and `get_inbound_outlook` is not registered ([ADR 0021](../adr/0021-inbound-receiving-mcp-client-and-inbound-outlook.md)). | `internal/config/config.go` | `upstreams.inboundReceiving.endpoint` |
 | `NETWORK_INVENTORY_PLANNING_MCP_ENDPOINT` | empty | no | The three `/transfer-watch/*` routes answer `503` and the three transfer-watch tools are not registered ([ADR 0019](../adr/0019-network-inventory-planning-transfer-watch.md)). | `internal/config/config.go` | `upstreams.networkInventoryPlanning.endpoint` |
+| `SLOTTING_OPTIMIZATION_MCP_ENDPOINT` | empty | no | No `slotPlanWatch` section in the daily brief ([ADR 0024](../adr/0024-slot-plan-watch-promise-health-and-ppm-client-removal.md)); nothing else changes. | `internal/config/config.go` | `upstreams.slottingOptimization.endpoint` |
 | `INBOUND_STALE_RECEIPT_AGE` | none | no | Go duration, e.g. `6h`. An Open receipt older than this is listed in `staleReceipts`. Unset, unparseable or non-positive means the section is omitted with the reason `INBOUND_STALE_RECEIPT_AGE is not configured`. There is deliberately no default. | `internal/config/config.go` | `config.inboundStaleReceiptAge` |
+| `SLOT_PLAN_STALE_AGE` | `24h` | no | Go duration, e.g. `12h`. An Approved slot plan whose moves are not fully executed this long after approval is listed in the daily brief's `slotPlanWatch.stale`. Unset, unparseable or non-positive means `24h`. Used only when `SLOTTING_OPTIMIZATION_MCP_ENDPOINT` is set. | `internal/config/config.go` | `config.slotPlanStaleAge` |
+
+The process-path-management client was removed (ADR 0024, gap A9);
+`PROCESS_PATH_MANAGEMENT_MCP_ENDPOINT` is no longer read. The endpoint
+stays configured in warehouse-infra's terraform until the orchestrator
+removes it in a later infra change.
 
 ### console-bff REST base URLs
 

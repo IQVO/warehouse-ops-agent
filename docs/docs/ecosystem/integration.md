@@ -46,16 +46,23 @@ column); for an "optional" one the feature is off.
 | facility-layout | `FACILITY_LAYOUT_MCP_ENDPOINT` (core) | `list_sites`, `estimate_travel_distance` | `get_site_layout`, `get_zone_grid` | daily brief (site names), explain-travel-factor | brief: empty `siteName`; explain-travel-factor: `502`, or `400` for a validation slug; `503` and no `explain_travel_factor` tool when the endpoint is empty |
 | inventory-storage | `INVENTORY_STORAGE_MCP_ENDPOINT` (core) | `check_availability`, `get_bin_occupancy` | none | `detect_stranded_reservation` | `hold` with the reason in `rationale`; never a revoke recommendation on partial evidence |
 | labor-performance | `LABOR_PERFORMANCE_MCP_ENDPOINT` (core) | `get_task_type_utilization` | `get_associate_scorecard`, `get_task_type_performance`, `get_labor_standard` | flow-balance utilization overlay ([ADR 0008](../adr/0008-labor-utilization-advisory-correlation.md)) | overlay omitted; the decision is unchanged |
-| order-management | `ORDER_MANAGEMENT_MCP_ENDPOINT` (core) | none | `get_order` | nothing (wired as `outboundClients.om` in `cmd/agent/main.go`) | n/a |
-| process-path-management | `PROCESS_PATH_MANAGEMENT_MCP_ENDPOINT` (core) | none | `get_process_path`, `list_process_paths` | nothing (`outboundClients.ppm`) | n/a |
+| order-management | `ORDER_MANAGEMENT_MCP_ENDPOINT` (core) | `get_promise_health` | `get_order` (published by order-management; no use case here calls it) | daily-brief `promiseHealth` section, today so far ([ADR 0024](../adr/0024-slot-plan-watch-promise-health-and-ppm-client-removal.md)) | the section carries an `unavailable` line; the brief is still `200` |
 | warehouse-planning | `WAREHOUSE_PLANNING_MCP_ENDPOINT` (optional) | `get_process_path_capacity` | `get_capacity_plan`, `get_storage_capacity`, `list_station_standards` | daily-brief `capacityOutlook` ([ADR 0013](../adr/0013-warehouse-planning-mcp-client-and-capacity-outlook.md)) | the path's `capacityOutlook` carries an `omittedReason`; the brief is still `200` |
 | product-master | `PRODUCT_MASTER_MCP_ENDPOINT` (optional) | `list_products` | `get_product`, `get_product_classification`, `get_physical_profile` | `GET /master-data-gaps`, `find_master_data_gaps` ([ADR 0020](../adr/0020-product-master-mcp-client-and-master-data-gaps.md)) | `502`, no partial report; `400` for a rejected cursor |
 | inbound-receiving | `INBOUND_RECEIVING_MCP_ENDPOINT` (optional) | `list_asns`, `list_appointments`, `list_receipts` | `get_asn`, `get_appointment`, `get_receipt`, `list_docks` | `GET /inbound-outlook`, `get_inbound_outlook` ([ADR 0021](../adr/0021-inbound-receiving-mcp-client-and-inbound-outlook.md)) | the failing section is `omitted` with a reason; `502` only when every attempted section failed |
 | network-inventory-planning | `NETWORK_INVENTORY_PLANNING_MCP_ENDPOINT` (optional) | `find_stuck_transfers`, `get_transfer`, `simulate_transfer_options` | `list_transfers` | `/transfer-watch/*` and the three transfer-watch tools ([ADR 0019](../adr/0019-network-inventory-planning-transfer-watch.md)) | `502`; `404` for `*-not-found`; `400` for a validation slug; the imbalance fails closed until NIP's read models are fresh |
+| slotting-optimization | `SLOTTING_OPTIMIZATION_MCP_ENDPOINT` (optional) | `list_slot_plans`, `get_slot_plan` | `get_forward_slots`, `get_sku_velocity` (published; no use case here calls them) | daily-brief `slotPlanWatch` section ([ADR 0024](../adr/0024-slot-plan-watch-promise-health-and-ppm-client-removal.md)) | the section carries an `unavailable` line (or an explicit `noApproved`); the brief is still `200` |
+
+The process-path-management client was removed entirely (ADR 0024, gap A9):
+catalogue configuration is not an ops signal, and no use case ever consumed
+it. `PROCESS_PATH_MANAGEMENT_MCP_ENDPOINT` is no longer read; the endpoint
+stays configured in warehouse-infra's terraform until the orchestrator
+removes it in a later infra change.
 
 The zero-write tests (`internal/architecture/zerowrite`) fail the build if
-any client calls a tool outside the read set, and pin product-master's and
-inbound-receiving's clients to exactly the tools above.
+any client calls a tool outside the read set, and pin product-master's,
+inbound-receiving's and slotting-optimization's clients to exactly the
+tools above.
 
 ### Tools the LLM may call
 

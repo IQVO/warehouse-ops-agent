@@ -77,15 +77,10 @@ type LaborPerformanceClient interface {
 	GetTaskTypeUtilization(ctx context.Context, taskType string, windowSeconds int64) (TaskTypeUtilization, error)
 }
 
-// ProcessPathManagementClient is the outbound port for
-// process-path-management's published read tools (get_process_path,
-// list_process_paths).
-type ProcessPathManagementClient interface {
-	GetProcessPath(ctx context.Context, pathId string) (ProcessPath, error)
-	ListProcessPaths(ctx context.Context, activeOnly bool) (ProcessPathList, error)
-}
-
-// --- order-management read-model DTOs -------------------------------------
+// ProcessPathManagementClient and its DTOs were REMOVED (ADR 0024, gap
+// A9): process-path-management's catalogue configuration is not an ops
+// signal, no use case ever consumed the client, and a wired-but-unused
+// client is exactly the dead wiring this change set closes.
 
 // --- labor-performance read-model DTOs ------------------------------------
 
@@ -140,27 +135,4 @@ type TaskTypeUtilization struct {
 	IdleSeconds    int64    `json:"idleSeconds"`
 	OpenGapSeconds int64    `json:"openGapSeconds"`
 	UtilizationPct *float64 `json:"utilizationPct"`
-}
-
-// --- process-path-management read-model DTOs ------------------------------
-
-// ProcessPath mirrors process-path-management's get_process_path /
-// list_process_paths tool output (processPathDTO in its
-// internal/adapters/inbound/mcp/mapping.go).
-type ProcessPath struct {
-	PathId               string   `json:"pathId"`
-	MatchPrefix          string   `json:"matchPrefix"`
-	Direct               bool     `json:"direct"`
-	RequiredCapabilities []string `json:"requiredCapabilities"`
-	Status               string   `json:"status"`
-	Active               bool     `json:"active"`
-	CreatedAt            string   `json:"createdAt"`
-	UpdatedAt            string   `json:"updatedAt"`
-}
-
-// ProcessPathList mirrors process-path-management's list_process_paths
-// tool output (listProcessPathsOutput in its
-// internal/adapters/inbound/mcp/tools.go).
-type ProcessPathList struct {
-	Paths []ProcessPath `json:"paths"`
 }

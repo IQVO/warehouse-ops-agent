@@ -492,7 +492,7 @@ classDiagram
         FacilityLayoutClient
         LaborPerformanceClient
         OrderManagementMCPClient
-        ProcessPathManagementClient
+        SlottingOptimizationClient
         WarehousePlanningClient
     }
     class RESTClientPorts {

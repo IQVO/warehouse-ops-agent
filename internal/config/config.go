@@ -73,18 +73,19 @@ type Config struct {
 	WorkforceManagement  UpstreamConfig
 	FacilityLayout       UpstreamConfig
 
-	// OrderManagement, LaborPerformance, ProcessPathManagement are the
-	// second-wave upstream contexts whose MCP servers came online in a
-	// later fleet-wide wiring pass (ADR 0007). Like the five above, an
-	// empty endpoint means "skip this client". LaborPerformance has
-	// since graduated from "wired but unconsumed" to actually consumed
+	// OrderManagement and LaborPerformance are the second-wave upstream
+	// contexts whose MCP servers came online in a later fleet-wide wiring
+	// pass (ADR 0007). Like the five above, an empty endpoint means
+	// "skip this client". LaborPerformance has since graduated to consumed
 	// by FlowBalanceAdvisory's labor-utilization correlation overlay
-	// (ADR 0008 Phase 3); OrderManagement and ProcessPathManagement
-	// remain wired-but-unconsumed, the ADR-0007 precedent they were
-	// both added under.
-	OrderManagement       UpstreamConfig
-	LaborPerformance      UpstreamConfig
-	ProcessPathManagement UpstreamConfig
+	// (ADR 0008 Phase 3); OrderManagement is consumed by the daily brief's
+	// promise-health section (ADR 0024). ProcessPathManagement was REMOVED
+	// (ADR 0024, gap A9): catalogue configuration is not an ops signal,
+	// and the client's PROCESS_PATH_MANAGEMENT_MCP_ENDPOINT is no longer
+	// read. The endpoint itself stays configured in warehouse-infra's
+	// terraform until the orchestrator removes it in a later infra change.
+	OrderManagement  UpstreamConfig
+	LaborPerformance UpstreamConfig
 
 	// WarehousePlanning is the third-wave upstream (ADR 0013). An empty
 	// endpoint means "not configured": the composition root then builds no
@@ -272,9 +273,6 @@ func Load() (Config, error) {
 		},
 		LaborPerformance: UpstreamConfig{
 			Endpoint: getenv("LABOR_PERFORMANCE_MCP_ENDPOINT", ""),
-		},
-		ProcessPathManagement: UpstreamConfig{
-			Endpoint: getenv("PROCESS_PATH_MANAGEMENT_MCP_ENDPOINT", ""),
 		},
 		WarehousePlanning: UpstreamConfig{
 			Endpoint: getenv("WAREHOUSE_PLANNING_MCP_ENDPOINT", ""),

@@ -124,7 +124,6 @@ func run() error {
 type outboundClients struct {
 	// om backs the daily brief's promise-health section (ADR 0024).
 	om       ports.OrderManagementMCPClient
-	ppm      ports.ProcessPathManagementClient
 	wes      ports.WesWorkPlanningClient
 	fe       ports.FulfillmentExecutionClient
 	wfm      ports.WorkforceManagementClient
@@ -213,9 +212,6 @@ func newOutboundClients(cfg config.Config) outboundClients {
 	return outboundClients{
 		om: newMCPClient("order-management", cfg.OrderManagement.Endpoint, func(c mcpclient.Config) ports.OrderManagementMCPClient {
 			return mcpclient.NewOrderManagement(c)
-		}),
-		ppm: newMCPClient("process-path-management", cfg.ProcessPathManagement.Endpoint, func(c mcpclient.Config) ports.ProcessPathManagementClient {
-			return mcpclient.NewProcessPathManagement(c)
 		}),
 		wes: newMCPClient("wes-work-planning", cfg.WesWorkPlanning.Endpoint, func(c mcpclient.Config) ports.WesWorkPlanningClient {
 			return mcpclient.NewWesWorkPlanning(c)
@@ -439,7 +435,6 @@ func serveAgent(cfg config.Config, logger *slog.Logger, serviceName string, hand
 			"network_inventory_planning_endpoint_configured", cfg.NetworkInventoryPlanning.Endpoint != "",
 			"slotting_optimization_endpoint_configured", cfg.SlottingOptimization.Endpoint != "",
 			"order_management_endpoint_configured", cfg.OrderManagement.Endpoint != "",
-			"process_path_management_endpoint_configured", cfg.ProcessPathManagement.Endpoint != "",
 			"labor_performance_endpoint_configured", cfg.LaborPerformance.Endpoint != "",
 			"path_targets", len(cfg.PathTargets),
 		)
