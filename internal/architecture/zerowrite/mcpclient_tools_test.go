@@ -28,12 +28,13 @@ var writeToolPrefixes = []string{
 }
 
 // productMasterReadTools is the exact allow-list for the product-master
-// client (ADR 0020): its four published read tools. A prefix scan alone
-// would let a new non-prefixed verb through; this pins the whole set.
-var productMasterReadTools = []string{"get_physical_profile", "get_product", "get_product_classification", "list_products"}
+// client (ADR 0020): the one of its four published read tools the
+// master-data-gaps use case consumes. A prefix scan alone would let a new
+// non-prefixed verb through; this pins the whole set.
+var productMasterReadTools = []string{"list_products"}
 
 // TestProductMasterClientCallsOnlyPinnedTools scans product_master.go and
-// fails unless it names exactly product-master's four read tools.
+// fails unless it names exactly the one pinned read tool.
 func TestProductMasterClientCallsOnlyPinnedTools(t *testing.T) {
 	path := "../../adapters/outbound/mcpclient/product_master.go"
 	src, err := os.ReadFile(path)

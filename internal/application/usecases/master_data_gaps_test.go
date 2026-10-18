@@ -28,18 +28,6 @@ func (f *fakeProductMaster) ListProducts(_ context.Context, q ports.ProductListQ
 	return f.pages[q.Cursor], nil
 }
 
-func (f *fakeProductMaster) GetProduct(context.Context, string) (ports.Product, error) {
-	return ports.Product{}, errors.New("not used")
-}
-
-func (f *fakeProductMaster) GetProductClassification(context.Context, string) (ports.ProductClassificationReading, error) {
-	return ports.ProductClassificationReading{}, errors.New("not used")
-}
-
-func (f *fakeProductMaster) GetPhysicalProfile(context.Context, string) (ports.PhysicalProfileReading, error) {
-	return ports.PhysicalProfileReading{}, errors.New("not used")
-}
-
 func pmClassified() *ports.ProductClassification {
 	return &ports.ProductClassification{HandlingTags: []string{"Fragile"}, ClassificationSource: "native"}
 }

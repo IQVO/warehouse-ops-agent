@@ -60,18 +60,6 @@ func (f *fakeProductMaster) generatedPage(cursor string) ports.ProductPage {
 	return page
 }
 
-func (f *fakeProductMaster) GetProduct(context.Context, string) (ports.Product, error) {
-	return ports.Product{}, errNotUsed
-}
-
-func (f *fakeProductMaster) GetProductClassification(context.Context, string) (ports.ProductClassificationReading, error) {
-	return ports.ProductClassificationReading{}, errNotUsed
-}
-
-func (f *fakeProductMaster) GetPhysicalProfile(context.Context, string) (ports.PhysicalProfileReading, error) {
-	return ports.PhysicalProfileReading{}, errNotUsed
-}
-
 // ------------------------------------------- network-inventory-planning ----
 
 type fakeNIP struct {

@@ -2,7 +2,6 @@ package mcp_test
 
 import (
 	"context"
-	"errors"
 	"net/http/httptest"
 	"testing"
 
@@ -17,15 +16,6 @@ type fakeProductMaster struct{ page ports.ProductPage }
 
 func (f *fakeProductMaster) ListProducts(context.Context, ports.ProductListQuery) (ports.ProductPage, error) {
 	return f.page, nil
-}
-func (f *fakeProductMaster) GetProduct(context.Context, string) (ports.Product, error) {
-	return ports.Product{}, errors.New("not used")
-}
-func (f *fakeProductMaster) GetProductClassification(context.Context, string) (ports.ProductClassificationReading, error) {
-	return ports.ProductClassificationReading{}, errors.New("not used")
-}
-func (f *fakeProductMaster) GetPhysicalProfile(context.Context, string) (ports.PhysicalProfileReading, error) {
-	return ports.PhysicalProfileReading{}, errors.New("not used")
 }
 
 func newServerWithMasterDataGaps(t *testing.T) string {
