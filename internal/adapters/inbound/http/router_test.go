@@ -68,10 +68,6 @@ type fakeWfm struct{ gap ports.StaffingGap }
 func (f *fakeWfm) GetStaffingGap(ctx context.Context, buildingId, shiftId, pathId string) (ports.StaffingGap, error) {
 	return f.gap, nil
 }
-func (f *fakeWfm) ProposePathHeads(ctx context.Context, buildingId, pathId string, charge, plannedRate float64) (ports.ProposedHeads, error) {
-	return ports.ProposedHeads{}, nil
-}
-
 func newTestDailyBrief() *usecases.DailyBrief {
 	return &usecases.DailyBrief{
 		Facility: &fakeFacility{sites: ports.SitesResult{Sites: []ports.SiteRef{{Code: "WH1", Name: "One"}}}},

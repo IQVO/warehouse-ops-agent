@@ -56,10 +56,6 @@ type fakeWfm struct{ gap ports.StaffingGap }
 func (f *fakeWfm) GetStaffingGap(ctx context.Context, buildingId, shiftId, pathId string) (ports.StaffingGap, error) {
 	return f.gap, nil
 }
-func (f *fakeWfm) ProposePathHeads(ctx context.Context, buildingId, pathId string, charge, plannedRate float64) (ports.ProposedHeads, error) {
-	return ports.ProposedHeads{}, nil
-}
-
 func newTestDeps(imbalanced bool) Deps {
 	if imbalanced {
 		return Deps{DailyBrief: &usecases.DailyBrief{
@@ -174,9 +170,6 @@ type fbToolFakeWfm struct {
 
 func (f *fbToolFakeWfm) GetStaffingGap(ctx context.Context, buildingId, shiftId, pathId string) (ports.StaffingGap, error) {
 	return f.gap, nil
-}
-func (f *fbToolFakeWfm) ProposePathHeads(ctx context.Context, buildingId, pathId string, charge, plannedRate float64) (ports.ProposedHeads, error) {
-	return ports.ProposedHeads{}, nil
 }
 
 type fbToolFakeFe struct {

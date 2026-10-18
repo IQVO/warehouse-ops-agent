@@ -75,10 +75,6 @@ func (f *fakeWFM) GetStaffingGap(_ context.Context, buildingID, shiftID, pathID 
 	return g, nil
 }
 
-func (f *fakeWFM) ProposePathHeads(context.Context, string, string, float64, float64) (ports.ProposedHeads, error) {
-	return ports.ProposedHeads{}, errNotUsed
-}
-
 // ----------------------------------------------------------------- fe ------
 
 type fakeFE struct {

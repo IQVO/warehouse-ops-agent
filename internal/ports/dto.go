@@ -125,16 +125,6 @@ type StaffingGap struct {
 	Understaffed bool   `json:"understaffed"`
 }
 
-// ProposedHeads mirrors workforce-management's propose_path_heads tool
-// output.
-type ProposedHeads struct {
-	BuildingId    string  `json:"buildingId"`
-	PathId        string  `json:"pathId"`
-	Charge        float64 `json:"charge"`
-	PlannedRate   float64 `json:"plannedRate"`
-	ProposedHeads int     `json:"proposedHeads"`
-}
-
 // LaborAssignment mirrors workforce-management's assign_labor tool output
 // (write tool — bound for completeness; not called by any T1 use case).
 type LaborAssignment struct {

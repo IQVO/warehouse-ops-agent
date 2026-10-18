@@ -26,10 +26,9 @@ type InventoryStorageClient interface {
 }
 
 // WorkforceManagementClient is the outbound port for workforce-management's
-// published read tools (get_staffing_gap, propose_path_heads).
+// published read tool (get_staffing_gap).
 type WorkforceManagementClient interface {
 	GetStaffingGap(ctx context.Context, buildingId, shiftId, pathId string) (StaffingGap, error)
-	ProposePathHeads(ctx context.Context, buildingId, pathId string, charge, plannedRate float64) (ProposedHeads, error)
 }
 
 // FacilityLayoutClient is the outbound port for facility-layout's published

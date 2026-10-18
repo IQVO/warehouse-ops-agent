@@ -45,10 +45,6 @@ func (f *fbFakeWFM) GetStaffingGap(ctx context.Context, buildingId, shiftId, pat
 	return f.gap, nil
 }
 
-func (f *fbFakeWFM) ProposePathHeads(ctx context.Context, buildingId, pathId string, charge, plannedRate float64) (ports.ProposedHeads, error) {
-	return ports.ProposedHeads{}, errors.New("not used by FlowBalanceAdvisory")
-}
-
 type fbFakeFE struct {
 	result        ports.StuckTasksResult
 	err           error

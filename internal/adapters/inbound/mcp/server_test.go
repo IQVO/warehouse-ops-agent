@@ -59,9 +59,6 @@ type fakeWfm struct{ gap ports.StaffingGap }
 func (f *fakeWfm) GetStaffingGap(ctx context.Context, buildingId, shiftId, pathId string) (ports.StaffingGap, error) {
 	return f.gap, nil
 }
-func (f *fakeWfm) ProposePathHeads(ctx context.Context, buildingId, pathId string, charge, plannedRate float64) (ports.ProposedHeads, error) {
-	return ports.ProposedHeads{}, nil
-}
 
 // newServer builds a real MCP HTTP server wired to a DailyBrief use case
 // seeded to produce one open exception, and returns its httptest URL.

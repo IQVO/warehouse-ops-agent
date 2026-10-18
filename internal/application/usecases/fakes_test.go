@@ -86,9 +86,6 @@ func (f *fakeWfm) GetStaffingGap(ctx context.Context, buildingId, shiftId, pathI
 	}
 	return f.gaps[pathId], nil
 }
-func (f *fakeWfm) ProposePathHeads(ctx context.Context, buildingId, pathId string, charge, plannedRate float64) (ports.ProposedHeads, error) {
-	return ports.ProposedHeads{}, errors.New("not implemented in fake")
-}
 
 // fakeSlotting is a table-driven fake of the slotting-optimization port:
 // canned list pages keyed by cursor, canned plans keyed by id, and optional
