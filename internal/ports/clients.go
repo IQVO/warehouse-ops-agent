@@ -12,11 +12,9 @@ type WesWorkPlanningClient interface {
 }
 
 // FulfillmentExecutionClient is the outbound port for fulfillment-execution's
-// published read tools (get_queue_status, find_claimable_work,
-// diagnose_stuck_tasks).
+// published read tools (get_queue_status, diagnose_stuck_tasks).
 type FulfillmentExecutionClient interface {
 	GetQueueStatus(ctx context.Context, processPath string) (QueueStatus, error)
-	FindClaimableWork(ctx context.Context, processPath string) (ClaimableWorkResult, error)
 	DiagnoseStuckTasks(ctx context.Context, withinSeconds int) (StuckTasksResult, error)
 }
 

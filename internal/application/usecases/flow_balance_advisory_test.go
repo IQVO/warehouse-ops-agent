@@ -59,10 +59,6 @@ func (f *fbFakeFE) GetQueueStatus(ctx context.Context, processPath string) (port
 	return ports.QueueStatus{}, errors.New("not used by FlowBalanceAdvisory")
 }
 
-func (f *fbFakeFE) FindClaimableWork(ctx context.Context, processPath string) (ports.ClaimableWorkResult, error) {
-	return ports.ClaimableWorkResult{}, errors.New("not used by FlowBalanceAdvisory")
-}
-
 func (f *fbFakeFE) DiagnoseStuckTasks(ctx context.Context, withinSeconds int) (ports.StuckTasksResult, error) {
 	f.calledSeconds = withinSeconds
 	if f.err != nil {

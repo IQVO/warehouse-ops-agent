@@ -94,10 +94,6 @@ func (f *fakeFE) GetQueueStatus(_ context.Context, processPath string) (ports.Qu
 	return ports.QueueStatus{ProcessPath: processPath, Depth: f.queues[processPath]}, nil
 }
 
-func (f *fakeFE) FindClaimableWork(context.Context, string) (ports.ClaimableWorkResult, error) {
-	return ports.ClaimableWorkResult{}, errNotUsed
-}
-
 func (f *fakeFE) DiagnoseStuckTasks(context.Context, int) (ports.StuckTasksResult, error) {
 	if f.down {
 		return ports.StuckTasksResult{}, errUnreachable

@@ -51,24 +51,6 @@ type QueueStatus struct {
 	Depth       int    `json:"depth"`
 }
 
-// ClaimableWork mirrors fulfillment-execution's find_claimable_work "best"
-// entry.
-type ClaimableWork struct {
-	TaskId               string   `json:"taskId"`
-	Type                 string   `json:"type"`
-	CPT                  string   `json:"cpt"`
-	OrderRef             string   `json:"orderRef"`
-	RequiredCapabilities []string `json:"requiredCapabilities"`
-}
-
-// ClaimableWorkResult mirrors fulfillment-execution's find_claimable_work
-// tool output.
-type ClaimableWorkResult struct {
-	ProcessPath    string         `json:"processPath"`
-	CandidateCount int            `json:"candidateCount"`
-	Best           *ClaimableWork `json:"best"`
-}
-
 // StuckTask mirrors one entry of fulfillment-execution's diagnose_stuck_tasks
 // tool output.
 type StuckTask struct {

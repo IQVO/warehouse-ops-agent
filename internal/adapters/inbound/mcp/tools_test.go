@@ -47,9 +47,6 @@ type fakeFe struct {
 func (f *fakeFe) GetQueueStatus(ctx context.Context, processPath string) (ports.QueueStatus, error) {
 	return f.queue, nil
 }
-func (f *fakeFe) FindClaimableWork(ctx context.Context, processPath string) (ports.ClaimableWorkResult, error) {
-	return ports.ClaimableWorkResult{}, nil
-}
 func (f *fakeFe) DiagnoseStuckTasks(ctx context.Context, withinSeconds int) (ports.StuckTasksResult, error) {
 	return f.stuck, nil
 }
@@ -188,9 +185,6 @@ type fbToolFakeFe struct {
 
 func (f *fbToolFakeFe) GetQueueStatus(ctx context.Context, processPath string) (ports.QueueStatus, error) {
 	return ports.QueueStatus{}, nil
-}
-func (f *fbToolFakeFe) FindClaimableWork(ctx context.Context, processPath string) (ports.ClaimableWorkResult, error) {
-	return ports.ClaimableWorkResult{}, nil
 }
 func (f *fbToolFakeFe) DiagnoseStuckTasks(ctx context.Context, withinSeconds int) (ports.StuckTasksResult, error) {
 	return f.result, nil
@@ -335,9 +329,6 @@ type srToolFakeFe struct {
 
 func (f *srToolFakeFe) GetQueueStatus(ctx context.Context, processPath string) (ports.QueueStatus, error) {
 	return ports.QueueStatus{}, nil
-}
-func (f *srToolFakeFe) FindClaimableWork(ctx context.Context, processPath string) (ports.ClaimableWorkResult, error) {
-	return ports.ClaimableWorkResult{}, nil
 }
 func (f *srToolFakeFe) DiagnoseStuckTasks(ctx context.Context, withinSeconds int) (ports.StuckTasksResult, error) {
 	if f.stuckErr != nil {
