@@ -118,14 +118,6 @@ func (f *fakeFacility) ListSites(context.Context) (ports.SitesResult, error) {
 	return ports.SitesResult{Sites: f.sites}, nil
 }
 
-func (f *fakeFacility) GetSiteLayout(context.Context, string) (ports.SiteLayout, error) {
-	return ports.SiteLayout{}, errNotUsed
-}
-
-func (f *fakeFacility) GetZoneGrid(context.Context, string) (ports.ZoneGrid, error) {
-	return ports.ZoneGrid{}, errNotUsed
-}
-
 func (f *fakeFacility) EstimateTravelDistance(_ context.Context, from, to string) (ports.TravelDistance, error) {
 	f.calls = append(f.calls, from+"|"+to)
 	if f.down {

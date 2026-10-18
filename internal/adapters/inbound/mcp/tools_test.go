@@ -17,12 +17,6 @@ type fakeFacility struct {
 }
 
 func (f *fakeFacility) ListSites(ctx context.Context) (ports.SitesResult, error) { return f.sites, nil }
-func (f *fakeFacility) GetSiteLayout(ctx context.Context, siteCode string) (ports.SiteLayout, error) {
-	return ports.SiteLayout{}, nil
-}
-func (f *fakeFacility) GetZoneGrid(ctx context.Context, zoneId string) (ports.ZoneGrid, error) {
-	return ports.ZoneGrid{}, nil
-}
 func (f *fakeFacility) EstimateTravelDistance(ctx context.Context, from, to string) (ports.TravelDistance, error) {
 	if f.err != nil {
 		return ports.TravelDistance{}, f.err

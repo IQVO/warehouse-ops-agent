@@ -146,56 +146,6 @@ type SitesResult struct {
 	Sites []SiteRef `json:"sites"`
 }
 
-// AisleLayout mirrors one aisle within facility-layout's get_site_layout
-// tool output.
-type AisleLayout struct {
-	AisleID      string   `json:"aisleId"`
-	AisleCode    string   `json:"aisleCode"`
-	SequenceHint int      `json:"sequenceHint"`
-	Direction    string   `json:"direction"`
-	SlotCodes    []string `json:"slotCodes"`
-}
-
-// ZoneLayout mirrors one zone within facility-layout's get_site_layout tool
-// output.
-type ZoneLayout struct {
-	ZoneID           string        `json:"zoneId"`
-	AreaCode         string        `json:"areaCode"`
-	ZoneCode         string        `json:"zoneCode"`
-	TemperatureClass string        `json:"temperatureClass"`
-	Hazmat           bool          `json:"hazmat"`
-	Aisles           []AisleLayout `json:"aisles"`
-}
-
-// SiteLayout mirrors facility-layout's get_site_layout tool output.
-type SiteLayout struct {
-	Site  SiteRef      `json:"site"`
-	Zones []ZoneLayout `json:"zones"`
-}
-
-// GridColumn mirrors one column of facility-layout's get_zone_grid tool
-// output.
-type GridColumn struct {
-	AisleID      string `json:"aisleId"`
-	AisleCode    string `json:"aisleCode"`
-	Bay          string `json:"bay"`
-	SequenceHint int    `json:"sequenceHint"`
-}
-
-// GridRow mirrors one row of facility-layout's get_zone_grid tool output.
-type GridRow struct {
-	Level string   `json:"level"`
-	Cells []string `json:"cells"`
-}
-
-// ZoneGrid mirrors facility-layout's get_zone_grid tool output.
-type ZoneGrid struct {
-	ZoneID  string       `json:"zoneId"`
-	Columns []GridColumn `json:"columns"`
-	Levels  []string     `json:"levels"`
-	Rows    []GridRow    `json:"rows"`
-}
-
 // TravelNode mirrors one waypoint (aisle + bay) of facility-layout's
 // estimate_travel_distance tool output route.
 type TravelNode struct {
