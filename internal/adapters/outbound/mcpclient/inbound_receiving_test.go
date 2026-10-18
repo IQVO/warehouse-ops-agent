@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -31,10 +30,16 @@ import (
 // below then say exactly which consumer-side assumption broke.
 const inboundReceivingGoldenPath = "testdata/inbound_receiving_tools.golden.json"
 
-// wantInboundReceivingTools is the exact set of tools this client calls.
+// wantInboundReceivingTools is every tool inbound-receiving publishes (seven,
+// the verbatim golden); the client itself deliberately calls only the three in
+// wantInboundReceivingCalledTools below.
 var wantInboundReceivingTools = []string{
 	"get_appointment", "get_asn", "get_receipt", "list_appointments", "list_asns", "list_docks", "list_receipts",
 }
+
+// wantInboundReceivingCalledTools is the exact set of tools this client calls
+// (the three list tools the inbound outlook consumes, ADR 0021).
+var wantInboundReceivingCalledTools = []string{"list_appointments", "list_asns", "list_receipts"}
 
 func loadInboundReceivingGolden(t *testing.T) map[string]goldenTool {
 	t.Helper()
@@ -64,7 +69,7 @@ func TestInboundReceiving_GoldenPinsExactlyTheSevenReadOnlyTools(t *testing.T) {
 	}
 	sort.Strings(names)
 	if strings.Join(names, ",") != strings.Join(wantInboundReceivingTools, ",") {
-		t.Fatalf("inbound-receiving publishes %v, this client is built for exactly %v", names, wantInboundReceivingTools)
+		t.Fatalf("inbound-receiving publishes %v, this golden is built for exactly %v", names, wantInboundReceivingTools)
 	}
 	for _, name := range wantInboundReceivingTools {
 		if golden[name].Annotations["readOnlyHint"] != true {
@@ -80,13 +85,9 @@ func TestInboundReceiving_GoldenPinsExactlyTheSevenReadOnlyTools(t *testing.T) {
 func TestInboundReceiving_PortDTOsMatchPublishedOutputSchemas(t *testing.T) {
 	golden := loadInboundReceivingGolden(t)
 	cases := map[string]reflect.Type{
-		"get_asn":           reflect.TypeFor[ports.InboundAsn](),
 		"list_asns":         reflect.TypeFor[ports.InboundAsnPage](),
-		"get_appointment":   reflect.TypeFor[ports.InboundAppointment](),
 		"list_appointments": reflect.TypeFor[ports.InboundAppointmentPage](),
-		"get_receipt":       reflect.TypeFor[ports.InboundReceipt](),
 		"list_receipts":     reflect.TypeFor[ports.InboundReceiptPage](),
-		"list_docks":        reflect.TypeFor[ports.InboundDockList](),
 	}
 	for tool, typ := range cases {
 		for _, problem := range compareStructToSchema(typ, golden[tool].OutputSchema, tool) {
@@ -98,7 +99,7 @@ func TestInboundReceiving_PortDTOsMatchPublishedOutputSchemas(t *testing.T) {
 // --- a schema-faithful inbound-receiving stand-in ----------------------------
 
 // inboundReceivingUpstream is a real Streamable-HTTP MCP server whose seven
-// tools carry inbound-receiving's PUBLISHED input and output schemas from the
+// tools (the client calls only three of them) carry inbound-receiving's PUBLISHED input and output schemas from the
 // golden: the SDK validates the client's arguments (additionalProperties:false,
 // so a misspelled key is rejected) and the canned results against them.
 type inboundReceivingUpstream struct {
@@ -150,18 +151,6 @@ func irToolError(text string) *mcp.CallToolResult {
 	return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: text}}}
 }
 
-func irGetAsn(_ context.Context, _ *mcp.CallToolRequest, in map[string]any) (*mcp.CallToolResult, any, error) {
-	switch in["asn_number"] {
-	case "ASN-1001":
-		return nil, irFixture(irAsn1), nil
-	case "ASN-1002":
-		return nil, irFixture(irAsn2), nil
-	case "bad":
-		return irToolError("invalid-asn-number: malformed ASN number"), nil, nil
-	}
-	return irToolError("asn-not-found: no ASN " + fmt.Sprint(in["asn_number"])), nil, nil
-}
-
 func irListAsns(_ context.Context, _ *mcp.CallToolRequest, in map[string]any) (*mcp.CallToolResult, any, error) {
 	if limit, ok := in["limit"].(float64); ok && (limit < 1 || limit > 500) {
 		return irToolError("invalid-query: limit must be between 1 and 500"), nil, nil
@@ -172,25 +161,8 @@ func irListAsns(_ context.Context, _ *mcp.CallToolRequest, in map[string]any) (*
 	return nil, map[string]any{"items": []any{irFixture(irAsn1)}, "next_cursor": "c2"}, nil
 }
 
-func irGetAppointment(_ context.Context, _ *mcp.CallToolRequest, in map[string]any) (*mcp.CallToolResult, any, error) {
-	if in["appointment_id"] == "appt-1" {
-		return nil, irFixture(irAppt1), nil
-	}
-	return irToolError("appointment-not-found: no appointment " + fmt.Sprint(in["appointment_id"])), nil, nil
-}
-
 func irListAppointments(_ context.Context, _ *mcp.CallToolRequest, _ map[string]any) (*mcp.CallToolResult, any, error) {
 	return nil, map[string]any{"items": []any{irFixture(irAppt1)}}, nil
-}
-
-func irGetReceipt(_ context.Context, _ *mcp.CallToolRequest, in map[string]any) (*mcp.CallToolResult, any, error) {
-	switch in["receipt_id"] {
-	case "rcpt-1":
-		return nil, irFixture(irReceiptClosed), nil
-	case "rcpt-2":
-		return nil, irFixture(irReceiptOpen), nil
-	}
-	return irToolError("receipt-not-found: no receipt " + fmt.Sprint(in["receipt_id"])), nil, nil
 }
 
 func irListReceipts(_ context.Context, _ *mcp.CallToolRequest, in map[string]any) (*mcp.CallToolResult, any, error) {
@@ -200,26 +172,15 @@ func irListReceipts(_ context.Context, _ *mcp.CallToolRequest, in map[string]any
 	return nil, map[string]any{"items": []any{irFixture(irReceiptClosed), irFixture(irReceiptOpen)}}, nil
 }
 
-func irListDocks(_ context.Context, _ *mcp.CallToolRequest, _ map[string]any) (*mcp.CallToolResult, any, error) {
-	return nil, map[string]any{"mode": "kafka", "items": []any{
-		map[string]any{"door_code": "D1", "dock_flow": "Inbound"},
-		map[string]any{"door_code": "D2", "dock_flow": "Both"},
-	}}, nil
-}
-
 func newInboundReceivingTestUpstream(t *testing.T) *inboundReceivingUpstream {
 	t.Helper()
 	golden := loadInboundReceivingGolden(t)
 	up := &inboundReceivingUpstream{}
 	server := mcp.NewServer(&mcp.Implementation{Name: "inbound-receiving-test", Version: "0"}, nil)
 	handlers := map[string]mcp.ToolHandlerFor[map[string]any, any]{
-		"get_asn":           irGetAsn,
 		"list_asns":         irListAsns,
-		"get_appointment":   irGetAppointment,
 		"list_appointments": irListAppointments,
-		"get_receipt":       irGetReceipt,
 		"list_receipts":     irListReceipts,
-		"list_docks":        irListDocks,
 	}
 	for name, h := range handlers {
 		g, h := golden[name], h
@@ -242,47 +203,68 @@ func newInboundReceivingTestUpstream(t *testing.T) *inboundReceivingUpstream {
 
 // --- behaviour over the wire --------------------------------------------------
 
-func TestInboundReceiving_GetAsn_DecodesLinesAndOptionalArrival(t *testing.T) {
+func TestInboundReceiving_ListAsns_DecodesLinesAndOptionalArrival(t *testing.T) {
 	up := newInboundReceivingTestUpstream(t)
 	c := NewInboundReceiving(Config{Endpoint: up.URL})
 
-	a, err := c.GetAsn(context.Background(), "ASN-1001")
+	first, err := c.ListAsns(context.Background(), ports.InboundAsnListQuery{})
 	if err != nil {
-		t.Fatalf("GetAsn: %v", err)
+		t.Fatalf("ListAsns: %v", err)
 	}
+	a := first.Items[0]
 	if a.AsnNumber != "ASN-1001" || a.SupplierRef != "PO-77" || a.State != "Registered" || a.Version != 2 ||
 		a.ExpectedArrival != "2026-10-08T14:00:00Z" || len(a.Lines) != 2 || a.Lines[1].Sku != "SKU-2" || a.Lines[1].ExpectedQty != 4 {
 		t.Fatalf("unexpected ASN: %+v", a)
 	}
-	if up.args()["asn_number"] != "ASN-1001" {
-		t.Fatalf("asn_number argument not sent: %v", up.args())
-	}
 
-	none, err := c.GetAsn(context.Background(), "ASN-1002")
+	second, err := c.ListAsns(context.Background(), ports.InboundAsnListQuery{Cursor: "c2"})
 	if err != nil {
-		t.Fatalf("GetAsn (no arrival): %v", err)
+		t.Fatalf("ListAsns (no arrival): %v", err)
 	}
-	if none.ExpectedArrival != "" {
-		t.Fatalf("an ASN with no expected arrival must decode as empty, got %q", none.ExpectedArrival)
+	if second.Items[0].ExpectedArrival != "" {
+		t.Fatalf("an ASN with no expected arrival must decode as empty, got %q", second.Items[0].ExpectedArrival)
 	}
 }
 
-func TestInboundReceiving_GetAsn_ErrorSlugs(t *testing.T) {
+func TestInboundReceiving_ListAppointments_Decodes(t *testing.T) {
 	up := newInboundReceivingTestUpstream(t)
-	c := NewInboundReceiving(Config{Endpoint: up.URL})
-
-	_, err := c.GetAsn(context.Background(), "ASN-404")
-	var te *ToolError
-	if !errors.As(err, &te) || te.Slug != "asn-not-found" {
-		t.Fatalf("want an asn-not-found ToolError, got %v", err)
+	page, err := NewInboundReceiving(Config{Endpoint: up.URL}).ListAppointments(context.Background(), ports.InboundAppointmentListQuery{})
+	if err != nil {
+		t.Fatalf("ListAppointments: %v", err)
 	}
-	if errors.Is(err, ports.ErrUpstreamInvalidInput) || !errors.Is(err, ports.ErrUpstreamNotFound) {
-		t.Fatal("not-found is an upstream answer, not an input rejection")
+	a := page.Items[0]
+	if a.AppointmentID != "appt-1" || a.DoorCode != "D1" || a.Carrier != "ACME" || a.State != "Booked" ||
+		a.WindowStart != "2026-10-08T14:00:00Z" || a.WindowEnd != "2026-10-08T15:00:00Z" || strings.Join(a.AsnNumbers, ",") != "ASN-1001" {
+		t.Fatalf("unexpected appointment: %+v", a)
 	}
+}
 
-	_, err = c.GetAsn(context.Background(), "bad")
-	if !errors.Is(err, ports.ErrUpstreamInvalidInput) {
-		t.Fatalf("invalid-asn-number must classify as an input rejection, got %v", err)
+func TestInboundReceiving_ListReceipts_DecodesDiscrepanciesAndWalkIns(t *testing.T) {
+	up := newInboundReceivingTestUpstream(t)
+	page, err := NewInboundReceiving(Config{Endpoint: up.URL}).ListReceipts(context.Background(), ports.InboundReceiptListQuery{})
+	if err != nil {
+		t.Fatalf("ListReceipts: %v", err)
+	}
+	if len(page.Items) != 2 {
+		t.Fatalf("unexpected page: %+v", page)
+	}
+	assertClosedReceipt(t, page.Items[0])
+	open := page.Items[1]
+	if open.State != "Open" || open.ClosedAt != "" || open.AppointmentID != "" || open.DoorCode != "" || len(open.Discrepancies) != 0 {
+		t.Fatalf("an open walk-in receipt must decode with empty optional fields: %+v", open)
+	}
+}
+
+func assertClosedReceipt(t *testing.T, closed ports.InboundReceipt) {
+	t.Helper()
+	if closed.State != "Closed" || closed.ClosedAt != "2026-10-08T10:00:00Z" || closed.AppointmentID != "appt-1" || closed.DoorCode != "D1" {
+		t.Fatalf("unexpected closed receipt: %+v", closed)
+	}
+	if len(closed.Lines) != 1 || closed.Lines[0].ReceivedGood != 8 || closed.Lines[0].ReceivedDamaged != 1 {
+		t.Fatalf("unexpected closed receipt lines: %+v", closed.Lines)
+	}
+	if len(closed.Discrepancies) != 1 || closed.Discrepancies[0].Kind != "Short" || closed.Discrepancies[0].DamagedQty != 1 {
+		t.Fatalf("unexpected closed receipt discrepancies: %+v", closed.Discrepancies)
 	}
 }
 
@@ -322,26 +304,6 @@ func TestInboundReceiving_ListAsns_InvalidQueryIsInvalidInput(t *testing.T) {
 	}
 }
 
-func TestInboundReceiving_GetAppointment(t *testing.T) {
-	up := newInboundReceivingTestUpstream(t)
-	c := NewInboundReceiving(Config{Endpoint: up.URL})
-
-	a, err := c.GetAppointment(context.Background(), "appt-1")
-	if err != nil {
-		t.Fatalf("GetAppointment: %v", err)
-	}
-	if a.AppointmentID != "appt-1" || a.DoorCode != "D1" || a.Carrier != "ACME" || a.State != "Booked" ||
-		a.WindowStart != "2026-10-08T14:00:00Z" || a.WindowEnd != "2026-10-08T15:00:00Z" || strings.Join(a.AsnNumbers, ",") != "ASN-1001" {
-		t.Fatalf("unexpected appointment: %+v", a)
-	}
-
-	_, err = c.GetAppointment(context.Background(), "appt-404")
-	var te *ToolError
-	if !errors.As(err, &te) || te.Slug != "appointment-not-found" {
-		t.Fatalf("want appointment-not-found, got %v", err)
-	}
-}
-
 func TestInboundReceiving_ListAppointments_SendsEveryFilterUnderItsPublishedName(t *testing.T) {
 	up := newInboundReceivingTestUpstream(t)
 	c := NewInboundReceiving(Config{Endpoint: up.URL})
@@ -371,44 +333,6 @@ func TestInboundReceiving_ListAppointments_SendsEveryFilterUnderItsPublishedName
 	}
 }
 
-func TestInboundReceiving_GetReceipt_DecodesDiscrepancies(t *testing.T) {
-	up := newInboundReceivingTestUpstream(t)
-	c := NewInboundReceiving(Config{Endpoint: up.URL})
-
-	closed, err := c.GetReceipt(context.Background(), "rcpt-1")
-	if err != nil {
-		t.Fatalf("GetReceipt: %v", err)
-	}
-	if closed.State != "Closed" || closed.ClosedAt != "2026-10-08T10:00:00Z" || closed.AppointmentID != "appt-1" || closed.DoorCode != "D1" {
-		t.Fatalf("unexpected closed receipt: %+v", closed)
-	}
-	if len(closed.Lines) != 1 || closed.Lines[0].ReceivedGood != 8 || closed.Lines[0].ReceivedDamaged != 1 {
-		t.Fatalf("unexpected closed receipt lines: %+v", closed.Lines)
-	}
-	if len(closed.Discrepancies) != 1 || closed.Discrepancies[0].Kind != "Short" || closed.Discrepancies[0].DamagedQty != 1 {
-		t.Fatalf("unexpected closed receipt discrepancies: %+v", closed.Discrepancies)
-	}
-}
-
-func TestInboundReceiving_GetReceipt_DecodesWalkInsAndNotFound(t *testing.T) {
-	up := newInboundReceivingTestUpstream(t)
-	c := NewInboundReceiving(Config{Endpoint: up.URL})
-
-	open, err := c.GetReceipt(context.Background(), "rcpt-2")
-	if err != nil {
-		t.Fatalf("GetReceipt (open walk-in): %v", err)
-	}
-	if open.State != "Open" || open.ClosedAt != "" || open.AppointmentID != "" || open.DoorCode != "" || len(open.Discrepancies) != 0 {
-		t.Fatalf("an open walk-in receipt must decode with empty optional fields: %+v", open)
-	}
-
-	_, err = c.GetReceipt(context.Background(), "rcpt-404")
-	var te *ToolError
-	if !errors.As(err, &te) || te.Slug != "receipt-not-found" {
-		t.Fatalf("want receipt-not-found, got %v", err)
-	}
-}
-
 func TestInboundReceiving_ListReceipts_SendsFiltersUnderTheirPublishedNames(t *testing.T) {
 	up := newInboundReceivingTestUpstream(t)
 	c := NewInboundReceiving(Config{Endpoint: up.URL})
@@ -426,24 +350,13 @@ func TestInboundReceiving_ListReceipts_SendsFiltersUnderTheirPublishedNames(t *t
 	}
 }
 
-func TestInboundReceiving_ListDocks(t *testing.T) {
-	up := newInboundReceivingTestUpstream(t)
-	docks, err := NewInboundReceiving(Config{Endpoint: up.URL}).ListDocks(context.Background())
-	if err != nil {
-		t.Fatalf("ListDocks: %v", err)
-	}
-	if docks.Mode != "kafka" || len(docks.Items) != 2 || docks.Items[1].DoorCode != "D2" || docks.Items[1].DockFlow != "Both" {
-		t.Fatalf("unexpected docks: %+v", docks)
-	}
-}
-
 // TestInboundReceiving_StandInRejectsUnpublishedArgumentKeys proves the
 // stand-in can fail: a camelCase key that inbound-receiving does not publish
 // is rejected by its input schema, so the argument-name assertions above are
 // real.
 func TestInboundReceiving_StandInRejectsUnpublishedArgumentKeys(t *testing.T) {
 	up := newInboundReceivingTestUpstream(t)
-	err := New(Config{Name: "inbound-receiving", Endpoint: up.URL}).callTool(context.Background(), "get_asn", map[string]any{"asnNumber": "ASN-1001"}, nil)
+	err := New(Config{Name: "inbound-receiving", Endpoint: up.URL}).callTool(context.Background(), "list_asns", map[string]any{"stateName": "Registered"}, nil)
 	if err == nil {
 		t.Fatal("an argument key outside inbound-receiving's published input schema must be rejected")
 	}
@@ -453,18 +366,14 @@ func TestInboundReceiving_OnlyThePinnedReadToolsAreCalled(t *testing.T) {
 	up := newInboundReceivingTestUpstream(t)
 	c := NewInboundReceiving(Config{Endpoint: up.URL})
 	ctx := context.Background()
-	_, _ = c.GetAppointment(ctx, "appt-1")
-	_, _ = c.GetAsn(ctx, "ASN-1001")
-	_, _ = c.GetReceipt(ctx, "rcpt-1")
 	_, _ = c.ListAppointments(ctx, ports.InboundAppointmentListQuery{})
 	_, _ = c.ListAsns(ctx, ports.InboundAsnListQuery{})
-	_, _ = c.ListDocks(ctx)
 	_, _ = c.ListReceipts(ctx, ports.InboundReceiptListQuery{})
 
 	up.mu.Lock()
 	defer up.mu.Unlock()
-	if strings.Join(up.calls, ",") != strings.Join(wantInboundReceivingTools, ",") {
-		t.Fatalf("tools called = %v, want exactly %v", up.calls, wantInboundReceivingTools)
+	if strings.Join(up.calls, ",") != strings.Join(wantInboundReceivingCalledTools, ",") {
+		t.Fatalf("tools called = %v, want exactly %v", up.calls, wantInboundReceivingCalledTools)
 	}
 }
 
@@ -474,26 +383,14 @@ func TestInboundReceiving_UnreachableUpstream(t *testing.T) {
 
 	c := NewInboundReceiving(Config{Endpoint: up.URL})
 	ctx := context.Background()
-	if _, err := c.GetAsn(ctx, "ASN-1001"); err == nil {
-		t.Error("GetAsn: an unreachable upstream must surface as an error")
-	}
 	if _, err := c.ListAsns(ctx, ports.InboundAsnListQuery{}); err == nil {
 		t.Error("ListAsns: an unreachable upstream must surface as an error")
-	}
-	if _, err := c.GetAppointment(ctx, "appt-1"); err == nil {
-		t.Error("GetAppointment: an unreachable upstream must surface as an error")
 	}
 	if _, err := c.ListAppointments(ctx, ports.InboundAppointmentListQuery{}); err == nil {
 		t.Error("ListAppointments: an unreachable upstream must surface as an error")
 	}
-	if _, err := c.GetReceipt(ctx, "rcpt-1"); err == nil {
-		t.Error("GetReceipt: an unreachable upstream must surface as an error")
-	}
 	if _, err := c.ListReceipts(ctx, ports.InboundReceiptListQuery{}); err == nil {
 		t.Error("ListReceipts: an unreachable upstream must surface as an error")
-	}
-	if _, err := c.ListDocks(ctx); err == nil {
-		t.Error("ListDocks: an unreachable upstream must surface as an error")
 	}
 }
 
@@ -501,7 +398,7 @@ func TestInboundReceiving_RespectsCallerContext(t *testing.T) {
 	up := newInboundReceivingTestUpstream(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	_, err := NewInboundReceiving(Config{Endpoint: up.URL}).GetAsn(ctx, "ASN-1001")
+	_, err := NewInboundReceiving(Config{Endpoint: up.URL}).ListAsns(ctx, ports.InboundAsnListQuery{})
 	if err == nil {
 		t.Fatal("a cancelled context must abort the call")
 	}

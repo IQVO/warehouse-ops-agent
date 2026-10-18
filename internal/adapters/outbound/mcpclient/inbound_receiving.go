@@ -8,15 +8,16 @@ import (
 )
 
 // InboundReceiving implements ports.InboundReceivingClient by calling
-// inbound-receiving's seven published READ tools: get_asn, list_asns,
-// get_appointment, list_appointments, get_receipt, list_receipts and
-// list_docks (ADR 0021).
+// inbound-receiving's published READ tools list_asns, list_appointments and
+// list_receipts (ADR 0021). The other four published read tools (get_asn,
+// get_appointment, get_receipt, list_docks) are deliberately not wired: no
+// use case calls them.
 //
 // inbound-receiving's MCP server is read-only by its own ADR 0005; this
 // client is additionally held read-only from this side: the zero-write
 // fitness test (internal/architecture/zerowrite) scans this package's
 // tool-name literals, and TestInboundReceivingClientCallsOnlyPinnedTools
-// allows exactly these seven names. The argument keys and result shapes are
+// allows exactly these three names. The argument keys and result shapes are
 // pinned against inbound-receiving's published registry in
 // testdata/inbound_receiving_tools.golden.json.
 //
@@ -38,13 +39,6 @@ func NewInboundReceiving(cfg Config) *InboundReceiving {
 
 var _ ports.InboundReceivingClient = (*InboundReceiving)(nil)
 
-// GetAsn calls get_asn.
-func (c *InboundReceiving) GetAsn(ctx context.Context, asnNumber string) (ports.InboundAsn, error) {
-	var out ports.InboundAsn
-	err := c.session.callTool(ctx, "get_asn", map[string]any{"asn_number": asnNumber}, &out)
-	return out, err
-}
-
 // ListAsns calls list_asns. Zero query fields are omitted so
 // inbound-receiving applies its own defaults.
 func (c *InboundReceiving) ListAsns(ctx context.Context, query ports.InboundAsnListQuery) (ports.InboundAsnPage, error) {
@@ -52,13 +46,6 @@ func (c *InboundReceiving) ListAsns(ctx context.Context, query ports.InboundAsnL
 	setIfNotEmpty(args, "state", query.State)
 	var out ports.InboundAsnPage
 	err := c.session.callTool(ctx, "list_asns", args, &out)
-	return out, err
-}
-
-// GetAppointment calls get_appointment.
-func (c *InboundReceiving) GetAppointment(ctx context.Context, appointmentID string) (ports.InboundAppointment, error) {
-	var out ports.InboundAppointment
-	err := c.session.callTool(ctx, "get_appointment", map[string]any{"appointment_id": appointmentID}, &out)
 	return out, err
 }
 
@@ -79,13 +66,6 @@ func (c *InboundReceiving) ListAppointments(ctx context.Context, query ports.Inb
 	return out, err
 }
 
-// GetReceipt calls get_receipt.
-func (c *InboundReceiving) GetReceipt(ctx context.Context, receiptID string) (ports.InboundReceipt, error) {
-	var out ports.InboundReceipt
-	err := c.session.callTool(ctx, "get_receipt", map[string]any{"receipt_id": receiptID}, &out)
-	return out, err
-}
-
 // ListReceipts calls list_receipts. Zero query fields are omitted.
 func (c *InboundReceiving) ListReceipts(ctx context.Context, query ports.InboundReceiptListQuery) (ports.InboundReceiptPage, error) {
 	args := pageArgs(query.Limit, query.Cursor)
@@ -93,13 +73,6 @@ func (c *InboundReceiving) ListReceipts(ctx context.Context, query ports.Inbound
 	setIfNotEmpty(args, "state", query.State)
 	var out ports.InboundReceiptPage
 	err := c.session.callTool(ctx, "list_receipts", args, &out)
-	return out, err
-}
-
-// ListDocks calls list_docks, which takes no arguments.
-func (c *InboundReceiving) ListDocks(ctx context.Context) (ports.InboundDockList, error) {
-	var out ports.InboundDockList
-	err := c.session.callTool(ctx, "list_docks", map[string]any{}, &out)
 	return out, err
 }
 

@@ -150,19 +150,3 @@ func (f *fakeInbound) ListReceipts(_ context.Context, q ports.InboundReceiptList
 	}
 	return ports.InboundReceiptPage{Items: out}, nil
 }
-
-func (f *fakeInbound) GetAsn(context.Context, string) (ports.InboundAsn, error) {
-	return ports.InboundAsn{}, errNotUsed
-}
-
-func (f *fakeInbound) GetAppointment(context.Context, string) (ports.InboundAppointment, error) {
-	return ports.InboundAppointment{}, errNotUsed
-}
-
-func (f *fakeInbound) GetReceipt(context.Context, string) (ports.InboundReceipt, error) {
-	return ports.InboundReceipt{}, errNotUsed
-}
-
-func (f *fakeInbound) ListDocks(context.Context) (ports.InboundDockList, error) {
-	return ports.InboundDockList{}, errNotUsed
-}

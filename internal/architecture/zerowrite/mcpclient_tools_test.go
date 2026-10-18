@@ -49,13 +49,14 @@ func TestProductMasterClientCallsOnlyPinnedTools(t *testing.T) {
 }
 
 // inboundReceivingReadTools is the exact allow-list for the inbound-receiving
-// client (ADR 0021): its seven published read tools. inbound-receiving's
+// client (ADR 0021): the three of its seven published read tools the inbound
+// outlook consumes. inbound-receiving's
 // writes (register/cancel an ASN, book/check in/cancel an appointment,
 // open/receive/close a receipt) are REST-only and have no tool.
-var inboundReceivingReadTools = []string{"get_appointment", "get_asn", "get_receipt", "list_appointments", "list_asns", "list_docks", "list_receipts"}
+var inboundReceivingReadTools = []string{"list_appointments", "list_asns", "list_receipts"}
 
 // TestInboundReceivingClientCallsOnlyPinnedTools scans inbound_receiving.go
-// and fails unless it names exactly inbound-receiving's seven read tools.
+// and fails unless it names exactly the three pinned read tools.
 func TestInboundReceivingClientCallsOnlyPinnedTools(t *testing.T) {
 	path := "../../adapters/outbound/mcpclient/inbound_receiving.go"
 	src, err := os.ReadFile(path)
