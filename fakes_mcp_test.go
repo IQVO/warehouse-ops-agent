@@ -151,18 +151,6 @@ func (f *fakeLP) GetTaskTypeUtilization(_ context.Context, taskType string, _ in
 	return u, nil
 }
 
-func (f *fakeLP) GetAssociateScorecard(context.Context, string) (ports.AssociateScorecard, error) {
-	return ports.AssociateScorecard{}, errNotUsed
-}
-
-func (f *fakeLP) GetTaskTypePerformance(context.Context, string) (ports.TaskTypePerformance, error) {
-	return ports.TaskTypePerformance{}, errNotUsed
-}
-
-func (f *fakeLP) GetLaborStandard(context.Context, string) (ports.LaborStandard, error) {
-	return ports.LaborStandard{}, errNotUsed
-}
-
 // ------------------------------------------------------------ reasoner -----
 
 // fakeReasoner is the ports.Reasoner a scenario wires in place of a model. It

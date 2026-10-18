@@ -223,15 +223,6 @@ type fbToolFakeLP struct {
 	util ports.TaskTypeUtilization
 }
 
-func (f *fbToolFakeLP) GetAssociateScorecard(ctx context.Context, associateId string) (ports.AssociateScorecard, error) {
-	return ports.AssociateScorecard{}, nil
-}
-func (f *fbToolFakeLP) GetTaskTypePerformance(ctx context.Context, taskType string) (ports.TaskTypePerformance, error) {
-	return ports.TaskTypePerformance{}, nil
-}
-func (f *fbToolFakeLP) GetLaborStandard(ctx context.Context, taskType string) (ports.LaborStandard, error) {
-	return ports.LaborStandard{}, nil
-}
 func (f *fbToolFakeLP) GetTaskTypeUtilization(ctx context.Context, taskType string, windowSeconds int64) (ports.TaskTypeUtilization, error) {
 	return f.util, nil
 }

@@ -70,18 +70,6 @@ type fbFakeLP struct {
 	calledWindowSeconds int64
 }
 
-func (f *fbFakeLP) GetAssociateScorecard(ctx context.Context, associateId string) (ports.AssociateScorecard, error) {
-	return ports.AssociateScorecard{}, errors.New("not used by FlowBalanceAdvisory")
-}
-
-func (f *fbFakeLP) GetTaskTypePerformance(ctx context.Context, taskType string) (ports.TaskTypePerformance, error) {
-	return ports.TaskTypePerformance{}, errors.New("not used by FlowBalanceAdvisory")
-}
-
-func (f *fbFakeLP) GetLaborStandard(ctx context.Context, taskType string) (ports.LaborStandard, error) {
-	return ports.LaborStandard{}, errors.New("not used by FlowBalanceAdvisory")
-}
-
 func (f *fbFakeLP) GetTaskTypeUtilization(ctx context.Context, taskType string, windowSeconds int64) (ports.TaskTypeUtilization, error) {
 	f.calledTaskType = taskType
 	f.calledWindowSeconds = windowSeconds
