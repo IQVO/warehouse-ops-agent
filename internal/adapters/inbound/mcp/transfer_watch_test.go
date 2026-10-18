@@ -24,9 +24,6 @@ type fakeNIPClient struct {
 func (f *fakeNIPClient) GetTransfer(context.Context, string) (ports.TransferDetail, error) {
 	return f.detail, f.err
 }
-func (f *fakeNIPClient) ListTransfers(context.Context, ports.ListTransfersRequest) (ports.TransferPage, error) {
-	return ports.TransferPage{}, errors.New("not used")
-}
 func (f *fakeNIPClient) FindStuckTransfers(context.Context, ports.FindStuckTransfersRequest) (ports.TransferPage, error) {
 	return f.page, f.err
 }

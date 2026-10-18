@@ -8,7 +8,7 @@ import (
 
 // NetworkInventoryPlanning implements ports.NetworkInventoryPlanningClient by
 // calling network-inventory-planning's published READ tools: get_transfer,
-// list_transfers, find_stuck_transfers and simulate_transfer_options.
+// find_stuck_transfers and simulate_transfer_options.
 //
 // NIP's MCP server publishes read tools only today, and its governance test
 // pins that set. This client is read-only regardless: it never names a
@@ -42,24 +42,6 @@ var _ ports.NetworkInventoryPlanningClient = (*NetworkInventoryPlanning)(nil)
 func (c *NetworkInventoryPlanning) GetTransfer(ctx context.Context, transferID string) (ports.TransferDetail, error) {
 	var out ports.TransferDetail
 	err := c.session.callTool(ctx, "get_transfer", map[string]any{"transfer_id": transferID}, &out)
-	return out, err
-}
-
-// ListTransfers calls list_transfers. An empty State/Site and a zero Limit
-// are omitted so NIP applies its own defaults.
-func (c *NetworkInventoryPlanning) ListTransfers(ctx context.Context, req ports.ListTransfersRequest) (ports.TransferPage, error) {
-	args := map[string]any{}
-	if req.State != "" {
-		args["state"] = req.State
-	}
-	if req.Site != "" {
-		args["site"] = req.Site
-	}
-	if req.Limit != 0 {
-		args["limit"] = req.Limit
-	}
-	var out ports.TransferPage
-	err := c.session.callTool(ctx, "list_transfers", args, &out)
 	return out, err
 }
 

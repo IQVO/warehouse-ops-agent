@@ -6,7 +6,7 @@
 // NIP owns inter-warehouse transfers (a saga from DRAFT to RECEIVED) and an
 // advisory network simulation. Its MCP server publishes READ tools only
 // today, but this port is read-only by construction regardless: it exposes
-// exactly get_transfer, list_transfers, find_stuck_transfers and
+// exactly get_transfer, find_stuck_transfers and
 // simulate_transfer_options. Approving, cancelling or otherwise moving a
 // transfer is an operator action in NIP itself; no method for it exists
 // here, and the zero-write fitness test
@@ -23,8 +23,6 @@ type NetworkInventoryPlanningClient interface {
 	// An unknown id yields an error satisfying
 	// errors.Is(err, ErrUpstreamNotFound).
 	GetTransfer(ctx context.Context, transferID string) (TransferDetail, error)
-	// ListTransfers calls list_transfers (newest first).
-	ListTransfers(ctx context.Context, req ListTransfersRequest) (TransferPage, error)
 	// FindStuckTransfers calls find_stuck_transfers: NON-terminal transfers
 	// whose state has not changed for longer than req.OlderThanMinutes,
 	// stalest first.
@@ -32,15 +30,6 @@ type NetworkInventoryPlanningClient interface {
 	// SimulateTransferOptions calls simulate_transfer_options: NIP's
 	// advisory, fail-closed network simulation (it takes no argument).
 	SimulateTransferOptions(ctx context.Context) (TransferSimulation, error)
-}
-
-// ListTransfersRequest is the argument set of list_transfers. Empty State /
-// Site and a zero Limit are OMITTED from the call (NIP applies its own
-// defaults: no filter, page size 50).
-type ListTransfersRequest struct {
-	State string
-	Site  string
-	Limit int
 }
 
 // FindStuckTransfersRequest is the argument set of find_stuck_transfers.

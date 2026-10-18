@@ -95,10 +95,6 @@ func (f *fakeNIP) GetTransfer(_ context.Context, id string) (ports.TransferDetai
 	return d, nil
 }
 
-func (f *fakeNIP) ListTransfers(context.Context, ports.ListTransfersRequest) (ports.TransferPage, error) {
-	return ports.TransferPage{}, errNotUsed
-}
-
 func (f *fakeNIP) FindStuckTransfers(_ context.Context, req ports.FindStuckTransfersRequest) (ports.TransferPage, error) {
 	f.calls++
 	f.lastStuck = req
