@@ -7,8 +7,7 @@ import (
 )
 
 // WarehousePlanning implements ports.WarehousePlanningClient by calling
-// warehouse-planning's published READ tools: get_process_path_capacity,
-// get_capacity_plan, get_storage_capacity and list_station_standards.
+// warehouse-planning's published READ tool get_process_path_capacity.
 //
 // warehouse-planning's MCP server also publishes write tools
 // (register_*, create_*, publish_*, declare_*). This client never names
@@ -51,31 +50,5 @@ func (c *WarehousePlanning) GetProcessPathCapacity(ctx context.Context, req port
 	}
 	var out ports.ProcessPathCapacity
 	err := c.session.callTool(ctx, "get_process_path_capacity", args, &out)
-	return out, err
-}
-
-// GetCapacityPlan calls get_capacity_plan (read by id).
-func (c *WarehousePlanning) GetCapacityPlan(ctx context.Context, planId string) (ports.CapacityPlan, error) {
-	var out ports.CapacityPlan
-	err := c.session.callTool(ctx, "get_capacity_plan", map[string]any{"id": planId}, &out)
-	return out, err
-}
-
-// GetStorageCapacity calls get_storage_capacity for a site code.
-func (c *WarehousePlanning) GetStorageCapacity(ctx context.Context, location string) (ports.StorageCapacity, error) {
-	var out ports.StorageCapacity
-	err := c.session.callTool(ctx, "get_storage_capacity", map[string]any{"location": location}, &out)
-	return out, err
-}
-
-// ListStationStandards calls list_station_standards; an empty location
-// omits the filter and lists every declared standard.
-func (c *WarehousePlanning) ListStationStandards(ctx context.Context, location string) (ports.StationStandardList, error) {
-	args := map[string]any{}
-	if location != "" {
-		args["location"] = location
-	}
-	var out ports.StationStandardList
-	err := c.session.callTool(ctx, "list_station_standards", args, &out)
 	return out, err
 }

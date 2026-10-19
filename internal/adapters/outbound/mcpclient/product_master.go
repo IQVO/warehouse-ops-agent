@@ -7,14 +7,15 @@ import (
 )
 
 // ProductMaster implements ports.ProductMasterClient by calling
-// product-master's four published READ tools: get_product, list_products,
-// get_product_classification and get_physical_profile (ADR 0020).
+// product-master's published READ tool list_products (ADR 0020). The other
+// three published read tools (get_product, get_product_classification,
+// get_physical_profile) are deliberately not wired: no use case calls them.
 //
 // product-master's MCP server is read-only by its own ADR 0005; this client
 // is additionally held read-only from this side: the zero-write fitness test
 // (internal/architecture/zerowrite) scans this package's tool-name literals,
-// and TestProductMasterClientCallsOnlyPinnedTools allows exactly these four
-// names. The argument keys and result shapes are pinned against
+// and TestProductMasterClientCallsOnlyPinnedTools allows exactly this one
+// name. The argument keys and result shapes are pinned against
 // product-master's published registry in
 // testdata/product_master_tools.golden.json.
 //
@@ -36,13 +37,6 @@ func NewProductMaster(cfg Config) *ProductMaster {
 
 var _ ports.ProductMasterClient = (*ProductMaster)(nil)
 
-// GetProduct calls get_product.
-func (c *ProductMaster) GetProduct(ctx context.Context, sku string) (ports.Product, error) {
-	var out ports.Product
-	err := c.session.callTool(ctx, "get_product", map[string]any{"sku": sku}, &out)
-	return out, err
-}
-
 // ListProducts calls list_products. Zero/nil query fields are omitted so
 // product-master applies its own defaults.
 func (c *ProductMaster) ListProducts(ctx context.Context, query ports.ProductListQuery) (ports.ProductPage, error) {
@@ -61,19 +55,5 @@ func (c *ProductMaster) ListProducts(ctx context.Context, query ports.ProductLis
 	}
 	var out ports.ProductPage
 	err := c.session.callTool(ctx, "list_products", args, &out)
-	return out, err
-}
-
-// GetProductClassification calls get_product_classification.
-func (c *ProductMaster) GetProductClassification(ctx context.Context, sku string) (ports.ProductClassificationReading, error) {
-	var out ports.ProductClassificationReading
-	err := c.session.callTool(ctx, "get_product_classification", map[string]any{"sku": sku}, &out)
-	return out, err
-}
-
-// GetPhysicalProfile calls get_physical_profile.
-func (c *ProductMaster) GetPhysicalProfile(ctx context.Context, sku string) (ports.PhysicalProfileReading, error) {
-	var out ports.PhysicalProfileReading
-	err := c.session.callTool(ctx, "get_physical_profile", map[string]any{"sku": sku}, &out)
 	return out, err
 }

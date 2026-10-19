@@ -51,24 +51,6 @@ type QueueStatus struct {
 	Depth       int    `json:"depth"`
 }
 
-// ClaimableWork mirrors fulfillment-execution's find_claimable_work "best"
-// entry.
-type ClaimableWork struct {
-	TaskId               string   `json:"taskId"`
-	Type                 string   `json:"type"`
-	CPT                  string   `json:"cpt"`
-	OrderRef             string   `json:"orderRef"`
-	RequiredCapabilities []string `json:"requiredCapabilities"`
-}
-
-// ClaimableWorkResult mirrors fulfillment-execution's find_claimable_work
-// tool output.
-type ClaimableWorkResult struct {
-	ProcessPath    string         `json:"processPath"`
-	CandidateCount int            `json:"candidateCount"`
-	Best           *ClaimableWork `json:"best"`
-}
-
 // StuckTask mirrors one entry of fulfillment-execution's diagnose_stuck_tasks
 // tool output.
 type StuckTask struct {
@@ -143,16 +125,6 @@ type StaffingGap struct {
 	Understaffed bool   `json:"understaffed"`
 }
 
-// ProposedHeads mirrors workforce-management's propose_path_heads tool
-// output.
-type ProposedHeads struct {
-	BuildingId    string  `json:"buildingId"`
-	PathId        string  `json:"pathId"`
-	Charge        float64 `json:"charge"`
-	PlannedRate   float64 `json:"plannedRate"`
-	ProposedHeads int     `json:"proposedHeads"`
-}
-
 // LaborAssignment mirrors workforce-management's assign_labor tool output
 // (write tool — bound for completeness; not called by any T1 use case).
 type LaborAssignment struct {
@@ -172,56 +144,6 @@ type SiteRef struct {
 // SitesResult mirrors facility-layout's list_sites tool output.
 type SitesResult struct {
 	Sites []SiteRef `json:"sites"`
-}
-
-// AisleLayout mirrors one aisle within facility-layout's get_site_layout
-// tool output.
-type AisleLayout struct {
-	AisleID      string   `json:"aisleId"`
-	AisleCode    string   `json:"aisleCode"`
-	SequenceHint int      `json:"sequenceHint"`
-	Direction    string   `json:"direction"`
-	SlotCodes    []string `json:"slotCodes"`
-}
-
-// ZoneLayout mirrors one zone within facility-layout's get_site_layout tool
-// output.
-type ZoneLayout struct {
-	ZoneID           string        `json:"zoneId"`
-	AreaCode         string        `json:"areaCode"`
-	ZoneCode         string        `json:"zoneCode"`
-	TemperatureClass string        `json:"temperatureClass"`
-	Hazmat           bool          `json:"hazmat"`
-	Aisles           []AisleLayout `json:"aisles"`
-}
-
-// SiteLayout mirrors facility-layout's get_site_layout tool output.
-type SiteLayout struct {
-	Site  SiteRef      `json:"site"`
-	Zones []ZoneLayout `json:"zones"`
-}
-
-// GridColumn mirrors one column of facility-layout's get_zone_grid tool
-// output.
-type GridColumn struct {
-	AisleID      string `json:"aisleId"`
-	AisleCode    string `json:"aisleCode"`
-	Bay          string `json:"bay"`
-	SequenceHint int    `json:"sequenceHint"`
-}
-
-// GridRow mirrors one row of facility-layout's get_zone_grid tool output.
-type GridRow struct {
-	Level string   `json:"level"`
-	Cells []string `json:"cells"`
-}
-
-// ZoneGrid mirrors facility-layout's get_zone_grid tool output.
-type ZoneGrid struct {
-	ZoneID  string       `json:"zoneId"`
-	Columns []GridColumn `json:"columns"`
-	Levels  []string     `json:"levels"`
-	Rows    []GridRow    `json:"rows"`
 }
 
 // TravelNode mirrors one waypoint (aisle + bay) of facility-layout's

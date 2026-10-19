@@ -30,18 +30,6 @@ func (f *fakePlanning) GetProcessPathCapacity(_ context.Context, req ports.Proce
 	}
 	return f.capacity, nil
 }
-func (f *fakePlanning) GetCapacityPlan(context.Context, string) (ports.CapacityPlan, error) {
-	f.otherCall++
-	return ports.CapacityPlan{}, errors.New("not used")
-}
-func (f *fakePlanning) GetStorageCapacity(context.Context, string) (ports.StorageCapacity, error) {
-	f.otherCall++
-	return ports.StorageCapacity{}, errors.New("not used")
-}
-func (f *fakePlanning) ListStationStandards(context.Context, string) (ports.StationStandardList, error) {
-	f.otherCall++
-	return ports.StationStandardList{}, errors.New("not used")
-}
 
 var _ ports.WarehousePlanningClient = (*fakePlanning)(nil)
 

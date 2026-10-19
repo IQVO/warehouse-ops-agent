@@ -23,15 +23,6 @@ type fakeProductMaster struct {
 func (f *fakeProductMaster) ListProducts(context.Context, ports.ProductListQuery) (ports.ProductPage, error) {
 	return f.page, f.err
 }
-func (f *fakeProductMaster) GetProduct(context.Context, string) (ports.Product, error) {
-	return ports.Product{}, errors.New("not used")
-}
-func (f *fakeProductMaster) GetProductClassification(context.Context, string) (ports.ProductClassificationReading, error) {
-	return ports.ProductClassificationReading{}, errors.New("not used")
-}
-func (f *fakeProductMaster) GetPhysicalProfile(context.Context, string) (ports.PhysicalProfileReading, error) {
-	return ports.PhysicalProfileReading{}, errors.New("not used")
-}
 
 func gapCatalogue() *fakeProductMaster {
 	return &fakeProductMaster{page: ports.ProductPage{Items: []ports.Product{

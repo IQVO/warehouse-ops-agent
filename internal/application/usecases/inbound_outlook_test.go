@@ -20,10 +20,9 @@ type fakeInbound struct {
 
 	asnErr, apptErr, openErr, closedErr error
 
-	asnQueries   []ports.InboundAsnListQuery
-	apptQueries  []ports.InboundAppointmentListQuery
-	rcptQueries  []ports.InboundReceiptListQuery
-	nonListCalls int
+	asnQueries  []ports.InboundAsnListQuery
+	apptQueries []ports.InboundAppointmentListQuery
+	rcptQueries []ports.InboundReceiptListQuery
 }
 
 func (f *fakeInbound) ListAsns(_ context.Context, q ports.InboundAsnListQuery) (ports.InboundAsnPage, error) {
@@ -42,26 +41,6 @@ func (f *fakeInbound) ListReceipts(_ context.Context, q ports.InboundReceiptList
 		return f.openPages[q.Cursor], f.openErr
 	}
 	return f.closedPage[q.Cursor], f.closedErr
-}
-
-func (f *fakeInbound) GetAsn(context.Context, string) (ports.InboundAsn, error) {
-	f.nonListCalls++
-	return ports.InboundAsn{}, errors.New("not used")
-}
-
-func (f *fakeInbound) GetAppointment(context.Context, string) (ports.InboundAppointment, error) {
-	f.nonListCalls++
-	return ports.InboundAppointment{}, errors.New("not used")
-}
-
-func (f *fakeInbound) GetReceipt(context.Context, string) (ports.InboundReceipt, error) {
-	f.nonListCalls++
-	return ports.InboundReceipt{}, errors.New("not used")
-}
-
-func (f *fakeInbound) ListDocks(context.Context) (ports.InboundDockList, error) {
-	f.nonListCalls++
-	return ports.InboundDockList{}, errors.New("not used")
 }
 
 var inboundOutlookNow = time.Date(2026, 10, 8, 12, 0, 0, 0, time.UTC)
@@ -117,9 +96,6 @@ func TestInboundOutlook_ReportsAllFourSections(t *testing.T) {
 	assertUpcomingAppointments(t, res.UpcomingAppointments)
 	assertStaleReceipts(t, res.StaleReceipts)
 	assertDiscrepantReceipts(t, res.DiscrepantReceipts)
-	if f.nonListCalls != 0 {
-		t.Errorf("the outlook must only use list tools, got %d other calls", f.nonListCalls)
-	}
 }
 
 func assertAwaitingAsns(t *testing.T, s InboundAwaitingAsns) {

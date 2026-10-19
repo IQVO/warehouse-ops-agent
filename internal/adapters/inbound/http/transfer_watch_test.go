@@ -23,9 +23,6 @@ type stubNIP struct {
 func (s *stubNIP) GetTransfer(context.Context, string) (ports.TransferDetail, error) {
 	return s.detail, s.err
 }
-func (s *stubNIP) ListTransfers(context.Context, ports.ListTransfersRequest) (ports.TransferPage, error) {
-	return ports.TransferPage{}, errors.New("not used")
-}
 func (s *stubNIP) FindStuckTransfers(context.Context, ports.FindStuckTransfersRequest) (ports.TransferPage, error) {
 	return s.page, s.err
 }

@@ -56,8 +56,8 @@ product-master, per ADR 0020). Add the new method there first:
 
 ```go
 // FacilityLayoutClient is the outbound port for facility-layout's published
-// read tools (list_sites, get_site_layout, get_zone_grid,
-// estimate_travel_distance).
+// read tools the agent calls (list_sites, estimate_travel_distance;
+// the server also publishes get_site_layout and get_zone_grid).
 type FacilityLayoutClient interface {
     ListSites(ctx context.Context) (SitesResult, error)
     // ... existing methods ...

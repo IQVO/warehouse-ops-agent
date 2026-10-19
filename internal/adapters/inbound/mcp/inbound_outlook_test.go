@@ -38,22 +38,6 @@ func (f *fakeInbound) ListReceipts(_ context.Context, q ports.InboundReceiptList
 	return f.done, f.err
 }
 
-func (f *fakeInbound) GetAsn(context.Context, string) (ports.InboundAsn, error) {
-	return ports.InboundAsn{}, errors.New("not used")
-}
-
-func (f *fakeInbound) GetAppointment(context.Context, string) (ports.InboundAppointment, error) {
-	return ports.InboundAppointment{}, errors.New("not used")
-}
-
-func (f *fakeInbound) GetReceipt(context.Context, string) (ports.InboundReceipt, error) {
-	return ports.InboundReceipt{}, errors.New("not used")
-}
-
-func (f *fakeInbound) ListDocks(context.Context) (ports.InboundDockList, error) {
-	return ports.InboundDockList{}, errors.New("not used")
-}
-
 func newServerWithInboundOutlook(t *testing.T, f *fakeInbound, staleAge time.Duration) string {
 	t.Helper()
 	now := time.Date(2026, 10, 8, 12, 0, 0, 0, time.UTC)

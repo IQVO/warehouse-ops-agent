@@ -23,16 +23,6 @@ type fakePlanning struct {
 func (f *fakePlanning) GetProcessPathCapacity(context.Context, ports.ProcessPathCapacityRequest) (ports.ProcessPathCapacity, error) {
 	return f.capacity, f.err
 }
-func (f *fakePlanning) GetCapacityPlan(context.Context, string) (ports.CapacityPlan, error) {
-	return ports.CapacityPlan{}, errors.New("not used")
-}
-func (f *fakePlanning) GetStorageCapacity(context.Context, string) (ports.StorageCapacity, error) {
-	return ports.StorageCapacity{}, errors.New("not used")
-}
-func (f *fakePlanning) ListStationStandards(context.Context, string) (ports.StationStandardList, error) {
-	return ports.StationStandardList{}, errors.New("not used")
-}
-
 func getBriefBody(t *testing.T, uc *usecases.DailyBrief) map[string]any {
 	t.Helper()
 	router := inboundhttp.NewRouter(&inboundhttp.Handlers{DailyBrief: uc}, "warehouse-ops-agent-test")

@@ -146,3 +146,9 @@ does not change that.
 Per this fleet's convention, the Context/Decision/Consequences sections
 above are left as an accurate historical record of the decision as made;
 this addendum is appended rather than editing that prose in place.
+
+## Addendum (Phase 5.4): unconsumed labor-performance tools removed
+
+`get_associate_scorecard`, `get_task_type_performance` and `get_labor_standard`
+were removed from the labor-performance client and port; only
+`get_task_type_utilization` (the flow-balance overlay) remains.

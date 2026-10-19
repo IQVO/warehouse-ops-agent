@@ -64,13 +64,8 @@ type PromiseHealth struct {
 }
 
 // LaborPerformanceClient is the outbound port for labor-performance's
-// published read tools (get_associate_scorecard,
-// get_task_type_performance, get_labor_standard,
-// get_task_type_utilization).
+// published read tool (get_task_type_utilization).
 type LaborPerformanceClient interface {
-	GetAssociateScorecard(ctx context.Context, associateId string) (AssociateScorecard, error)
-	GetTaskTypePerformance(ctx context.Context, taskType string) (TaskTypePerformance, error)
-	GetLaborStandard(ctx context.Context, taskType string) (LaborStandard, error)
 	// GetTaskTypeUtilization calls get_task_type_utilization. windowSeconds
 	// non-positive means "use the tool's own default" (1h); it is passed
 	// through unchanged, never defaulted here.
@@ -83,44 +78,6 @@ type LaborPerformanceClient interface {
 // client is exactly the dead wiring this change set closes.
 
 // --- labor-performance read-model DTOs ------------------------------------
-
-// TaskTypeBreakdown mirrors one TaskType entry of labor-performance's
-// get_associate_scorecard tool output (taskTypeBreakdownDTO in its
-// internal/adapters/inbound/mcp/mapping.go).
-type TaskTypeBreakdown struct {
-	TaskCount         int      `json:"taskCount"`
-	MeanEfficiencyPct *float64 `json:"meanEfficiencyPct"`
-}
-
-// AssociateScorecard mirrors labor-performance's get_associate_scorecard
-// tool output (scorecardDTO in its internal/adapters/inbound/mcp/mapping.go).
-type AssociateScorecard struct {
-	AssociateId       string                       `json:"associateId"`
-	TaskCount         int                          `json:"taskCount"`
-	MeanEfficiencyPct *float64                     `json:"meanEfficiencyPct"`
-	ByTaskType        map[string]TaskTypeBreakdown `json:"byTaskType"`
-	Trend             string                       `json:"trend"`
-	CoachingFlag      bool                         `json:"coachingFlag"`
-}
-
-// TaskTypePerformance mirrors labor-performance's
-// get_task_type_performance tool output (taskTypePerformanceDTO in its
-// internal/adapters/inbound/mcp/mapping.go).
-type TaskTypePerformance struct {
-	TaskType          string   `json:"taskType"`
-	TaskCount         int      `json:"taskCount"`
-	MeanEfficiencyPct *float64 `json:"meanEfficiencyPct"`
-	MeanActualSeconds *float64 `json:"meanActualSeconds"`
-}
-
-// LaborStandard mirrors labor-performance's get_labor_standard tool
-// output (standardDTO in its internal/adapters/inbound/mcp/mapping.go).
-type LaborStandard struct {
-	TaskType        string  `json:"taskType"`
-	ExpectedSeconds int64   `json:"expectedSeconds"`
-	EffectiveFrom   string  `json:"effectiveFrom"`
-	EffectiveTo     *string `json:"effectiveTo,omitempty"`
-}
 
 // TaskTypeUtilization mirrors labor-performance's
 // get_task_type_utilization tool output (utilizationDTO in its

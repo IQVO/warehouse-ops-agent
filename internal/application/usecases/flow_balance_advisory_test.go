@@ -45,10 +45,6 @@ func (f *fbFakeWFM) GetStaffingGap(ctx context.Context, buildingId, shiftId, pat
 	return f.gap, nil
 }
 
-func (f *fbFakeWFM) ProposePathHeads(ctx context.Context, buildingId, pathId string, charge, plannedRate float64) (ports.ProposedHeads, error) {
-	return ports.ProposedHeads{}, errors.New("not used by FlowBalanceAdvisory")
-}
-
 type fbFakeFE struct {
 	result        ports.StuckTasksResult
 	err           error
@@ -57,10 +53,6 @@ type fbFakeFE struct {
 
 func (f *fbFakeFE) GetQueueStatus(ctx context.Context, processPath string) (ports.QueueStatus, error) {
 	return ports.QueueStatus{}, errors.New("not used by FlowBalanceAdvisory")
-}
-
-func (f *fbFakeFE) FindClaimableWork(ctx context.Context, processPath string) (ports.ClaimableWorkResult, error) {
-	return ports.ClaimableWorkResult{}, errors.New("not used by FlowBalanceAdvisory")
 }
 
 func (f *fbFakeFE) DiagnoseStuckTasks(ctx context.Context, withinSeconds int) (ports.StuckTasksResult, error) {
@@ -76,18 +68,6 @@ type fbFakeLP struct {
 	err                 error
 	calledTaskType      string
 	calledWindowSeconds int64
-}
-
-func (f *fbFakeLP) GetAssociateScorecard(ctx context.Context, associateId string) (ports.AssociateScorecard, error) {
-	return ports.AssociateScorecard{}, errors.New("not used by FlowBalanceAdvisory")
-}
-
-func (f *fbFakeLP) GetTaskTypePerformance(ctx context.Context, taskType string) (ports.TaskTypePerformance, error) {
-	return ports.TaskTypePerformance{}, errors.New("not used by FlowBalanceAdvisory")
-}
-
-func (f *fbFakeLP) GetLaborStandard(ctx context.Context, taskType string) (ports.LaborStandard, error) {
-	return ports.LaborStandard{}, errors.New("not used by FlowBalanceAdvisory")
 }
 
 func (f *fbFakeLP) GetTaskTypeUtilization(ctx context.Context, taskType string, windowSeconds int64) (ports.TaskTypeUtilization, error) {

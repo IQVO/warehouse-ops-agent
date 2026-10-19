@@ -70,21 +70,23 @@ deliberately not wired.
 `warehouse-planning`'s outbound client
 ([ADR 0013](./adr/0013-warehouse-planning-mcp-client-and-capacity-outlook.md))
 is consumed only through `get_process_path_capacity` (the daily brief's
-capacity outlook); `get_capacity_plan`, `get_storage_capacity` and
-`list_station_standards` are wired but not yet consumed by any use case.
+capacity outlook); its other read tools are deliberately not wired
+(Phase 5.4: a client method no use case calls is removed, so the client
+carries no unconsumed tool).
 Its MCP server is read+write; this agent calls read tools only.
 
 `product-master`'s outbound client
 ([ADR 0020](./adr/0020-product-master-mcp-client-and-master-data-gaps.md))
 is consumed only through `list_products` (the master-data gaps report);
 `get_product`, `get_product_classification` and `get_physical_profile` are
-wired and contract-tested against product-master's published registry but
-not yet consumed. product-master's MCP server is read-only.
+deliberately not wired (Phase 5.4). The client's DTOs are still
+contract-tested against product-master's published registry.
+product-master's MCP server is read-only.
 
 `inbound-receiving`'s outbound client
 ([ADR 0021](./adr/0021-inbound-receiving-mcp-client-and-inbound-outlook.md))
 is consumed only through `list_asns`, `list_appointments` and `list_receipts`
 (the inbound outlook); `get_asn`, `get_appointment`, `get_receipt` and
-`list_docks` are wired and contract-tested against inbound-receiving's
-published registry but not yet consumed. inbound-receiving's MCP server is
-read-only.
+`list_docks` are deliberately not wired (Phase 5.4). The client's DTOs are
+still contract-tested against inbound-receiving's published registry.
+inbound-receiving's MCP server is read-only.

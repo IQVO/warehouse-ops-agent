@@ -20,10 +20,6 @@ func (f fakeFulfillmentExecution) GetQueueStatus(context.Context, string) (ports
 	return ports.QueueStatus{}, errors.New("not used by this use case")
 }
 
-func (f fakeFulfillmentExecution) FindClaimableWork(context.Context, string) (ports.ClaimableWorkResult, error) {
-	return ports.ClaimableWorkResult{}, errors.New("not used by this use case")
-}
-
 func (f fakeFulfillmentExecution) DiagnoseStuckTasks(context.Context, int) (ports.StuckTasksResult, error) {
 	if f.stuckErr != nil {
 		return ports.StuckTasksResult{}, f.stuckErr

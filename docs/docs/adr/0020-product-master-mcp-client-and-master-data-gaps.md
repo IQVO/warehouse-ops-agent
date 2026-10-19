@@ -122,3 +122,12 @@ per-SKU drill-down for a future LLM tool allow-list entry
 - Repeated full scans cost up to 10 `list_products` calls per request; the
   page bound keeps a single request bounded, and the result says when more
   remain.
+
+## Addendum (Phase 5.4): unconsumed tools removed
+
+`get_product`, `get_product_classification` and `get_physical_profile` were
+removed from the client and the port (no use case called them); the client now
+implements only `list_products`. `testdata/product_master_tools.golden.json`
+stays a verbatim copy of product-master's full registry, so the DTO contract
+test still covers `list_products`, and a test pins that the client calls only
+that one tool. The server still publishes all four.

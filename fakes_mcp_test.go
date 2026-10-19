@@ -75,10 +75,6 @@ func (f *fakeWFM) GetStaffingGap(_ context.Context, buildingID, shiftID, pathID 
 	return g, nil
 }
 
-func (f *fakeWFM) ProposePathHeads(context.Context, string, string, float64, float64) (ports.ProposedHeads, error) {
-	return ports.ProposedHeads{}, errNotUsed
-}
-
 // ----------------------------------------------------------------- fe ------
 
 type fakeFE struct {
@@ -92,10 +88,6 @@ func (f *fakeFE) GetQueueStatus(_ context.Context, processPath string) (ports.Qu
 		return ports.QueueStatus{}, errUnreachable
 	}
 	return ports.QueueStatus{ProcessPath: processPath, Depth: f.queues[processPath]}, nil
-}
-
-func (f *fakeFE) FindClaimableWork(context.Context, string) (ports.ClaimableWorkResult, error) {
-	return ports.ClaimableWorkResult{}, errNotUsed
 }
 
 func (f *fakeFE) DiagnoseStuckTasks(context.Context, int) (ports.StuckTasksResult, error) {
@@ -124,14 +116,6 @@ func (f *fakeFacility) ListSites(context.Context) (ports.SitesResult, error) {
 		return ports.SitesResult{}, errUnreachable
 	}
 	return ports.SitesResult{Sites: f.sites}, nil
-}
-
-func (f *fakeFacility) GetSiteLayout(context.Context, string) (ports.SiteLayout, error) {
-	return ports.SiteLayout{}, errNotUsed
-}
-
-func (f *fakeFacility) GetZoneGrid(context.Context, string) (ports.ZoneGrid, error) {
-	return ports.ZoneGrid{}, errNotUsed
 }
 
 func (f *fakeFacility) EstimateTravelDistance(_ context.Context, from, to string) (ports.TravelDistance, error) {
@@ -165,18 +149,6 @@ func (f *fakeLP) GetTaskTypeUtilization(_ context.Context, taskType string, _ in
 		return ports.TaskTypeUtilization{}, fmt.Errorf("labor-performance: no utilization for task type %q", taskType)
 	}
 	return u, nil
-}
-
-func (f *fakeLP) GetAssociateScorecard(context.Context, string) (ports.AssociateScorecard, error) {
-	return ports.AssociateScorecard{}, errNotUsed
-}
-
-func (f *fakeLP) GetTaskTypePerformance(context.Context, string) (ports.TaskTypePerformance, error) {
-	return ports.TaskTypePerformance{}, errNotUsed
-}
-
-func (f *fakeLP) GetLaborStandard(context.Context, string) (ports.LaborStandard, error) {
-	return ports.LaborStandard{}, errNotUsed
 }
 
 // ------------------------------------------------------------ reasoner -----

@@ -30,22 +30,13 @@ type planningPlanTestIn struct {
 	ID string `json:"id"`
 }
 
-type planningLocationTestIn struct {
-	Location string `json:"location"`
-}
-
-type planningOptLocationTestIn struct {
-	Location string `json:"location,omitempty"`
-}
-
-// planningUpstream is a real Streamable-HTTP MCP server publishing the four
-// warehouse-planning read tools the client uses PLUS one write tool
+// planningUpstream is a real Streamable-HTTP MCP server publishing the
+// warehouse-planning read tool the client uses PLUS one write tool
 // (create_capacity_plan) that fails the test if it is ever invoked.
 type planningUpstream struct {
 	*httptest.Server
 	mu      sync.Mutex
 	lastReq planningPathCapacityTestIn
-	lastLoc string
 	calls   []string
 }
 
@@ -80,49 +71,10 @@ func newPlanningTestUpstream(t *testing.T) *planningUpstream {
 		}, nil
 	})
 
-	mcp.AddTool(server, &mcp.Tool{Name: "get_capacity_plan"}, func(_ context.Context, _ *mcp.CallToolRequest, in planningPlanTestIn) (*mcp.CallToolResult, ports.CapacityPlan, error) {
-		up.record("get_capacity_plan")
-		if in.ID == "gone" {
-			return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: "capacity-plan-not-found: nope"}}}, ports.CapacityPlan{}, nil
-		}
-		return nil, ports.CapacityPlan{
-			Id: in.ID, WarehouseId: "WH-1", Location: "SIM1",
-			WindowStart: "2026-10-05T08:00:00Z", WindowEnd: "2026-10-05T16:00:00Z",
-			PathId: "tote-path", AssignedDemand: 1200, Status: "DRAFT",
-			PathCapacity: 120, BottleneckStep: "PACK", CapacityOverWindow: 960, Shortage: 240,
-			CreatedAt: "2026-10-05T07:00:00Z", BottleneckConstraint: "STATION", Warnings: []string{},
-		}, nil
-	})
-
-	mcp.AddTool(server, &mcp.Tool{Name: "get_storage_capacity"}, func(_ context.Context, _ *mcp.CallToolRequest, in planningLocationTestIn) (*mcp.CallToolResult, ports.StorageCapacity, error) {
-		up.record("get_storage_capacity")
-		up.mu.Lock()
-		up.lastLoc = in.Location
-		up.mu.Unlock()
-		return nil, ports.StorageCapacity{
-			Location:         in.Location,
-			StoragePositions: []ports.StoragePositions{{ZoneId: "SIM1-A", LocationType: "BIN", Positions: 500}},
-			Stations:         []ports.ZoneStations{{ZoneId: "SIM1-P", Activity: "PACK", Stations: 4}},
-		}, nil
-	})
-
-	mcp.AddTool(server, &mcp.Tool{Name: "list_station_standards"}, func(_ context.Context, _ *mcp.CallToolRequest, in planningOptLocationTestIn) (*mcp.CallToolResult, ports.StationStandardList, error) {
-		up.record("list_station_standards")
-		up.mu.Lock()
-		up.lastLoc = in.Location
-		up.mu.Unlock()
-		return nil, ports.StationStandardList{
-			Location: in.Location,
-			Standards: []ports.StationStandard{
-				{Location: "SIM1", ProcessType: "PACK", Quantity: 180, Unit: "PACKAGE", PeriodSeconds: 3600},
-			},
-		}, nil
-	})
-
 	// A write tool the client must never reach.
-	mcp.AddTool(server, &mcp.Tool{Name: "create_capacity_plan"}, func(_ context.Context, _ *mcp.CallToolRequest, in planningPlanTestIn) (*mcp.CallToolResult, ports.CapacityPlan, error) {
+	mcp.AddTool(server, &mcp.Tool{Name: "create_capacity_plan"}, func(_ context.Context, _ *mcp.CallToolRequest, in planningPlanTestIn) (*mcp.CallToolResult, ports.ProcessPathCapacity, error) {
 		t.Error("write tool create_capacity_plan was invoked")
-		return nil, ports.CapacityPlan{}, nil
+		return nil, ports.ProcessPathCapacity{}, nil
 	})
 
 	h := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server }, nil)
@@ -200,60 +152,6 @@ func TestWarehousePlanning_GetProcessPathCapacity_ToolError(t *testing.T) {
 	}
 }
 
-func TestWarehousePlanning_GetCapacityPlan(t *testing.T) {
-	up := newPlanningTestUpstream(t)
-	defer up.Close()
-
-	c := NewWarehousePlanning(Config{Endpoint: up.URL})
-	out, err := c.GetCapacityPlan(context.Background(), "plan-1")
-	if err != nil {
-		t.Fatalf("GetCapacityPlan: %v", err)
-	}
-	if out.Id != "plan-1" || out.Shortage != 240 || out.BottleneckStep != "PACK" || out.BottleneckConstraint != "STATION" || out.Status != "DRAFT" || out.PublishedAt != nil {
-		t.Fatalf("unexpected plan: %+v", out)
-	}
-
-	if _, err := c.GetCapacityPlan(context.Background(), "gone"); err == nil || !strings.Contains(err.Error(), "capacity-plan-not-found") {
-		t.Fatalf("unknown plan must surface the upstream slug, got %v", err)
-	}
-}
-
-func TestWarehousePlanning_GetStorageCapacity(t *testing.T) {
-	up := newPlanningTestUpstream(t)
-	defer up.Close()
-
-	c := NewWarehousePlanning(Config{Endpoint: up.URL})
-	out, err := c.GetStorageCapacity(context.Background(), "SIM1")
-	if err != nil {
-		t.Fatalf("GetStorageCapacity: %v", err)
-	}
-	if up.lastLoc != "SIM1" || out.Location != "SIM1" || len(out.StoragePositions) != 1 || out.StoragePositions[0].Positions != 500 || len(out.Stations) != 1 || out.Stations[0].Stations != 4 {
-		t.Fatalf("unexpected storage capacity: %+v (sent location %q)", out, up.lastLoc)
-	}
-}
-
-func TestWarehousePlanning_ListStationStandards(t *testing.T) {
-	up := newPlanningTestUpstream(t)
-	defer up.Close()
-
-	c := NewWarehousePlanning(Config{Endpoint: up.URL})
-	out, err := c.ListStationStandards(context.Background(), "SIM1")
-	if err != nil {
-		t.Fatalf("ListStationStandards: %v", err)
-	}
-	if up.lastLoc != "SIM1" || out.Location != "SIM1" || len(out.Standards) != 1 || out.Standards[0].Quantity != 180 || out.Standards[0].Unit != "PACKAGE" {
-		t.Fatalf("unexpected standards: %+v (sent location %q)", out, up.lastLoc)
-	}
-
-	// An empty location omits the filter entirely.
-	if _, err := c.ListStationStandards(context.Background(), ""); err != nil {
-		t.Fatalf("ListStationStandards (unfiltered): %v", err)
-	}
-	if up.lastLoc != "" {
-		t.Fatalf("an empty location must not be sent as a filter, got %q", up.lastLoc)
-	}
-}
-
 func TestWarehousePlanning_OnlyReadToolsAreCalled(t *testing.T) {
 	up := newPlanningTestUpstream(t)
 	defer up.Close()
@@ -261,11 +159,8 @@ func TestWarehousePlanning_OnlyReadToolsAreCalled(t *testing.T) {
 	c := NewWarehousePlanning(Config{Endpoint: up.URL})
 	ctx := context.Background()
 	_, _ = c.GetProcessPathCapacity(ctx, ports.ProcessPathCapacityRequest{PathId: "p", Location: "SIM1"})
-	_, _ = c.GetCapacityPlan(ctx, "plan-1")
-	_, _ = c.GetStorageCapacity(ctx, "SIM1")
-	_, _ = c.ListStationStandards(ctx, "")
 
-	want := []string{"get_process_path_capacity", "get_capacity_plan", "get_storage_capacity", "list_station_standards"}
+	want := []string{"get_process_path_capacity"}
 	up.mu.Lock()
 	defer up.mu.Unlock()
 	if strings.Join(up.calls, ",") != strings.Join(want, ",") {
@@ -282,15 +177,6 @@ func TestWarehousePlanning_UnreachableUpstream(t *testing.T) {
 	if _, err := c.GetProcessPathCapacity(ctx, ports.ProcessPathCapacityRequest{PathId: "p", Location: "SIM1"}); err == nil {
 		t.Fatal("an unreachable upstream must surface as an error")
 	}
-	if _, err := c.GetCapacityPlan(ctx, "plan-1"); err == nil {
-		t.Fatal("an unreachable upstream must surface as an error")
-	}
-	if _, err := c.GetStorageCapacity(ctx, "SIM1"); err == nil {
-		t.Fatal("an unreachable upstream must surface as an error")
-	}
-	if _, err := c.ListStationStandards(ctx, ""); err == nil {
-		t.Fatal("an unreachable upstream must surface as an error")
-	}
 }
 
 func TestWarehousePlanning_RespectsCallerContext(t *testing.T) {
@@ -300,7 +186,7 @@ func TestWarehousePlanning_RespectsCallerContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	c := NewWarehousePlanning(Config{Endpoint: up.URL})
-	_, err := c.GetStorageCapacity(ctx, "SIM1")
+	_, err := c.GetProcessPathCapacity(ctx, ports.ProcessPathCapacityRequest{PathId: "p", Location: "SIM1"})
 	if err == nil {
 		t.Fatal("a cancelled context must abort the call")
 	}

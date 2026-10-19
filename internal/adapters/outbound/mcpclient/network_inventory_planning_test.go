@@ -22,12 +22,6 @@ type nipGetTransferTestIn struct {
 	TransferID string `json:"transfer_id"`
 }
 
-type nipListTestIn struct {
-	State string `json:"state,omitempty"`
-	Site  string `json:"site,omitempty"`
-	Limit int    `json:"limit,omitempty"`
-}
-
 type nipStuckTestIn struct {
 	OlderThanMinutes int    `json:"older_than_minutes"`
 	State            string `json:"state,omitempty"`
@@ -36,13 +30,12 @@ type nipStuckTestIn struct {
 
 type nipNoArgsTestIn struct{}
 
-// nipUpstream is a real Streamable-HTTP MCP server publishing the four NIP
+// nipUpstream is a real Streamable-HTTP MCP server publishing the three NIP
 // read tools PLUS two decoy mutating tools that fail the test if ever invoked.
 type nipUpstream struct {
 	*httptest.Server
 	mu        sync.Mutex
 	lastGet   nipGetTransferTestIn
-	lastList  nipListTestIn
 	lastStuck nipStuckTestIn
 	calls     []string
 }
@@ -85,17 +78,6 @@ func newNIPTestUpstream(t *testing.T) *nipUpstream {
 				{Seq: 2, From: "DRAFT", To: "ALLOCATING", Event: "AllocationRequested", Cause: "approved", OccurredAt: "2026-10-06T09:30:00Z"},
 			},
 		}, nil
-	})
-
-	mcp.AddTool(server, &mcp.Tool{Name: "list_transfers"}, func(_ context.Context, _ *mcp.CallToolRequest, in nipListTestIn) (*mcp.CallToolResult, ports.TransferPage, error) {
-		up.record("list_transfers")
-		up.mu.Lock()
-		up.lastList = in
-		up.mu.Unlock()
-		if in.State == "BOGUS" {
-			return toolErr("invalid-query: unknown state \"BOGUS\""), ports.TransferPage{}, nil
-		}
-		return nil, ports.TransferPage{Transfers: []ports.Transfer{nipSampleTransfer("t-1", "PICKED")}, Total: 1}, nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{Name: "find_stuck_transfers"}, func(_ context.Context, _ *mcp.CallToolRequest, in nipStuckTestIn) (*mcp.CallToolResult, ports.TransferPage, error) {
@@ -197,36 +179,6 @@ func TestNetworkInventoryPlanning_GetTransfer_NotFound(t *testing.T) {
 	}
 }
 
-func TestNetworkInventoryPlanning_ListTransfers(t *testing.T) {
-	up := newNIPTestUpstream(t)
-	defer up.Close()
-
-	c := NewNetworkInventoryPlanning(Config{Endpoint: up.URL})
-	out, err := c.ListTransfers(context.Background(), ports.ListTransfersRequest{State: "PICKED", Site: "WH1", Limit: 25})
-	if err != nil {
-		t.Fatalf("ListTransfers: %v", err)
-	}
-	if up.lastList != (nipListTestIn{State: "PICKED", Site: "WH1", Limit: 25}) {
-		t.Fatalf("tool received %+v", up.lastList)
-	}
-	if out.Total != 1 || len(out.Transfers) != 1 || out.Transfers[0].State != "PICKED" {
-		t.Fatalf("unexpected page: %+v", out)
-	}
-
-	// Unset filters are omitted, never defaulted.
-	if _, err := c.ListTransfers(context.Background(), ports.ListTransfersRequest{}); err != nil {
-		t.Fatalf("ListTransfers (unfiltered): %v", err)
-	}
-	if up.lastList != (nipListTestIn{}) {
-		t.Fatalf("empty filters must be omitted, got %+v", up.lastList)
-	}
-
-	_, err = c.ListTransfers(context.Background(), ports.ListTransfersRequest{State: "BOGUS"})
-	if !errors.Is(err, ports.ErrUpstreamInvalidInput) {
-		t.Fatalf("invalid-query must classify as invalid input, got %v", err)
-	}
-}
-
 func TestNetworkInventoryPlanning_FindStuckTransfers(t *testing.T) {
 	up := newNIPTestUpstream(t)
 	defer up.Close()
@@ -285,11 +237,10 @@ func TestNetworkInventoryPlanning_OnlyReadToolsAreCalled(t *testing.T) {
 	c := NewNetworkInventoryPlanning(Config{Endpoint: up.URL})
 	ctx := context.Background()
 	_, _ = c.GetTransfer(ctx, "t-1")
-	_, _ = c.ListTransfers(ctx, ports.ListTransfersRequest{})
 	_, _ = c.FindStuckTransfers(ctx, ports.FindStuckTransfersRequest{OlderThanMinutes: 5})
 	_, _ = c.SimulateTransferOptions(ctx)
 
-	want := []string{"get_transfer", "list_transfers", "find_stuck_transfers", "simulate_transfer_options"}
+	want := []string{"get_transfer", "find_stuck_transfers", "simulate_transfer_options"}
 	up.mu.Lock()
 	defer up.mu.Unlock()
 	if strings.Join(up.calls, ",") != strings.Join(want, ",") {
@@ -305,9 +256,6 @@ func TestNetworkInventoryPlanning_UnreachableUpstream(t *testing.T) {
 	ctx := context.Background()
 	if _, err := c.GetTransfer(ctx, "t-1"); err == nil || errors.Is(err, ports.ErrUpstreamNotFound) {
 		t.Fatalf("an unreachable upstream must surface as a plain error, got %v", err)
-	}
-	if _, err := c.ListTransfers(ctx, ports.ListTransfersRequest{}); err == nil {
-		t.Fatal("an unreachable upstream must surface as an error")
 	}
 	if _, err := c.FindStuckTransfers(ctx, ports.FindStuckTransfersRequest{OlderThanMinutes: 5}); err == nil {
 		t.Fatal("an unreachable upstream must surface as an error")

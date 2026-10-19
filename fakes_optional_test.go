@@ -60,18 +60,6 @@ func (f *fakeProductMaster) generatedPage(cursor string) ports.ProductPage {
 	return page
 }
 
-func (f *fakeProductMaster) GetProduct(context.Context, string) (ports.Product, error) {
-	return ports.Product{}, errNotUsed
-}
-
-func (f *fakeProductMaster) GetProductClassification(context.Context, string) (ports.ProductClassificationReading, error) {
-	return ports.ProductClassificationReading{}, errNotUsed
-}
-
-func (f *fakeProductMaster) GetPhysicalProfile(context.Context, string) (ports.PhysicalProfileReading, error) {
-	return ports.PhysicalProfileReading{}, errNotUsed
-}
-
 // ------------------------------------------- network-inventory-planning ----
 
 type fakeNIP struct {
@@ -93,10 +81,6 @@ func (f *fakeNIP) GetTransfer(_ context.Context, id string) (ports.TransferDetai
 		return ports.TransferDetail{}, fmt.Errorf("transfer-not-found: %s: %w", id, ports.ErrUpstreamNotFound)
 	}
 	return d, nil
-}
-
-func (f *fakeNIP) ListTransfers(context.Context, ports.ListTransfersRequest) (ports.TransferPage, error) {
-	return ports.TransferPage{}, errNotUsed
 }
 
 func (f *fakeNIP) FindStuckTransfers(_ context.Context, req ports.FindStuckTransfersRequest) (ports.TransferPage, error) {
@@ -165,20 +149,4 @@ func (f *fakeInbound) ListReceipts(_ context.Context, q ports.InboundReceiptList
 		}
 	}
 	return ports.InboundReceiptPage{Items: out}, nil
-}
-
-func (f *fakeInbound) GetAsn(context.Context, string) (ports.InboundAsn, error) {
-	return ports.InboundAsn{}, errNotUsed
-}
-
-func (f *fakeInbound) GetAppointment(context.Context, string) (ports.InboundAppointment, error) {
-	return ports.InboundAppointment{}, errNotUsed
-}
-
-func (f *fakeInbound) GetReceipt(context.Context, string) (ports.InboundReceipt, error) {
-	return ports.InboundReceipt{}, errNotUsed
-}
-
-func (f *fakeInbound) ListDocks(context.Context) (ports.InboundDockList, error) {
-	return ports.InboundDockList{}, errNotUsed
 }

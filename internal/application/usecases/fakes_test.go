@@ -25,12 +25,6 @@ func (f *fakeFacility) ListSites(ctx context.Context) (ports.SitesResult, error)
 	}
 	return f.sites, nil
 }
-func (f *fakeFacility) GetSiteLayout(ctx context.Context, siteCode string) (ports.SiteLayout, error) {
-	return ports.SiteLayout{}, errors.New("not implemented in fake")
-}
-func (f *fakeFacility) GetZoneGrid(ctx context.Context, zoneId string) (ports.ZoneGrid, error) {
-	return ports.ZoneGrid{}, errors.New("not implemented in fake")
-}
 func (f *fakeFacility) EstimateTravelDistance(ctx context.Context, from, to string) (ports.TravelDistance, error) {
 	if f.travelErr != nil {
 		return ports.TravelDistance{}, f.travelErr
@@ -68,9 +62,6 @@ func (f *fakeFe) GetQueueStatus(ctx context.Context, processPath string) (ports.
 	}
 	return f.queue[processPath], nil
 }
-func (f *fakeFe) FindClaimableWork(ctx context.Context, processPath string) (ports.ClaimableWorkResult, error) {
-	return ports.ClaimableWorkResult{}, errors.New("not implemented in fake")
-}
 func (f *fakeFe) DiagnoseStuckTasks(ctx context.Context, withinSeconds int) (ports.StuckTasksResult, error) {
 	if f.stuckErr != nil {
 		return ports.StuckTasksResult{}, f.stuckErr
@@ -88,9 +79,6 @@ func (f *fakeWfm) GetStaffingGap(ctx context.Context, buildingId, shiftId, pathI
 		return ports.StaffingGap{}, err
 	}
 	return f.gaps[pathId], nil
-}
-func (f *fakeWfm) ProposePathHeads(ctx context.Context, buildingId, pathId string, charge, plannedRate float64) (ports.ProposedHeads, error) {
-	return ports.ProposedHeads{}, errors.New("not implemented in fake")
 }
 
 // fakeSlotting is a table-driven fake of the slotting-optimization port:

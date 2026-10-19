@@ -30,8 +30,14 @@ import (
 // then say exactly which consumer-side assumption broke.
 const productMasterGoldenPath = "testdata/product_master_tools.golden.json"
 
-// wantProductMasterTools is the exact set of tools this client calls.
+// wantProductMasterTools is every tool product-master publishes (four, the
+// verbatim golden); the client itself deliberately calls only the one in
+// wantProductMasterCalledTools below.
 var wantProductMasterTools = []string{"get_physical_profile", "get_product", "get_product_classification", "list_products"}
+
+// wantProductMasterCalledTools is the exact set of tools this client calls
+// (the one the master-data-gaps use case consumes, ADR 0020).
+var wantProductMasterCalledTools = []string{"list_products"}
 
 type goldenTool struct {
 	Name         string         `json:"name"`
@@ -68,7 +74,7 @@ func TestProductMaster_GoldenPinsExactlyTheFourReadOnlyTools(t *testing.T) {
 	}
 	sort.Strings(names)
 	if strings.Join(names, ",") != strings.Join(wantProductMasterTools, ",") {
-		t.Fatalf("product-master publishes %v, this client is built for exactly %v", names, wantProductMasterTools)
+		t.Fatalf("product-master publishes %v, this golden is built for exactly %v", names, wantProductMasterTools)
 	}
 	for _, name := range wantProductMasterTools {
 		if golden[name].Annotations["readOnlyHint"] != true {
@@ -84,10 +90,7 @@ func TestProductMaster_GoldenPinsExactlyTheFourReadOnlyTools(t *testing.T) {
 func TestProductMaster_PortDTOsMatchPublishedOutputSchemas(t *testing.T) {
 	golden := loadProductMasterGolden(t)
 	cases := map[string]reflect.Type{
-		"get_product":                reflect.TypeFor[ports.Product](),
-		"list_products":              reflect.TypeFor[ports.ProductPage](),
-		"get_product_classification": reflect.TypeFor[ports.ProductClassificationReading](),
-		"get_physical_profile":       reflect.TypeFor[ports.PhysicalProfileReading](),
+		"list_products": reflect.TypeFor[ports.ProductPage](),
 	}
 	for tool, typ := range cases {
 		for _, problem := range compareStructToSchema(typ, golden[tool].OutputSchema, tool) {
@@ -162,6 +165,7 @@ func jsonName(f reflect.StructField) string {
 // --- a schema-faithful product-master stand-in -------------------------------
 
 // productMasterUpstream is a real Streamable-HTTP MCP server whose four tools
+// (the client calls only list_products)
 // carry product-master's PUBLISHED input and output schemas from the golden:
 // the SDK validates the client's arguments (additionalProperties:false, so a
 // misspelled key is rejected) and the canned results against them.
@@ -208,24 +212,6 @@ func pmToolError(text string) *mcp.CallToolResult {
 	return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: text}}}
 }
 
-func pmProductBySku(sku string) (map[string]any, *mcp.CallToolResult) {
-	switch sku {
-	case "SKU-1":
-		return pmFixture(pmSku1), nil
-	case "SKU-2":
-		return pmFixture(pmSku2), nil
-	}
-	return nil, pmToolError("product-not-found: no product with SKU " + sku)
-}
-
-func pmGetProduct(_ context.Context, _ *mcp.CallToolRequest, in map[string]any) (*mcp.CallToolResult, any, error) {
-	p, toolErr := pmProductBySku(fmt.Sprint(in["sku"]))
-	if toolErr != nil {
-		return toolErr, nil, nil
-	}
-	return nil, p, nil
-}
-
 func pmListProducts(_ context.Context, _ *mcp.CallToolRequest, in map[string]any) (*mcp.CallToolResult, any, error) {
 	if limit, ok := in["limit"].(float64); ok && (limit < 1 || limit > 500) {
 		return pmToolError("malformed-request: limit must be between 1 and 500"), nil, nil
@@ -236,39 +222,13 @@ func pmListProducts(_ context.Context, _ *mcp.CallToolRequest, in map[string]any
 	return nil, map[string]any{"items": []any{pmFixture(pmSku1)}, "next_cursor": "c2"}, nil
 }
 
-func pmGetClassification(_ context.Context, _ *mcp.CallToolRequest, in map[string]any) (*mcp.CallToolResult, any, error) {
-	p, toolErr := pmProductBySku(fmt.Sprint(in["sku"]))
-	if toolErr != nil {
-		return toolErr, nil, nil
-	}
-	c, ok := p["classification"].(map[string]any)
-	if !ok {
-		return pmToolError("product-classification-not-found: SKU-2 has no classification"), nil, nil
-	}
-	c["sku"], c["version"] = p["sku"], p["version"]
-	return nil, c, nil
-}
-
-func pmGetPhysicalProfile(_ context.Context, _ *mcp.CallToolRequest, in map[string]any) (*mcp.CallToolResult, any, error) {
-	p, toolErr := pmProductBySku(fmt.Sprint(in["sku"]))
-	if toolErr != nil {
-		return toolErr, nil, nil
-	}
-	pp := p["physical_profile"].(map[string]any)
-	pp["sku"], pp["version"] = p["sku"], p["version"]
-	return nil, pp, nil
-}
-
 func newProductMasterTestUpstream(t *testing.T) *productMasterUpstream {
 	t.Helper()
 	golden := loadProductMasterGolden(t)
 	up := &productMasterUpstream{}
 	server := mcp.NewServer(&mcp.Implementation{Name: "product-master-test", Version: "0"}, nil)
 	handlers := map[string]mcp.ToolHandlerFor[map[string]any, any]{
-		"get_product":                pmGetProduct,
-		"list_products":              pmListProducts,
-		"get_product_classification": pmGetClassification,
-		"get_physical_profile":       pmGetPhysicalProfile,
+		"list_products": pmListProducts,
 	}
 	for name, h := range handlers {
 		g, h := golden[name], h
@@ -291,21 +251,27 @@ func newProductMasterTestUpstream(t *testing.T) *productMasterUpstream {
 
 // --- behaviour over the wire --------------------------------------------------
 
-func TestProductMaster_GetProduct_DecodesClassificationAndProfile(t *testing.T) {
+func TestProductMaster_ListProducts_DecodesClassificationAndProfile(t *testing.T) {
 	up := newProductMasterTestUpstream(t)
-	c := NewProductMaster(Config{Endpoint: up.URL})
-
-	p, err := c.GetProduct(context.Background(), "SKU-1")
+	page, err := NewProductMaster(Config{Endpoint: up.URL}).ListProducts(context.Background(), ports.ProductListQuery{})
 	if err != nil {
-		t.Fatalf("GetProduct: %v", err)
+		t.Fatalf("ListProducts: %v", err)
 	}
+	p := page.Items[0]
 	if p.Sku != "SKU-1" || p.Version != 3 || p.Classification == nil {
 		t.Fatalf("unexpected product: %+v", p)
 	}
 	assertSku1Classification(t, p.Classification)
 	assertSku1Profile(t, p.PhysicalProfile)
-	if up.args()["sku"] != "SKU-1" {
-		t.Fatalf("sku argument not sent: %v", up.args())
+
+	// An unclassified, unmeasured product decodes as such.
+	second, err := NewProductMaster(Config{Endpoint: up.URL}).ListProducts(context.Background(), ports.ProductListQuery{Cursor: "c2"})
+	if err != nil {
+		t.Fatalf("ListProducts (page 2): %v", err)
+	}
+	q := second.Items[0]
+	if q.Classification != nil || q.PhysicalProfile.EffectiveSource != "none" || q.PhysicalProfile.Declared != nil {
+		t.Fatalf("an unclassified, unmeasured product must decode as such: %+v", q)
 	}
 }
 
@@ -326,29 +292,6 @@ func assertSku1Profile(t *testing.T, pp ports.ProductPhysicalProfile) {
 	}
 	if pp.Declared == nil || pp.Declared.LengthMm != 100 || pp.Measured == nil || pp.Measured.LengthMm != 130 || pp.Measured.DeviceId != "cubiscan-1" {
 		t.Fatalf("unexpected declared/measured: %+v", pp)
-	}
-}
-
-func TestProductMaster_GetProduct_UnclassifiedHasNilClassification(t *testing.T) {
-	up := newProductMasterTestUpstream(t)
-	p, err := NewProductMaster(Config{Endpoint: up.URL}).GetProduct(context.Background(), "SKU-2")
-	if err != nil {
-		t.Fatalf("GetProduct: %v", err)
-	}
-	if p.Classification != nil || p.PhysicalProfile.EffectiveSource != "none" || p.PhysicalProfile.Declared != nil {
-		t.Fatalf("an unclassified, unmeasured product must decode as such: %+v", p)
-	}
-}
-
-func TestProductMaster_GetProduct_NotFoundKeepsSlugAndIsNotInvalidInput(t *testing.T) {
-	up := newProductMasterTestUpstream(t)
-	_, err := NewProductMaster(Config{Endpoint: up.URL}).GetProduct(context.Background(), "SKU-404")
-	var te *ToolError
-	if !errors.As(err, &te) || te.Slug != "product-not-found" {
-		t.Fatalf("want a product-not-found ToolError, got %v", err)
-	}
-	if errors.Is(err, ports.ErrUpstreamInvalidInput) {
-		t.Fatal("not-found is an upstream answer, not an input rejection")
 	}
 }
 
@@ -409,50 +352,16 @@ func TestProductMaster_ListProducts_MalformedRequestIsInvalidInput(t *testing.T)
 	}
 }
 
-func TestProductMaster_GetProductClassification(t *testing.T) {
-	up := newProductMasterTestUpstream(t)
-	c := NewProductMaster(Config{Endpoint: up.URL})
-
-	got, err := c.GetProductClassification(context.Background(), "SKU-1")
-	if err != nil {
-		t.Fatalf("GetProductClassification: %v", err)
-	}
-	if got.Sku != "SKU-1" || got.Version != 3 || len(got.HandlingTags) != 2 || got.TemperatureClass != "Frozen" || got.DotHazardClass == nil {
-		t.Fatalf("unexpected classification: %+v", got)
-	}
-
-	_, err = c.GetProductClassification(context.Background(), "SKU-2")
-	var te *ToolError
-	if !errors.As(err, &te) || te.Slug != "product-classification-not-found" {
-		t.Fatalf("an unclassified product must surface product-classification-not-found, got %v", err)
-	}
-}
-
-func TestProductMaster_GetPhysicalProfile(t *testing.T) {
-	up := newProductMasterTestUpstream(t)
-	got, err := NewProductMaster(Config{Endpoint: up.URL}).GetPhysicalProfile(context.Background(), "SKU-1")
-	if err != nil {
-		t.Fatalf("GetPhysicalProfile: %v", err)
-	}
-	if got.Sku != "SKU-1" || got.Version != 3 || !got.Discrepancy || got.EffectiveSource != "measured" ||
-		got.Declared == nil || got.Measured == nil || got.Measured.MeasuredAt != "2026-10-06T10:00:00Z" {
-		t.Fatalf("unexpected physical profile: %+v", got)
-	}
-}
-
 func TestProductMaster_OnlyThePinnedReadToolsAreCalled(t *testing.T) {
 	up := newProductMasterTestUpstream(t)
 	c := NewProductMaster(Config{Endpoint: up.URL})
 	ctx := context.Background()
-	_, _ = c.GetPhysicalProfile(ctx, "SKU-1")
-	_, _ = c.GetProduct(ctx, "SKU-1")
-	_, _ = c.GetProductClassification(ctx, "SKU-1")
 	_, _ = c.ListProducts(ctx, ports.ProductListQuery{})
 
 	up.mu.Lock()
 	defer up.mu.Unlock()
-	if strings.Join(up.calls, ",") != strings.Join(wantProductMasterTools, ",") {
-		t.Fatalf("tools called = %v, want exactly %v", up.calls, wantProductMasterTools)
+	if strings.Join(up.calls, ",") != strings.Join(wantProductMasterCalledTools, ",") {
+		t.Fatalf("tools called = %v, want exactly %v", up.calls, wantProductMasterCalledTools)
 	}
 }
 
@@ -462,17 +371,8 @@ func TestProductMaster_UnreachableUpstream(t *testing.T) {
 
 	c := NewProductMaster(Config{Endpoint: up.URL})
 	ctx := context.Background()
-	if _, err := c.GetProduct(ctx, "SKU-1"); err == nil {
-		t.Error("GetProduct: an unreachable upstream must surface as an error")
-	}
 	if _, err := c.ListProducts(ctx, ports.ProductListQuery{}); err == nil {
 		t.Error("ListProducts: an unreachable upstream must surface as an error")
-	}
-	if _, err := c.GetProductClassification(ctx, "SKU-1"); err == nil {
-		t.Error("GetProductClassification: an unreachable upstream must surface as an error")
-	}
-	if _, err := c.GetPhysicalProfile(ctx, "SKU-1"); err == nil {
-		t.Error("GetPhysicalProfile: an unreachable upstream must surface as an error")
 	}
 }
 
@@ -480,7 +380,7 @@ func TestProductMaster_RespectsCallerContext(t *testing.T) {
 	up := newProductMasterTestUpstream(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	_, err := NewProductMaster(Config{Endpoint: up.URL}).GetProduct(ctx, "SKU-1")
+	_, err := NewProductMaster(Config{Endpoint: up.URL}).ListProducts(ctx, ports.ProductListQuery{})
 	if err == nil {
 		t.Fatal("a cancelled context must abort the call")
 	}
