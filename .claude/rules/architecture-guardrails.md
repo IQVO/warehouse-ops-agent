@@ -91,16 +91,17 @@ warehouse-planning's MCP server is read+write (ADR 0013), so its client is
 held read-only by `zerowrite.TestMCPClientsCallOnlyReadTools`, which fails
 the build if any `callTool` literal in `mcpclient` starts with a write verb
 (`create_`, `publish_`, `register_`, `declare_`, …).
-product-master's server is read-only (ADR 0020); its client is additionally
-pinned to exactly its four tools by
-`zerowrite.TestProductMasterClientCallsOnlyPinnedTools` and to their published
-schemas by `mcpclient/testdata/product_master_tools.golden.json` (a verbatim
+product-master's server is read-only (ADR 0020); its client calls only
+`list_products` (the other three published tools have no caller here), pinned
+by `zerowrite.TestProductMasterClientCallsOnlyPinnedTools`, and the tools it
+does publish are pinned to their published schemas by `mcpclient/testdata/product_master_tools.golden.json` (a verbatim
 copy of product-master's registry golden; refresh it, never hand-edit it).
-inbound-receiving's server is read-only too (ADR 0021); its client is pinned
-to exactly its seven tools (`get_asn`, `list_asns`, `get_appointment`,
-`list_appointments`, `get_receipt`, `list_receipts`, `list_docks`) by
-`zerowrite.TestInboundReceivingClientCallsOnlyPinnedTools` and to their
-published schemas by `mcpclient/testdata/inbound_receiving_tools.golden.json`
+inbound-receiving's server is read-only too (ADR 0021); its client calls only
+`list_asns`, `list_appointments` and `list_receipts` (`get_asn`,
+`get_appointment`, `get_receipt` and `list_docks` are published but have no
+caller here), pinned by
+`zerowrite.TestInboundReceivingClientCallsOnlyPinnedTools`, and the tools it
+publishes are pinned to their published schemas by `mcpclient/testdata/inbound_receiving_tools.golden.json`
 (a verbatim copy of inbound-receiving's `tool_registry.golden.json`; refresh
 it, never hand-edit it). Its writes (register/cancel an ASN, book/check
 in/cancel an appointment, open/receive/close a receipt) are REST-only and
