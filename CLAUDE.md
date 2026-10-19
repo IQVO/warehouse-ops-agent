@@ -1,5 +1,7 @@
 # CLAUDE.md — warehouse-ops-agent
 
+<!-- harness-template: v4 -->
+
 `warehouse-ops-agent` is a single Go binary: a **thin, read-side /
 decision-support Customer** of the warehouse-systems fleet's bounded contexts,
 reached only through their published MCP Open Host Services (plus plain REST
