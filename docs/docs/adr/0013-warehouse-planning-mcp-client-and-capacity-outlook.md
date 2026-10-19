@@ -163,3 +163,12 @@ no new adapter, port or config.
 - **A circuit breaker on the planning client.** Rejected: no sibling MCP
   client has one (ADR 0011 scopes it to the LLM path), and fail-open per call
   plus the 10 s timeout already bound the cost of a down upstream.
+
+## Addendum (Phase 5.4): unconsumed tools removed
+
+Decision 8's three wired-but-unconsumed tools (`get_capacity_plan`,
+`get_storage_capacity`, `list_station_standards`) were removed from the client
+and the port, with their DTOs and tests: no use case called them, and a client
+method nobody calls is dead surface. The client now implements only
+`get_process_path_capacity`. The warehouse-planning server still publishes all
+of them; re-add a method together with the use case that needs it.

@@ -181,3 +181,10 @@ additive.
   signature would simply gain an alternate path that resolves the codes
   itself, without changing the tool's existing required-parameters
   contract for callers who already have them.
+
+## Addendum (Phase 5.4): layout-reading tools removed
+
+`get_site_layout` and `get_zone_grid` were removed from the facility-layout
+client and port (no use case called them); it now implements `list_sites` and
+`estimate_travel_distance`. The same pass removed fulfillment-execution's
+`find_claimable_work` and workforce-management's `propose_path_heads`.

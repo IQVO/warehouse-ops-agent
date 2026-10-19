@@ -57,17 +57,17 @@ import of any sibling's internal packages:
 | Upstream context | Read tools the client implements | Consumed today by |
 |---|---|---|
 | `wes-work-planning` | `get_backlog_telemetry`, `get_rebalance_recommendation` | daily brief, flow balance |
-| `fulfillment-execution` | `get_queue_status`, `find_claimable_work`, `diagnose_stuck_tasks` | daily brief, flow balance |
-| `workforce-management` | `get_staffing_gap`, `propose_path_heads` | daily brief, flow balance (`get_staffing_gap`) |
-| `facility-layout` | `list_sites`, `get_site_layout`, `get_zone_grid`, `estimate_travel_distance` | daily brief (`list_sites`), explain travel factor |
+| `fulfillment-execution` | `get_queue_status`, `diagnose_stuck_tasks` | daily brief, flow balance |
+| `workforce-management` | `get_staffing_gap` | daily brief, flow balance (`get_staffing_gap`) |
+| `facility-layout` | `list_sites`, `estimate_travel_distance` | daily brief (`list_sites`), explain travel factor |
 | `inventory-storage` | `check_availability`, `get_bin_occupancy` | E2 stranded reservation (MCP tool `detect_stranded_reservation`) |
-| `labor-performance` | `get_associate_scorecard`, `get_task_type_performance`, `get_labor_standard`, `get_task_type_utilization` | flow-balance utilization overlay (`get_task_type_utilization`, [ADR 0008](../adr/0008-labor-utilization-advisory-correlation.md)) |
+| `labor-performance` | `get_task_type_utilization` | flow-balance utilization overlay (`get_task_type_utilization`, [ADR 0008](../adr/0008-labor-utilization-advisory-correlation.md)) |
 | `order-management` | `get_promise_health` | daily brief `promiseHealth` section (today so far; [ADR 0024](../adr/0024-slot-plan-watch-promise-health-and-ppm-client-removal.md)); `get_order` stays published but unwired |
 | `slotting-optimization` | `get_slot_plan`, `list_slot_plans` (two of its four published read tools) | daily brief `slotPlanWatch` section: Approved plans with unexecuted moves after `SLOT_PLAN_STALE_AGE` ([ADR 0024](../adr/0024-slot-plan-watch-promise-health-and-ppm-client-removal.md)); `get_forward_slots` and `get_sku_velocity` deliberately unwired |
-| `warehouse-planning` | `get_process_path_capacity`, `get_capacity_plan`, `get_storage_capacity`, `list_station_standards` (read tools only; its write tools are never called) | daily brief capacity outlook (`get_process_path_capacity`, [ADR 0013](../adr/0013-warehouse-planning-mcp-client-and-capacity-outlook.md)); the other three wired, unconsumed |
-| `product-master` | `get_product`, `list_products`, `get_product_classification`, `get_physical_profile` (its whole, read-only surface) | master-data gaps report (`list_products`, `GET /master-data-gaps` / `find_master_data_gaps`, [ADR 0020](../adr/0020-product-master-mcp-client-and-master-data-gaps.md)); the other three wired, unconsumed. Switched on in the kind cluster (warehouse-infra sets `PRODUCT_MASTER_MCP_ENDPOINT`) |
-| `inbound-receiving` | `get_asn`, `list_asns`, `get_appointment`, `list_appointments`, `get_receipt`, `list_receipts`, `list_docks` (its whole, read-only surface) | inbound outlook (`list_asns`, `list_appointments`, `list_receipts`; `GET /inbound-outlook` / `get_inbound_outlook`, [ADR 0021](../adr/0021-inbound-receiving-mcp-client-and-inbound-outlook.md)); the other four wired, unconsumed. Off until `INBOUND_RECEIVING_MCP_ENDPOINT` is set |
-| `network-inventory-planning` | `get_transfer`, `list_transfers`, `find_stuck_transfers`, `simulate_transfer_options` (read tools only) | transfer watch (`/transfer-watch/*`, `triage_stuck_transfers`, `get_transfer_status`, `explain_network_imbalance`, [ADR 0019](../adr/0019-network-inventory-planning-transfer-watch.md)); `list_transfers` wired, unconsumed |
+| `warehouse-planning` | `get_process_path_capacity` (read tool only; its write tools are never called) | daily brief capacity outlook (`get_process_path_capacity`, [ADR 0013](../adr/0013-warehouse-planning-mcp-client-and-capacity-outlook.md)) |
+| `product-master` | `list_products` (one of its four read-only tools) | master-data gaps report (`list_products`, `GET /master-data-gaps` / `find_master_data_gaps`, [ADR 0020](../adr/0020-product-master-mcp-client-and-master-data-gaps.md)). Switched on in the kind cluster (warehouse-infra sets `PRODUCT_MASTER_MCP_ENDPOINT`) |
+| `inbound-receiving` | `list_asns`, `list_appointments`, `list_receipts` (three of its seven read-only tools) | inbound outlook (`list_asns`, `list_appointments`, `list_receipts`; `GET /inbound-outlook` / `get_inbound_outlook`, [ADR 0021](../adr/0021-inbound-receiving-mcp-client-and-inbound-outlook.md)). Off until `INBOUND_RECEIVING_MCP_ENDPOINT` is set |
+| `network-inventory-planning` | `get_transfer`, `find_stuck_transfers`, `simulate_transfer_options` (read tools only) | transfer watch (`/transfer-watch/*`, `triage_stuck_transfers`, `get_transfer_status`, `explain_network_imbalance`, [ADR 0019](../adr/0019-network-inventory-planning-transfer-watch.md)) |
 
 Beyond MCP, the agent also reads Prometheus and Loki for its
 [runtime-signals report](../api-surface.md), and fans out over plain REST
