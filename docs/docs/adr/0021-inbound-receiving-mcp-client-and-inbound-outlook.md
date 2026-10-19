@@ -152,3 +152,12 @@ drill-down for a future LLM tool allow-list entry
   every change to the chart's Helm templates in this change (it validates
   `*.yaml` as plain YAML, which Helm templates are not). warehouse-infra then
   needs one line to turn it on in the cluster. Until then the feature is off.
+
+## Addendum (Phase 5.4): unconsumed tools removed
+
+`get_asn`, `get_appointment`, `get_receipt` and `list_docks` were removed from
+the client and the port (no use case called them); the client now implements
+only `list_asns`, `list_appointments` and `list_receipts`.
+`testdata/inbound_receiving_tools.golden.json` stays a verbatim copy of
+inbound-receiving's full registry, and a test pins that the client calls
+exactly the three list tools. The server still publishes all seven.

@@ -74,3 +74,9 @@ practice, a missing message in one of them.
 - A new NIP state outside the classified set degrades to *unclassified*, not to
   a wrong cause.
 - The agent still writes nothing to any context.
+
+## Addendum (Phase 5.4): `list_transfers` removed
+
+The client and port no longer expose `list_transfers`: no use case called it
+(the transfer watch uses `get_transfer`, `find_stuck_transfers` and
+`simulate_transfer_options`). The NIP server still publishes it.

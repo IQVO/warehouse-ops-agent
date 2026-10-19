@@ -29,12 +29,6 @@ type fakeFacility struct {
 }
 
 func (f *fakeFacility) ListSites(ctx context.Context) (ports.SitesResult, error) { return f.sites, nil }
-func (f *fakeFacility) GetSiteLayout(ctx context.Context, siteCode string) (ports.SiteLayout, error) {
-	return ports.SiteLayout{}, nil
-}
-func (f *fakeFacility) GetZoneGrid(ctx context.Context, zoneId string) (ports.ZoneGrid, error) {
-	return ports.ZoneGrid{}, nil
-}
 func (f *fakeFacility) EstimateTravelDistance(ctx context.Context, from, to string) (ports.TravelDistance, error) {
 	if f.err != nil {
 		return ports.TravelDistance{}, f.err
@@ -59,9 +53,6 @@ type fakeFe struct {
 func (f *fakeFe) GetQueueStatus(ctx context.Context, processPath string) (ports.QueueStatus, error) {
 	return f.queue, nil
 }
-func (f *fakeFe) FindClaimableWork(ctx context.Context, processPath string) (ports.ClaimableWorkResult, error) {
-	return ports.ClaimableWorkResult{}, nil
-}
 func (f *fakeFe) DiagnoseStuckTasks(ctx context.Context, withinSeconds int) (ports.StuckTasksResult, error) {
 	return f.stuck, nil
 }
@@ -71,10 +62,6 @@ type fakeWfm struct{ gap ports.StaffingGap }
 func (f *fakeWfm) GetStaffingGap(ctx context.Context, buildingId, shiftId, pathId string) (ports.StaffingGap, error) {
 	return f.gap, nil
 }
-func (f *fakeWfm) ProposePathHeads(ctx context.Context, buildingId, pathId string, charge, plannedRate float64) (ports.ProposedHeads, error) {
-	return ports.ProposedHeads{}, nil
-}
-
 func newTestDailyBrief() *usecases.DailyBrief {
 	return &usecases.DailyBrief{
 		Facility: &fakeFacility{sites: ports.SitesResult{Sites: []ports.SiteRef{{Code: "WH1", Name: "One"}}}},

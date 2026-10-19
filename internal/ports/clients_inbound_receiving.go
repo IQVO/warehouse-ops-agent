@@ -4,13 +4,15 @@
 //
 // inbound-receiving's MCP server is READ-ONLY (its own ADR 0005: seven
 // tools, every one annotated readOnlyHint, a write-verb sensor in its
-// governance test). This port mirrors exactly those seven tools;
+// governance test). This port mirrors only the three list tools the inbound
+// outlook consumes (get_asn, get_appointment, get_receipt and list_docks are
+// not wired: no use case calls them);
 // inbound-receiving's writes (register/cancel an ASN, book/check in/cancel
 // an appointment, open/receive/close a receipt) are REST-only there and have
 // no method here. The zero-write fitness test
 // (internal/architecture/zerowrite) fails the build if the mcpclient adapter
 // ever names a write-verb tool, and the contract snapshot test in mcpclient
-// pins the seven tools against inbound-receiving's published registry.
+// pins the published tools against inbound-receiving's published registry.
 package ports
 
 import (
@@ -19,25 +21,15 @@ import (
 )
 
 // InboundReceivingClient is the outbound port for inbound-receiving's
-// published read tools: get_asn, list_asns, get_appointment,
-// list_appointments, get_receipt, list_receipts and list_docks.
+// published read tools list_asns, list_appointments and list_receipts.
 type InboundReceivingClient interface {
-	// GetAsn calls get_asn: one ASN by number.
-	GetAsn(ctx context.Context, asnNumber string) (InboundAsn, error)
 	// ListAsns calls list_asns: one page in ascending ASN-number order.
 	ListAsns(ctx context.Context, query InboundAsnListQuery) (InboundAsnPage, error)
-	// GetAppointment calls get_appointment: one dock appointment by id.
-	GetAppointment(ctx context.Context, appointmentID string) (InboundAppointment, error)
 	// ListAppointments calls list_appointments: one page in ascending
 	// window-start order.
 	ListAppointments(ctx context.Context, query InboundAppointmentListQuery) (InboundAppointmentPage, error)
-	// GetReceipt calls get_receipt: one receipt by id.
-	GetReceipt(ctx context.Context, receiptID string) (InboundReceipt, error)
 	// ListReceipts calls list_receipts: one page in ascending id order.
 	ListReceipts(ctx context.Context, query InboundReceiptListQuery) (InboundReceiptPage, error)
-	// ListDocks calls list_docks: the inbound dock doors and the mode the
-	// local copy runs in.
-	ListDocks(ctx context.Context) (InboundDockList, error)
 }
 
 // InboundAsnListQuery is the argument set of list_asns. Every field is
@@ -99,7 +91,7 @@ type InboundAsnLine struct {
 	ExpectedQty int64  `json:"expected_qty"`
 }
 
-// InboundAsn mirrors asnView (get_asn, and each list_asns item).
+// InboundAsn mirrors asnView (each list_asns item).
 // ExpectedArrival is empty when the supplier gave none; State is Registered,
 // Receiving, Closed or Cancelled.
 type InboundAsn struct {
@@ -117,7 +109,7 @@ type InboundAsnPage struct {
 	NextCursor string       `json:"next_cursor,omitempty"`
 }
 
-// InboundAppointment mirrors appointmentView (get_appointment, and each
+// InboundAppointment mirrors appointmentView (each
 // list_appointments item). WindowStart / WindowEnd are UTC instants; State is
 // Booked, CheckedIn, Completed or Cancelled.
 type InboundAppointment struct {
@@ -159,7 +151,7 @@ type InboundDiscrepancy struct {
 	DamagedQty  int64  `json:"damaged_qty"`
 }
 
-// InboundReceipt mirrors receiptView (get_receipt, and each list_receipts
+// InboundReceipt mirrors receiptView (each list_receipts
 // item). AppointmentID and DoorCode are empty for a walk-in; ClosedAt is
 // empty while the receipt is Open; State is Open or Closed.
 type InboundReceipt struct {
@@ -179,18 +171,4 @@ type InboundReceipt struct {
 type InboundReceiptPage struct {
 	Items      []InboundReceipt `json:"items"`
 	NextCursor string           `json:"next_cursor,omitempty"`
-}
-
-// InboundDock mirrors dockView; DockFlow is Inbound or Both.
-type InboundDock struct {
-	DoorCode string `json:"door_code"`
-	DockFlow string `json:"dock_flow"`
-}
-
-// InboundDockList mirrors dockListView. Mode is permissive (any door code can
-// be booked, the list may be empty) or kafka (only the listed doors can be
-// booked).
-type InboundDockList struct {
-	Mode  string        `json:"mode"`
-	Items []InboundDock `json:"items"`
 }

@@ -25,11 +25,6 @@ func (f *fakeNIP) GetTransfer(_ context.Context, id string) (ports.TransferDetai
 	return f.detail, f.err
 }
 
-func (f *fakeNIP) ListTransfers(context.Context, ports.ListTransfersRequest) (ports.TransferPage, error) {
-	f.calls = append(f.calls, "list_transfers")
-	return ports.TransferPage{}, errors.New("transfer watch must not call list_transfers")
-}
-
 func (f *fakeNIP) FindStuckTransfers(_ context.Context, req ports.FindStuckTransfersRequest) (ports.TransferPage, error) {
 	f.calls = append(f.calls, "find_stuck_transfers")
 	f.stuckReq = req

@@ -5,29 +5,23 @@
 //
 // product-master's MCP server is READ-ONLY (its own ADR 0005: four tools,
 // every one annotated readOnlyHint, a write-verb sensor in its governance
-// test). This port mirrors exactly those four tools; product-master's writes
+// test). This port mirrors only the one the agent consumes (list_products;
+// get_product, get_product_classification and get_physical_profile are not
+// wired because no use case calls them); product-master's writes
 // (register, classify, declare dimensions, record measurement) are REST-only
 // there and have no method here. The zero-write fitness test
 // (internal/architecture/zerowrite) fails the build if the mcpclient adapter
 // ever names a write-verb tool, and the contract snapshot test in mcpclient
-// pins the four tools against product-master's published registry.
+// pins the published tools against product-master's published registry.
 package ports
 
 import "context"
 
 // ProductMasterClient is the outbound port for product-master's published
-// read tools: get_product, list_products, get_product_classification and
-// get_physical_profile.
+// read tool list_products.
 type ProductMasterClient interface {
-	// GetProduct calls get_product: one product by SKU.
-	GetProduct(ctx context.Context, sku string) (Product, error)
 	// ListProducts calls list_products: one page in ascending SKU order.
 	ListProducts(ctx context.Context, query ProductListQuery) (ProductPage, error)
-	// GetProductClassification calls get_product_classification. An
-	// unclassified product is a product-classification-not-found tool error.
-	GetProductClassification(ctx context.Context, sku string) (ProductClassificationReading, error)
-	// GetPhysicalProfile calls get_physical_profile.
-	GetPhysicalProfile(ctx context.Context, sku string) (PhysicalProfileReading, error)
 }
 
 // ProductListQuery is the argument set of list_products. Every field is
@@ -98,7 +92,7 @@ type ProductClassification struct {
 	ClassificationSource string   `json:"classification_source"`
 }
 
-// Product mirrors productView (get_product, and each list_products item).
+// Product mirrors productView (each list_products item).
 // Classification is nil when the product is unclassified.
 type Product struct {
 	Sku             string                 `json:"sku"`
@@ -112,26 +106,4 @@ type Product struct {
 type ProductPage struct {
 	Items      []Product `json:"items"`
 	NextCursor string    `json:"next_cursor,omitempty"`
-}
-
-// ProductClassificationReading mirrors productClassificationView
-// (get_product_classification).
-type ProductClassificationReading struct {
-	Sku                  string   `json:"sku"`
-	HandlingTags         []string `json:"handling_tags"`
-	TemperatureClass     string   `json:"temperature_class,omitempty"`
-	DotHazardClass       *int     `json:"dot_hazard_class,omitempty"`
-	ClassificationSource string   `json:"classification_source"`
-	Version              int64    `json:"version"`
-}
-
-// PhysicalProfileReading mirrors physicalProfileOutput (get_physical_profile).
-type PhysicalProfileReading struct {
-	Sku             string              `json:"sku"`
-	Declared        *ProductDimensions  `json:"declared,omitempty"`
-	Measured        *ProductMeasurement `json:"measured,omitempty"`
-	Effective       *ProductDimensions  `json:"effective,omitempty"`
-	EffectiveSource string              `json:"effective_source"`
-	Discrepancy     bool                `json:"discrepancy"`
-	Version         int64               `json:"version"`
 }

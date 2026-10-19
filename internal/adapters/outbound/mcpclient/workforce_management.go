@@ -7,8 +7,7 @@ import (
 )
 
 // WorkforceManagement implements ports.WorkforceManagementClient by calling
-// workforce-management's published get_staffing_gap and propose_path_heads
-// MCP tools.
+// workforce-management's published get_staffing_gap MCP tool.
 type WorkforceManagement struct {
 	session *Session
 }
@@ -28,17 +27,6 @@ func (c *WorkforceManagement) GetStaffingGap(ctx context.Context, buildingId, sh
 		"buildingId": buildingId,
 		"shiftId":    shiftId,
 		"pathId":     pathId,
-	}, &out)
-	return out, err
-}
-
-func (c *WorkforceManagement) ProposePathHeads(ctx context.Context, buildingId, pathId string, charge, plannedRate float64) (ports.ProposedHeads, error) {
-	var out ports.ProposedHeads
-	err := c.session.callTool(ctx, "propose_path_heads", map[string]any{
-		"buildingId":  buildingId,
-		"pathId":      pathId,
-		"charge":      charge,
-		"plannedRate": plannedRate,
 	}, &out)
 	return out, err
 }
