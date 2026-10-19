@@ -6,11 +6,12 @@ require (
 	github.com/arch-go/arch-go v1.7.0
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/cucumber/godog v0.16.0
-	github.com/go-chi/chi/v5 v5.3.2
+	github.com/go-chi/chi/v5 v5.5.0
 	github.com/go-chi/cors v1.2.2
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/riandyrn/otelchi v0.12.3
 	github.com/sony/gobreaker/v2 v2.4.0
+	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.72.0
 	go.opentelemetry.io/contrib/instrumentation/runtime v0.72.0
 	go.opentelemetry.io/otel v1.47.0
 	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc v1.47.0
@@ -27,7 +28,6 @@ require (
 	github.com/hashicorp/go-memdb v1.3.5 // indirect
 	github.com/hashicorp/golang-lru v0.5.4 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
-	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.72.0 // indirect
 	go.opentelemetry.io/otel/log v1.47.0 // indirect
 )
 
