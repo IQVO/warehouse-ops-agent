@@ -203,3 +203,33 @@ func TestLoad_NetworkInventoryPlanning_ReadsEndpoint(t *testing.T) {
 		t.Errorf("endpoint = %q, want %q", got, want)
 	}
 }
+
+func TestLoad_ReturnsProcessing_DefaultsToNotConfigured(t *testing.T) {
+	t.Setenv("RETURNS_PROCESSING_MCP_ENDPOINT", "")
+	if got := mustLoad(t).ReturnsProcessing.Endpoint; got != "" {
+		t.Errorf("an unset endpoint must stay empty (= not configured), got %q", got)
+	}
+}
+
+func TestLoad_ReturnsProcessing_ReadsEndpoint(t *testing.T) {
+	t.Setenv("RETURNS_PROCESSING_MCP_ENDPOINT", "http://returns-processing-mcp.apps.svc.cluster.local:8090/mcp")
+	want := "http://returns-processing-mcp.apps.svc.cluster.local:8090/mcp"
+	if got := mustLoad(t).ReturnsProcessing.Endpoint; got != want {
+		t.Errorf("endpoint = %q, want %q", got, want)
+	}
+}
+
+func TestLoad_ExceptionManagement_DefaultsToNotConfigured(t *testing.T) {
+	t.Setenv("EXCEPTION_MANAGEMENT_MCP_ENDPOINT", "")
+	if got := mustLoad(t).ExceptionManagement.Endpoint; got != "" {
+		t.Errorf("an unset endpoint must stay empty (= not configured), got %q", got)
+	}
+}
+
+func TestLoad_ExceptionManagement_ReadsEndpoint(t *testing.T) {
+	t.Setenv("EXCEPTION_MANAGEMENT_MCP_ENDPOINT", "http://exception-management-mcp.apps.svc.cluster.local:8090/mcp")
+	want := "http://exception-management-mcp.apps.svc.cluster.local:8090/mcp"
+	if got := mustLoad(t).ExceptionManagement.Endpoint; got != want {
+		t.Errorf("endpoint = %q, want %q", got, want)
+	}
+}

@@ -127,6 +127,18 @@ type Config struct {
 	// the agent boots fail-open.
 	SlottingOptimization UpstreamConfig
 
+	// ReturnsProcessing is returns-processing's read-only MCP server,
+	// RETURNS_PROCESSING_MCP_ENDPOINT. An empty endpoint means "not
+	// configured": the composition root builds no client (fail-open); no
+	// use case consumes it yet.
+	ReturnsProcessing UpstreamConfig
+
+	// ExceptionManagement is exception-management's read-only MCP server,
+	// EXCEPTION_MANAGEMENT_MCP_ENDPOINT. An empty endpoint means "not
+	// configured": the composition root builds no client (fail-open); no
+	// use case consumes it yet.
+	ExceptionManagement UpstreamConfig
+
 	// SlotPlanStaleAge is the approval age past which an Approved slot
 	// plan with unexecuted moves is flagged in the daily brief's
 	// slot-plan section (SLOT_PLAN_STALE_AGE, a Go duration; default
@@ -290,6 +302,8 @@ func Load() (Config, error) {
 		SlottingOptimization: UpstreamConfig{
 			Endpoint: getenv("SLOTTING_OPTIMIZATION_MCP_ENDPOINT", ""),
 		},
+		ReturnsProcessing:      UpstreamConfig{Endpoint: getenv("RETURNS_PROCESSING_MCP_ENDPOINT", "")},
+		ExceptionManagement:    UpstreamConfig{Endpoint: getenv("EXCEPTION_MANAGEMENT_MCP_ENDPOINT", "")},
 		SlotPlanStaleAge:       loadDuration("SLOT_PLAN_STALE_AGE", defaultSlotPlanStaleAge),
 		CapacityOutlookHorizon: loadDuration("CAPACITY_OUTLOOK_HORIZON", defaultCapacityOutlookHorizon),
 

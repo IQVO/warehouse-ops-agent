@@ -44,6 +44,10 @@ var boundedContextModules = []string{
 	"github.com/claudioed/product-master",
 	// ADR 0021: inbound-receiving, read through its seven MCP read tools only.
 	"github.com/claudioed/inbound-receiving",
+	// returns-processing, read through its three MCP read tools only.
+	"github.com/claudioed/returns-processing",
+	// exception-management, read through its four MCP read tools only.
+	"github.com/claudioed/exception-management",
 }
 
 // TestNoDirectDependencyOnBoundedContexts asserts that no package in this

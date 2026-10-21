@@ -37,6 +37,8 @@ func TestNewOutboundClients_EmptyEndpointBuildsNoMCPClient(t *testing.T) {
 		"inbound-receiving":          c.inboundReceiving,
 		"network-inventory-planning": c.nip,
 		"slotting-optimization":      c.slotting,
+		"returns-processing":         c.returnsProcessing,
+		"exception-management":       c.exceptionManagement,
 	} {
 		if got != nil {
 			t.Errorf("%s: an empty endpoint must build no client, got %T", name, got)
@@ -61,6 +63,8 @@ func TestNewOutboundClients_SetEndpointBuildsEveryMCPClient(t *testing.T) {
 		InboundReceiving:         up("inbound-receiving"),
 		NetworkInventoryPlanning: up("network-inventory-planning"),
 		SlottingOptimization:     up("slotting-optimization"),
+		ReturnsProcessing:        up("returns-processing"),
+		ExceptionManagement:      up("exception-management"),
 	})
 	for name, got := range map[string]any{
 		"wes-work-planning":          c.wes,
@@ -75,6 +79,8 @@ func TestNewOutboundClients_SetEndpointBuildsEveryMCPClient(t *testing.T) {
 		"inbound-receiving":          c.inboundReceiving,
 		"network-inventory-planning": c.nip,
 		"slotting-optimization":      c.slotting,
+		"returns-processing":         c.returnsProcessing,
+		"exception-management":       c.exceptionManagement,
 	} {
 		if got == nil {
 			t.Errorf("%s: a set endpoint must build the client", name)
@@ -265,6 +271,20 @@ func TestNewSlottingClient_UnsetEndpoint_IsANilInterface(t *testing.T) {
 	// nil pointer would pass the "configured?" check and crash on first call.
 	if got := newSlottingClient(config.Config{}); got != nil {
 		t.Fatalf("an unset SLOTTING_OPTIMIZATION_MCP_ENDPOINT must yield a nil client (fail-open), got %T", got)
+	}
+}
+
+// TestNewReturnsAndExceptionsClients_UnsetEndpoint_AreNilInterfaces is the
+// composition-root half of the fail-open-absent-upstream path: with
+// RETURNS_PROCESSING_MCP_ENDPOINT / EXCEPTION_MANAGEMENT_MCP_ENDPOINT
+// unset, no client is built at all and boot never depends on either
+// upstream.
+func TestNewReturnsAndExceptionsClients_UnsetEndpoint_AreNilInterfaces(t *testing.T) {
+	if got := newReturnsProcessingClient(config.Config{}); got != nil {
+		t.Fatalf("an unset RETURNS_PROCESSING_MCP_ENDPOINT must yield a nil client (fail-open), got %T", got)
+	}
+	if got := newExceptionManagementClient(config.Config{}); got != nil {
+		t.Fatalf("an unset EXCEPTION_MANAGEMENT_MCP_ENDPOINT must yield a nil client (fail-open), got %T", got)
 	}
 }
 
