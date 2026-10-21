@@ -254,6 +254,18 @@ upstreams:
   # http://slotting-optimization-mcp.warehouse-systems.svc.cluster.local:8090/mcp
   slottingOptimization:
     endpoint: ""
+  # returns-processing: its MCP server is read-only (get_return,
+  # list_returns_by_order, get_disposition_policy). Empty = not
+  # configured: the binary builds no client (fail-open); no use case
+  # consumes it yet, so nothing else changes.
+  returnsProcessing:
+    endpoint: ""
+  # exception-management: its MCP server is read-only
+  # (list_open_exceptions, get_exception, get_exception_policies,
+  # get_sla_report). Empty = not configured: the binary builds no client
+  # (fail-open); no use case consumes it yet, so nothing else changes.
+  exceptionManagement:
+    endpoint: ""
 
 # warehouse-infra Prometheus base URL, for the telemetry-reader port's
 # REAL implementation (already wired: cmd/agent's newTelemetryReader picks

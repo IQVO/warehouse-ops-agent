@@ -30,6 +30,8 @@ One Streamable-HTTP endpoint per upstream MCP context:
 | product-master | `PRODUCT_MASTER_MCP_ENDPOINT` (unset = no client, `GET /master-data-gaps` 503, no `find_master_data_gaps`; read-only server, ADR 0020) |
 | inbound-receiving | `INBOUND_RECEIVING_MCP_ENDPOINT` (unset = no client, `GET /inbound-outlook` 503, no `get_inbound_outlook`; read-only server, ADR 0021). Companion `INBOUND_STALE_RECEIPT_AGE` (Go duration, NO default; unset = the outlook's `staleReceipts` section is omitted with that reason) |
 | network-inventory-planning | `NETWORK_INVENTORY_PLANNING_MCP_ENDPOINT` (unset = no client, `/transfer-watch/*` answer 503, the three transfer-watch MCP tools are not registered; read tools only, ADR 0019) |
+| returns-processing | `RETURNS_PROCESSING_MCP_ENDPOINT` (unset = no client, fail-open; read-only server; wired, no use case consumes it yet) |
+| exception-management | `EXCEPTION_MANAGEMENT_MCP_ENDPOINT` (unset = no client, fail-open; read-only server; wired, no use case consumes it yet) |
 
 Plus `AGENT_ADDR` (default `:8095`), `PROMETHEUS_URL` / `LOKI_URL`
 (runtime-signals sources; unset Prometheus → stub reader, unset Loki →

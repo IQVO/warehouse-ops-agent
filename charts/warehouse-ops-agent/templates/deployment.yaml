@@ -93,6 +93,10 @@ spec:
               value: {{ .Values.upstreams.networkInventoryPlanning.endpoint | quote }}
             - name: SLOTTING_OPTIMIZATION_MCP_ENDPOINT
               value: {{ .Values.upstreams.slottingOptimization.endpoint | quote }}
+            - name: RETURNS_PROCESSING_MCP_ENDPOINT
+              value: {{ .Values.upstreams.returnsProcessing.endpoint | quote }}
+            - name: EXCEPTION_MANAGEMENT_MCP_ENDPOINT
+              value: {{ .Values.upstreams.exceptionManagement.endpoint | quote }}
             {{- if .Values.config.capacityOutlookHorizon }}
             - name: CAPACITY_OUTLOOK_HORIZON
               value: {{ .Values.config.capacityOutlookHorizon | quote }}

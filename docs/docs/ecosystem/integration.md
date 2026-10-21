@@ -52,6 +52,8 @@ column); for an "optional" one the feature is off.
 | inbound-receiving | `INBOUND_RECEIVING_MCP_ENDPOINT` (optional) | `list_asns`, `list_appointments`, `list_receipts` | none | `GET /inbound-outlook`, `get_inbound_outlook` ([ADR 0021](../adr/0021-inbound-receiving-mcp-client-and-inbound-outlook.md)) | the failing section is `omitted` with a reason; `502` only when every attempted section failed |
 | network-inventory-planning | `NETWORK_INVENTORY_PLANNING_MCP_ENDPOINT` (optional) | `find_stuck_transfers`, `get_transfer`, `simulate_transfer_options` | none | `/transfer-watch/*` and the three transfer-watch tools ([ADR 0019](../adr/0019-network-inventory-planning-transfer-watch.md)) | `502`; `404` for `*-not-found`; `400` for a validation slug; the imbalance fails closed until NIP's read models are fresh |
 | slotting-optimization | `SLOTTING_OPTIMIZATION_MCP_ENDPOINT` (optional) | `list_slot_plans`, `get_slot_plan` | `get_forward_slots`, `get_sku_velocity` (published; no use case here calls them) | daily-brief `slotPlanWatch` section ([ADR 0024](../adr/0024-slot-plan-watch-promise-health-and-ppm-client-removal.md)) | the section carries an `unavailable` line (or an explicit `noApproved`); the brief is still `200` |
+| returns-processing | `RETURNS_PROCESSING_MCP_ENDPOINT` (optional) | `get_return`, `list_returns_by_order`, `get_disposition_policy` | none | none yet (wired for the returns read surface; no consuming use case) | none: unset = no client, nothing depends on it (fail-open) |
+| exception-management | `EXCEPTION_MANAGEMENT_MCP_ENDPOINT` (optional) | `list_open_exceptions`, `get_exception`, `get_exception_policies`, `get_sla_report` | none | none yet (wired for the exceptions read surface; no consuming use case) | none: unset = no client, nothing depends on it (fail-open) |
 
 The process-path-management client was removed entirely (ADR 0024, gap A9):
 catalogue configuration is not an ops signal, and no use case ever consumed
@@ -61,7 +63,8 @@ removes it in a later infra change.
 
 The zero-write tests (`internal/architecture/zerowrite`) fail the build if
 any client calls a tool outside the read set, and pin product-master's,
-inbound-receiving's and slotting-optimization's clients to exactly the
+inbound-receiving's, slotting-optimization's, returns-processing's and
+exception-management's clients to exactly the
 tools above.
 
 ### Tools the LLM may call

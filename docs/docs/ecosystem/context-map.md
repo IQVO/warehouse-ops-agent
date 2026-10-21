@@ -20,7 +20,7 @@ of the fleet, added in different phases and never merged into one:
    [ADR 0007](../adr/0007-second-wave-outbound-mcp-clients.md)) — the
    daily-brief, flow-balance-exception, explain-travel-factor and
    stranded-reservation use cases read each context's published MCP Open
-   Host Service, synchronously, at request time. Clients exist for twelve
+   Host Service, synchronously, at request time. Clients exist for fourteen
    contexts: the five original ones plus `labor-performance` (consumed by
    the [ADR 0008](../adr/0008-labor-utilization-advisory-correlation.md)
    utilization overlay), `order-management` and `process-path-management`
@@ -38,7 +38,9 @@ of the fleet, added in different phases and never merged into one:
    the inbound outlook, the other four read tools are wired but unconsumed;
    off until `INBOUND_RECEIVING_MCP_ENDPOINT` is set) and `network-inventory-planning`
    ([ADR 0019](../adr/0019-network-inventory-planning-transfer-watch.md):
-   read tools only; they feed the transfer watch).
+   read tools only; they feed the transfer watch), plus
+   `returns-processing` and `exception-management` (read-only servers;
+   wired, not yet consumed by any use case).
 2. **REST fan-out host for `console-bff`** ([ADR
    0002](../adr/0002-micro-frontend-console-architecture.md), [ADR
    0003](../adr/0003-console-bff-report-dashboards.md)) — a *separate*
@@ -127,6 +129,8 @@ context.
 | `facility-layout` (Generic) | OHS / Conformist | MCP `list_sites`, `estimate_travel_distance` (live); reports `/reports/catalog-growth` | live | `mcpclient/facility_layout.go`, `usecases/explain_travel_factor.go` |
 | `order-management` (Generic/Supporting) | OHS / Conformist | REST `GET /orders/{id}` and reports `/reports/funnel` (live); MCP `get_promise_health` (live, daily-brief promise-health section, ADR 0024) | REST live; MCP live, only when `ORDER_MANAGEMENT_MCP_ENDPOINT` is set | `restclient/clients.go`, `mcpclient/order_management.go`, `usecases/promise_health.go` |
 | `slotting-optimization` (Supporting) | OHS / Conformist (read-only server; contract pinned to its published registry golden) | MCP `list_slot_plans`, `get_slot_plan` (live, daily-brief slot-plan watch, ADR 0024); `get_forward_slots`, `get_sku_velocity` deliberately unwired | live, only when `SLOTTING_OPTIMIZATION_MCP_ENDPOINT` is set | `mcpclient/slotting_optimization.go`, `mcpclient/testdata/slotting_optimization_tools.golden.json`, `usecases/slot_plan_watch.go` |
+| `returns-processing` (Supporting) | OHS / Conformist (read-only server; contract pinned to its published registry golden) | MCP `get_return`, `list_returns_by_order`, `get_disposition_policy` (all three read tools wired; no use case consumes them yet) | wired, only when `RETURNS_PROCESSING_MCP_ENDPOINT` is set | `mcpclient/returns_processing.go`, `mcpclient/testdata/returns_processing_tools.golden.json` |
+| `exception-management` (Supporting) | OHS / Conformist (read-only server; contract pinned to its published registry golden) | MCP `list_open_exceptions`, `get_exception`, `get_exception_policies`, `get_sla_report` (all four read tools wired; no use case consumes them yet) | wired, only when `EXCEPTION_MANAGEMENT_MCP_ENDPOINT` is set | `mcpclient/exception_management.go`, `mcpclient/testdata/exception_management_tools.golden.json` |
 | `process-path-management` (Generic) | none | client REMOVED (ADR 0024, gap A9): catalogue configuration is not an ops signal | deliberately absent | no client in `internal/adapters/outbound` |
 | `network-fulfillment` (Supporting) | Separate Ways | none | deliberately absent | no client in `internal/adapters/outbound` |
 | Prometheus / Loki | Conformist (not a bounded context) | HTTP `/api/v1/query`, `/loki/api/v1/query_range` | live | `telemetry/prometheus_reader.go`, `logs/loki_reader.go` |

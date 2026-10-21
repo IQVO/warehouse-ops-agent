@@ -17,7 +17,7 @@ and persists no domain state; its "domain" layer is decision **policy**
 (correlation rules over facts read from the upstream contexts, plus a
 runtime-signals classifier over Prometheus/Loki telemetry).
 
-It holds an outbound MCP client for twelve contexts: the five original ones
+It holds an outbound MCP client for fourteen contexts: the five original ones
 (`wes-work-planning`, `fulfillment-execution`, `workforce-management`,
 `facility-layout`, `inventory-storage`) and two second-wave ones
 (`labor-performance`, `order-management`,
@@ -43,6 +43,10 @@ registry) feeds the inbound outlook
 it is off until `INBOUND_RECEIVING_MCP_ENDPOINT` is set.
 `network-inventory-planning` (read tools only) feeds the transfer watch
 ([ADR 0019](./docs/docs/adr/0019-network-inventory-planning-transfer-watch.md)).
+`returns-processing` (three read tools) and `exception-management` (four
+read tools) — both read-only servers — are wired but not yet consumed by
+any use case; each is off until its `RETURNS_PROCESSING_MCP_ENDPOINT` /
+`EXCEPTION_MANAGEMENT_MCP_ENDPOINT` is set.
 Separately, it hosts the `console-bff` REST
 fan-out for `warehouse-console` (ADR 0002/0003).
 
