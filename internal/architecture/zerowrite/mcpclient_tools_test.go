@@ -103,6 +103,58 @@ func TestSlottingOptimizationClientCallsOnlyPinnedTools(t *testing.T) {
 	}
 }
 
+// returnsProcessingReadTools is the exact allow-list for the
+// returns-processing client: all three of its published read tools
+// (the whole surface; returns-processing's writes are REST-only).
+var returnsProcessingReadTools = []string{"get_disposition_policy", "get_return", "list_returns_by_order"}
+
+// TestReturnsProcessingClientCallsOnlyPinnedTools scans
+// returns_processing.go and fails unless it names exactly the three pinned
+// read tools.
+func TestReturnsProcessingClientCallsOnlyPinnedTools(t *testing.T) {
+	path := "../../adapters/outbound/mcpclient/returns_processing.go"
+	src, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+	names := calledToolNames(parseGoFile(t, path, src))
+	sort.Strings(names)
+	if strings.Join(names, ",") != strings.Join(returnsProcessingReadTools, ",") {
+		t.Fatalf("%s calls %v; the returns-processing client may call exactly %v (read-only)", path, names, returnsProcessingReadTools)
+	}
+	for _, name := range names {
+		if prefix := writePrefixOf(name); prefix != "" {
+			t.Errorf("%s: tool %q starts with write verb %q", path, name, prefix)
+		}
+	}
+}
+
+// exceptionManagementReadTools is the exact allow-list for the
+// exception-management client: all four of its published read tools
+// (the whole surface; exception-management's writes are REST-only).
+var exceptionManagementReadTools = []string{"get_exception", "get_exception_policies", "get_sla_report", "list_open_exceptions"}
+
+// TestExceptionManagementClientCallsOnlyPinnedTools scans
+// exception_management.go and fails unless it names exactly the four pinned
+// read tools.
+func TestExceptionManagementClientCallsOnlyPinnedTools(t *testing.T) {
+	path := "../../adapters/outbound/mcpclient/exception_management.go"
+	src, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+	names := calledToolNames(parseGoFile(t, path, src))
+	sort.Strings(names)
+	if strings.Join(names, ",") != strings.Join(exceptionManagementReadTools, ",") {
+		t.Fatalf("%s calls %v; the exception-management client may call exactly %v (read-only)", path, names, exceptionManagementReadTools)
+	}
+	for _, name := range names {
+		if prefix := writePrefixOf(name); prefix != "" {
+			t.Errorf("%s: tool %q starts with write verb %q", path, name, prefix)
+		}
+	}
+}
+
 // TestMCPClientsCallOnlyReadTools statically scans every non-test source
 // file in the mcpclient package for `callTool(ctx, "<tool>", ...)` calls
 // and fails when a tool-name literal starts with a write verb.
