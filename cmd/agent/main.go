@@ -1,5 +1,5 @@
 // Command agent is the composition root for warehouse-ops-agent: it wires
-// env config to the twelve outbound MCP-client adapters (one per upstream
+// env config to the fourteen outbound MCP-client adapters (one per upstream
 // bounded context; each is built only when its *_MCP_ENDPOINT is set, so
 // an empty endpoint means no client and the use case reports that
 // upstream as unavailable), the REST clients for the console-bff, and the
@@ -144,9 +144,17 @@ type outboundClients struct {
 	nip ports.NetworkInventoryPlanningClient
 	// slotting is nil when SLOTTING_OPTIMIZATION_MCP_ENDPOINT is unset:
 	// the daily brief's slot-plan watch is then not wired (ADR 0024).
-	slotting  ports.SlottingOptimizationClient
-	telemetry ports.TelemetryReader
-	logs      ports.LogReader
+	slotting ports.SlottingOptimizationClient
+	// returnsProcessing is nil when RETURNS_PROCESSING_MCP_ENDPOINT is
+	// unset (fail-open). No use case consumes it yet: it exists so the
+	// returns/exceptions read surface is reachable the moment one does.
+	returnsProcessing ports.ReturnsProcessingClient
+	// exceptionManagement is nil when EXCEPTION_MANAGEMENT_MCP_ENDPOINT is
+	// unset (fail-open). No use case consumes it yet: it exists so the
+	// returns/exceptions read surface is reachable the moment one does.
+	exceptionManagement ports.ExceptionManagementClient
+	telemetry           ports.TelemetryReader
+	logs                ports.LogReader
 }
 
 // newMCPClient builds one upstream's MCP client, or returns the zero
@@ -196,6 +204,24 @@ func newSlottingClient(cfg config.Config) ports.SlottingOptimizationClient {
 	})
 }
 
+// newReturnsProcessingClient builds the returns-processing MCP client (its
+// three read tools only), or nil when no endpoint is configured
+// (fail-open). No use case consumes the client yet.
+func newReturnsProcessingClient(cfg config.Config) ports.ReturnsProcessingClient {
+	return newMCPClient("returns-processing", cfg.ReturnsProcessing.Endpoint, func(c mcpclient.Config) ports.ReturnsProcessingClient {
+		return mcpclient.NewReturnsProcessing(c)
+	})
+}
+
+// newExceptionManagementClient builds the exception-management MCP client
+// (its four read tools only), or nil when no endpoint is configured
+// (fail-open). No use case consumes the client yet.
+func newExceptionManagementClient(cfg config.Config) ports.ExceptionManagementClient {
+	return newMCPClient("exception-management", cfg.ExceptionManagement.Endpoint, func(c mcpclient.Config) ports.ExceptionManagementClient {
+		return mcpclient.NewExceptionManagement(c)
+	})
+}
+
 // newPlanningClient builds the warehouse-planning MCP client (read tools
 // only), or nil when no endpoint is configured, so the capacity outlook
 // degrades to "absent".
@@ -231,13 +257,15 @@ func newOutboundClients(cfg config.Config) outboundClients {
 		lp: newMCPClient("labor-performance", cfg.LaborPerformance.Endpoint, func(c mcpclient.Config) ports.LaborPerformanceClient {
 			return mcpclient.NewLaborPerformance(c)
 		}),
-		telemetry:        newTelemetryReader(cfg.PrometheusURL),
-		logs:             newLogReader(cfg.LokiURL),
-		planning:         newPlanningClient(cfg),
-		productMaster:    newProductMasterClient(cfg),
-		inboundReceiving: newInboundReceivingClient(cfg),
-		nip:              newNIPClient(cfg),
-		slotting:         newSlottingClient(cfg),
+		telemetry:           newTelemetryReader(cfg.PrometheusURL),
+		logs:                newLogReader(cfg.LokiURL),
+		planning:            newPlanningClient(cfg),
+		productMaster:       newProductMasterClient(cfg),
+		inboundReceiving:    newInboundReceivingClient(cfg),
+		nip:                 newNIPClient(cfg),
+		slotting:            newSlottingClient(cfg),
+		returnsProcessing:   newReturnsProcessingClient(cfg),
+		exceptionManagement: newExceptionManagementClient(cfg),
 	}
 }
 
@@ -434,6 +462,8 @@ func serveAgent(cfg config.Config, logger *slog.Logger, serviceName string, hand
 			"inbound_receiving_endpoint_configured", cfg.InboundReceiving.Endpoint != "",
 			"network_inventory_planning_endpoint_configured", cfg.NetworkInventoryPlanning.Endpoint != "",
 			"slotting_optimization_endpoint_configured", cfg.SlottingOptimization.Endpoint != "",
+			"returns_processing_endpoint_configured", cfg.ReturnsProcessing.Endpoint != "",
+			"exception_management_endpoint_configured", cfg.ExceptionManagement.Endpoint != "",
 			"order_management_endpoint_configured", cfg.OrderManagement.Endpoint != "",
 			"labor_performance_endpoint_configured", cfg.LaborPerformance.Endpoint != "",
 			"path_targets", len(cfg.PathTargets),

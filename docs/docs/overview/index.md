@@ -68,6 +68,8 @@ import of any sibling's internal packages:
 | `product-master` | `list_products` (one of its four read-only tools) | master-data gaps report (`list_products`, `GET /master-data-gaps` / `find_master_data_gaps`, [ADR 0020](../adr/0020-product-master-mcp-client-and-master-data-gaps.md)). Switched on in the kind cluster (warehouse-infra sets `PRODUCT_MASTER_MCP_ENDPOINT`) |
 | `inbound-receiving` | `list_asns`, `list_appointments`, `list_receipts` (three of its seven read-only tools) | inbound outlook (`list_asns`, `list_appointments`, `list_receipts`; `GET /inbound-outlook` / `get_inbound_outlook`, [ADR 0021](../adr/0021-inbound-receiving-mcp-client-and-inbound-outlook.md)). Off until `INBOUND_RECEIVING_MCP_ENDPOINT` is set |
 | `network-inventory-planning` | `get_transfer`, `find_stuck_transfers`, `simulate_transfer_options` (read tools only) | transfer watch (`/transfer-watch/*`, `triage_stuck_transfers`, `get_transfer_status`, `explain_network_imbalance`, [ADR 0019](../adr/0019-network-inventory-planning-transfer-watch.md)) |
+| `returns-processing` | `get_return`, `list_returns_by_order`, `get_disposition_policy` (its three read-only tools) | none yet: the client is wired but no use case consumes it. Off until `RETURNS_PROCESSING_MCP_ENDPOINT` is set |
+| `exception-management` | `list_open_exceptions`, `get_exception`, `get_exception_policies`, `get_sla_report` (its four read-only tools) | none yet: the client is wired but no use case consumes it. Off until `EXCEPTION_MANAGEMENT_MCP_ENDPOINT` is set |
 
 Beyond MCP, the agent also reads Prometheus and Loki for its
 [runtime-signals report](../api-surface.md), and fans out over plain REST
