@@ -20,8 +20,8 @@ of the fleet, added in different phases and never merged into one:
    [ADR 0007](../adr/0007-second-wave-outbound-mcp-clients.md)) — the
    daily-brief, flow-balance-exception, explain-travel-factor and
    stranded-reservation use cases read each context's published MCP Open
-   Host Service, synchronously, at request time. Clients exist for fourteen
-   contexts: the five original ones plus `labor-performance` (consumed by
+   Host Service, synchronously, at request time. Clients exist for
+   twenty-six contexts: the five original ones plus `labor-performance` (consumed by
    the [ADR 0008](../adr/0008-labor-utilization-advisory-correlation.md)
    utilization overlay), `order-management` and `process-path-management`
    (wired, not yet consumed by any use case), and `warehouse-planning`
@@ -40,7 +40,15 @@ of the fleet, added in different phases and never merged into one:
    ([ADR 0019](../adr/0019-network-inventory-planning-transfer-watch.md):
    read tools only; they feed the transfer watch), plus
    `returns-processing` and `exception-management` (read-only servers;
-   wired, not yet consumed by any use case).
+   wired, not yet consumed by any use case), and the twelve
+   [ADR 0025](../adr/0025-network-fleet-mcp-clients.md) clients: the ten
+   retail-network contexts (`customer-ordering`, `delivery-promise`,
+   `last-mile-delivery`, `linehaul-transportation`, `node-performance`,
+   `node-topology`, `offer-availability`, `order-sourcing`,
+   `shipping-and-tracking`, `vendor-connectivity`) plus
+   `task-interleaving` and `pick-face-replenishment` — read-only servers,
+   each client pinned to its published registry golden, wired but not yet
+   consumed by any use case).
 2. **REST fan-out host for `console-bff`** ([ADR
    0002](../adr/0002-micro-frontend-console-architecture.md), [ADR
    0003](../adr/0003-console-bff-report-dashboards.md)) — a *separate*
@@ -131,6 +139,19 @@ context.
 | `slotting-optimization` (Supporting) | OHS / Conformist (read-only server; contract pinned to its published registry golden) | MCP `list_slot_plans`, `get_slot_plan` (live, daily-brief slot-plan watch, ADR 0024); `get_forward_slots`, `get_sku_velocity` deliberately unwired | live, only when `SLOTTING_OPTIMIZATION_MCP_ENDPOINT` is set | `mcpclient/slotting_optimization.go`, `mcpclient/testdata/slotting_optimization_tools.golden.json`, `usecases/slot_plan_watch.go` |
 | `returns-processing` (Supporting) | OHS / Conformist (read-only server; contract pinned to its published registry golden) | MCP `get_return`, `list_returns_by_order`, `get_disposition_policy` (all three read tools wired; no use case consumes them yet) | wired, only when `RETURNS_PROCESSING_MCP_ENDPOINT` is set | `mcpclient/returns_processing.go`, `mcpclient/testdata/returns_processing_tools.golden.json` |
 | `exception-management` (Supporting) | OHS / Conformist (read-only server; contract pinned to its published registry golden) | MCP `list_open_exceptions`, `get_exception`, `get_exception_policies`, `get_sla_report` (all four read tools wired; no use case consumes them yet) | wired, only when `EXCEPTION_MANAGEMENT_MCP_ENDPOINT` is set | `mcpclient/exception_management.go`, `mcpclient/testdata/exception_management_tools.golden.json` |
+
+| `customer-ordering` (retail network) | OHS / Conformist (read-only server; contract pinned to its published registry golden, ADR 0025) | MCP `get_order`, `get_order_tracking`, `get_ship_to` (all three read tools wired; no use case consumes them yet) | wired, only when `CUSTOMER_ORDERING_MCP_ENDPOINT` is set | `mcpclient/customer_ordering.go`, `mcpclient/testdata/customer_ordering_tools.golden.json` |
+| `delivery-promise` (retail network) | OHS / Conformist (read-only server; contract pinned to its published registry golden, ADR 0025) | MCP `get_current_policy`, `get_delivery_offer`, `get_promise`, `list_promise_books`, `list_promises_by_order` (all five read tools wired; no use case consumes them yet) | wired, only when `DELIVERY_PROMISE_MCP_ENDPOINT` is set | `mcpclient/delivery_promise.go`, `mcpclient/testdata/delivery_promise_tools.golden.json` |
+| `last-mile-delivery` (retail network) | OHS / Conformist (read-only server; contract pinned to its published registry golden, ADR 0025) | MCP `list_waves`, `get_wave_stops`, `get_route` (all three read tools wired; no use case consumes them yet) | wired, only when `LAST_MILE_DELIVERY_MCP_ENDPOINT` is set | `mcpclient/last_mile_delivery.go`, `mcpclient/testdata/last_mile_delivery_tools.golden.json` |
+| `linehaul-transportation` (retail network) | OHS / Conformist (read-only server; contract pinned to its published registry golden, ADR 0025) | MCP `get_departure`, `list_departures` (both read tools wired; no use case consumes them yet) | wired, only when `LINEHAUL_TRANSPORTATION_MCP_ENDPOINT` is set | `mcpclient/linehaul_transportation.go`, `mcpclient/testdata/linehaul_transportation_tools.golden.json` |
+| `node-performance` (retail network) | OHS / Conformist (read-only server; contract pinned to its published registry golden, ADR 0025) | MCP `get_scorecard`, `list_scorecards_by_grade` (both read tools wired; no use case consumes them yet) | wired, only when `NODE_PERFORMANCE_MCP_ENDPOINT` is set | `mcpclient/node_performance.go`, `mcpclient/testdata/node_performance_tools.golden.json` |
+| `node-topology` (retail network) | OHS / Conformist (read-only server; contract pinned to its published registry golden, ADR 0025) | MCP `get_node`, `get_region`, `list_nodes`, `list_regions`, `list_lanes`, `resolve_service_area` (all six read tools wired; no use case consumes them yet) | wired, only when `NODE_TOPOLOGY_MCP_ENDPOINT` is set | `mcpclient/node_topology.go`, `mcpclient/testdata/node_topology_tools.golden.json` |
+| `offer-availability` (retail network) | OHS / Conformist (read-only server; contract pinned to its published registry golden, ADR 0025) | MCP `browse_catalog`, `get_catalog_item`, `list_listings`, `get_inventory_feed` (all four read tools wired; no use case consumes them yet) | wired, only when `OFFER_AVAILABILITY_MCP_ENDPOINT` is set | `mcpclient/offer_availability.go`, `mcpclient/testdata/offer_availability_tools.golden.json` |
+| `order-sourcing` (retail network) | OHS / Conformist (read-only server; contract pinned to its published registry golden, ADR 0025) | MCP `get_assignment`, `list_assignments` (both read tools wired; no use case consumes them yet) | wired, only when `ORDER_SOURCING_MCP_ENDPOINT` is set | `mcpclient/order_sourcing.go`, `mcpclient/testdata/order_sourcing_tools.golden.json` |
+| `shipping-and-tracking` (retail network) | OHS / Conformist (read-only server; contract pinned to its published registry golden, ADR 0025) | MCP `get_journey` (its one read tool wired; no use case consumes it yet) | wired, only when `SHIPPING_AND_TRACKING_MCP_ENDPOINT` is set | `mcpclient/shipping_and_tracking.go`, `mcpclient/testdata/shipping_and_tracking_tools.golden.json` |
+| `vendor-connectivity` (retail network) | OHS / Conformist (read-only server; contract pinned to its published registry golden, ADR 0025) | MCP `get_vendor`, `get_vendor_node`, `list_vendor_nodes`, `get_purchase_order`, `poll_purchase_orders`, `get_inbound_shipment`, `poll_inbound_shipments`, `get_transaction`, `get_node_scorecard` (all nine read tools wired; no use case consumes them yet) | wired, only when `VENDOR_CONNECTIVITY_MCP_ENDPOINT` is set | `mcpclient/vendor_connectivity.go`, `mcpclient/testdata/vendor_connectivity_tools.golden.json` |
+| `task-interleaving` (Supporting) | OHS / Conformist (read-only server; contract pinned to its published registry golden, ADR 0025) | MCP `get_hint`, `get_site_policy`, `get_station`, `list_hints` (all four read tools wired; no use case consumes them yet) | wired, only when `TASK_INTERLEAVING_MCP_ENDPOINT` is set | `mcpclient/task_interleaving.go`, `mcpclient/testdata/task_interleaving_tools.golden.json` |
+| `pick-face-replenishment` (Supporting) | OHS / Conformist (read-only server; contract pinned to its published registry golden, ADR 0025) | MCP `get_policy`, `list_policies`, `get_replenishment`, `list_replenishments`, `list_pick_faces` (all five read tools wired; no use case consumes them yet) | wired, only when `PICK_FACE_REPLENISHMENT_MCP_ENDPOINT` is set | `mcpclient/pick_face_replenishment.go`, `mcpclient/testdata/pick_face_replenishment_tools.golden.json` |
 | `process-path-management` (Generic) | none | client REMOVED (ADR 0024, gap A9): catalogue configuration is not an ops signal | deliberately absent | no client in `internal/adapters/outbound` |
 | `network-fulfillment` (Supporting) | Separate Ways | none | deliberately absent | no client in `internal/adapters/outbound` |
 | Prometheus / Loki | Conformist (not a bounded context) | HTTP `/api/v1/query`, `/loki/api/v1/query_range` | live | `telemetry/prometheus_reader.go`, `logs/loki_reader.go` |

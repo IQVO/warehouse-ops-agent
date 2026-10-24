@@ -155,6 +155,52 @@ func TestExceptionManagementClientCallsOnlyPinnedTools(t *testing.T) {
 	}
 }
 
+// --- the twelve ADR-0025 clients (network fleet + two WMS ones) -------
+//
+// Each is the exact allow-list for one of the twelve clients wired per
+// ADR 0025: the whole of its upstream's published read surface (every
+// one of these upstreams is a read-only server).
+
+var networkFleetReadTools = map[string][]string{
+	"customer_ordering.go":       {"get_order", "get_order_tracking", "get_ship_to"},
+	"delivery_promise.go":        {"get_current_policy", "get_delivery_offer", "get_promise", "list_promise_books", "list_promises_by_order"},
+	"last_mile_delivery.go":      {"get_route", "get_wave_stops", "list_waves"},
+	"linehaul_transportation.go": {"get_departure", "list_departures"},
+	"node_performance.go":        {"get_scorecard", "list_scorecards_by_grade"},
+	"node_topology.go":           {"get_node", "get_region", "list_lanes", "list_nodes", "list_regions", "resolve_service_area"},
+	"offer_availability.go":      {"browse_catalog", "get_catalog_item", "get_inventory_feed", "list_listings"},
+	"order_sourcing.go":          {"get_assignment", "list_assignments"},
+	"shipping_and_tracking.go":   {"get_journey"},
+	"vendor_connectivity.go":     {"get_inbound_shipment", "get_node_scorecard", "get_purchase_order", "get_transaction", "get_vendor", "get_vendor_node", "list_vendor_nodes", "poll_inbound_shipments", "poll_purchase_orders"},
+	"task_interleaving.go":       {"get_hint", "get_site_policy", "get_station", "list_hints"},
+	"pick_face_replenishment.go": {"get_policy", "get_replenishment", "list_pick_faces", "list_policies", "list_replenishments"},
+}
+
+// TestNetworkFleetClientsCallOnlyPinnedTools scans each of the twelve
+// ADR-0025 client files and fails unless it names exactly its pinned
+// read tools, and only read-verb-free ones at that.
+func TestNetworkFleetClientsCallOnlyPinnedTools(t *testing.T) {
+	for file, want := range networkFleetReadTools {
+		path := "../../adapters/outbound/mcpclient/" + file
+		src, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read %s: %v", path, err)
+		}
+		names := calledToolNames(parseGoFile(t, path, src))
+		sort.Strings(names)
+		sortedWant := append([]string(nil), want...)
+		sort.Strings(sortedWant)
+		if strings.Join(names, ",") != strings.Join(sortedWant, ",") {
+			t.Errorf("%s calls %v; this client may call exactly %v (read-only, ADR 0025)", path, names, sortedWant)
+		}
+		for _, name := range names {
+			if prefix := writePrefixOf(name); prefix != "" {
+				t.Errorf("%s: tool %q starts with write verb %q", path, name, prefix)
+			}
+		}
+	}
+}
+
 // TestMCPClientsCallOnlyReadTools statically scans every non-test source
 // file in the mcpclient package for `callTool(ctx, "<tool>", ...)` calls
 // and fails when a tool-name literal starts with a write verb.

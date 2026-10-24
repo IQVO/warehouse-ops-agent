@@ -1,5 +1,5 @@
 // Command agent is the composition root for warehouse-ops-agent: it wires
-// env config to the fourteen outbound MCP-client adapters (one per upstream
+// env config to the twenty-six outbound MCP-client adapters (one per upstream
 // bounded context; each is built only when its *_MCP_ENDPOINT is set, so
 // an empty endpoint means no client and the use case reports that
 // upstream as unavailable), the REST clients for the console-bff, and the
@@ -153,8 +153,25 @@ type outboundClients struct {
 	// unset (fail-open). No use case consumes it yet: it exists so the
 	// returns/exceptions read surface is reachable the moment one does.
 	exceptionManagement ports.ExceptionManagementClient
-	telemetry           ports.TelemetryReader
-	logs                ports.LogReader
+	// The twelve ADR-0025 upstreams (the ten retail-network contexts plus
+	// task-interleaving and pick-face-replenishment). Each is nil when
+	// its *_MCP_ENDPOINT is unset (fail-open, ADR 0023). No use case
+	// consumes any of them yet: they exist so each upstream's read
+	// surface is reachable the moment one does.
+	customerOrdering       ports.CustomerOrderingClient
+	deliveryPromise        ports.DeliveryPromiseClient
+	lastMileDelivery       ports.LastMileDeliveryClient
+	linehaulTransportation ports.LinehaulTransportationClient
+	nodePerformance        ports.NodePerformanceClient
+	nodeTopology           ports.NodeTopologyClient
+	offerAvailability      ports.OfferAvailabilityClient
+	orderSourcing          ports.OrderSourcingClient
+	shippingAndTracking    ports.ShippingAndTrackingClient
+	vendorConnectivity     ports.VendorConnectivityClient
+	taskInterleaving       ports.TaskInterleavingClient
+	pickFaceReplenishment  ports.PickFaceReplenishmentClient
+	telemetry              ports.TelemetryReader
+	logs                   ports.LogReader
 }
 
 // newMCPClient builds one upstream's MCP client, or returns the zero
@@ -266,6 +283,42 @@ func newOutboundClients(cfg config.Config) outboundClients {
 		slotting:            newSlottingClient(cfg),
 		returnsProcessing:   newReturnsProcessingClient(cfg),
 		exceptionManagement: newExceptionManagementClient(cfg),
+		customerOrdering: newMCPClient("customer-ordering", cfg.CustomerOrdering.Endpoint, func(c mcpclient.Config) ports.CustomerOrderingClient {
+			return mcpclient.NewCustomerOrdering(c)
+		}),
+		deliveryPromise: newMCPClient("delivery-promise", cfg.DeliveryPromise.Endpoint, func(c mcpclient.Config) ports.DeliveryPromiseClient {
+			return mcpclient.NewDeliveryPromise(c)
+		}),
+		lastMileDelivery: newMCPClient("last-mile-delivery", cfg.LastMileDelivery.Endpoint, func(c mcpclient.Config) ports.LastMileDeliveryClient {
+			return mcpclient.NewLastMileDelivery(c)
+		}),
+		linehaulTransportation: newMCPClient("linehaul-transportation", cfg.LinehaulTransportation.Endpoint, func(c mcpclient.Config) ports.LinehaulTransportationClient {
+			return mcpclient.NewLinehaulTransportation(c)
+		}),
+		nodePerformance: newMCPClient("node-performance", cfg.NodePerformance.Endpoint, func(c mcpclient.Config) ports.NodePerformanceClient {
+			return mcpclient.NewNodePerformance(c)
+		}),
+		nodeTopology: newMCPClient("node-topology", cfg.NodeTopology.Endpoint, func(c mcpclient.Config) ports.NodeTopologyClient {
+			return mcpclient.NewNodeTopology(c)
+		}),
+		offerAvailability: newMCPClient("offer-availability", cfg.OfferAvailability.Endpoint, func(c mcpclient.Config) ports.OfferAvailabilityClient {
+			return mcpclient.NewOfferAvailability(c)
+		}),
+		orderSourcing: newMCPClient("order-sourcing", cfg.OrderSourcing.Endpoint, func(c mcpclient.Config) ports.OrderSourcingClient {
+			return mcpclient.NewOrderSourcing(c)
+		}),
+		shippingAndTracking: newMCPClient("shipping-and-tracking", cfg.ShippingAndTracking.Endpoint, func(c mcpclient.Config) ports.ShippingAndTrackingClient {
+			return mcpclient.NewShippingAndTracking(c)
+		}),
+		vendorConnectivity: newMCPClient("vendor-connectivity", cfg.VendorConnectivity.Endpoint, func(c mcpclient.Config) ports.VendorConnectivityClient {
+			return mcpclient.NewVendorConnectivity(c)
+		}),
+		taskInterleaving: newMCPClient("task-interleaving", cfg.TaskInterleaving.Endpoint, func(c mcpclient.Config) ports.TaskInterleavingClient {
+			return mcpclient.NewTaskInterleaving(c)
+		}),
+		pickFaceReplenishment: newMCPClient("pick-face-replenishment", cfg.PickFaceReplenishment.Endpoint, func(c mcpclient.Config) ports.PickFaceReplenishmentClient {
+			return mcpclient.NewPickFaceReplenishment(c)
+		}),
 	}
 }
 
@@ -466,6 +519,18 @@ func serveAgent(cfg config.Config, logger *slog.Logger, serviceName string, hand
 			"exception_management_endpoint_configured", cfg.ExceptionManagement.Endpoint != "",
 			"order_management_endpoint_configured", cfg.OrderManagement.Endpoint != "",
 			"labor_performance_endpoint_configured", cfg.LaborPerformance.Endpoint != "",
+			"customer_ordering_endpoint_configured", cfg.CustomerOrdering.Endpoint != "",
+			"delivery_promise_endpoint_configured", cfg.DeliveryPromise.Endpoint != "",
+			"last_mile_delivery_endpoint_configured", cfg.LastMileDelivery.Endpoint != "",
+			"linehaul_transportation_endpoint_configured", cfg.LinehaulTransportation.Endpoint != "",
+			"node_performance_endpoint_configured", cfg.NodePerformance.Endpoint != "",
+			"node_topology_endpoint_configured", cfg.NodeTopology.Endpoint != "",
+			"offer_availability_endpoint_configured", cfg.OfferAvailability.Endpoint != "",
+			"order_sourcing_endpoint_configured", cfg.OrderSourcing.Endpoint != "",
+			"shipping_and_tracking_endpoint_configured", cfg.ShippingAndTracking.Endpoint != "",
+			"vendor_connectivity_endpoint_configured", cfg.VendorConnectivity.Endpoint != "",
+			"task_interleaving_endpoint_configured", cfg.TaskInterleaving.Endpoint != "",
+			"pick_face_replenishment_endpoint_configured", cfg.PickFaceReplenishment.Endpoint != "",
 			"path_targets", len(cfg.PathTargets),
 		)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {

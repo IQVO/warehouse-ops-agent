@@ -233,3 +233,39 @@ func TestLoad_ExceptionManagement_ReadsEndpoint(t *testing.T) {
 		t.Errorf("endpoint = %q, want %q", got, want)
 	}
 }
+
+// TestLoad_NetworkFleetEndpoints_DefaultAndRead covers the twelve ADR-0025
+// upstream endpoints: unset means not configured, and a set value reaches
+// its config field verbatim.
+func TestLoad_NetworkFleetEndpoints_DefaultAndRead(t *testing.T) {
+	cases := map[string]struct {
+		env  string
+		read func(Config) string
+	}{
+		"CUSTOMER_ORDERING_MCP_ENDPOINT":       {"CUSTOMER_ORDERING_MCP_ENDPOINT", func(c Config) string { return c.CustomerOrdering.Endpoint }},
+		"DELIVERY_PROMISE_MCP_ENDPOINT":        {"DELIVERY_PROMISE_MCP_ENDPOINT", func(c Config) string { return c.DeliveryPromise.Endpoint }},
+		"LAST_MILE_DELIVERY_MCP_ENDPOINT":      {"LAST_MILE_DELIVERY_MCP_ENDPOINT", func(c Config) string { return c.LastMileDelivery.Endpoint }},
+		"LINEHAUL_TRANSPORTATION_MCP_ENDPOINT": {"LINEHAUL_TRANSPORTATION_MCP_ENDPOINT", func(c Config) string { return c.LinehaulTransportation.Endpoint }},
+		"NODE_PERFORMANCE_MCP_ENDPOINT":        {"NODE_PERFORMANCE_MCP_ENDPOINT", func(c Config) string { return c.NodePerformance.Endpoint }},
+		"NODE_TOPOLOGY_MCP_ENDPOINT":           {"NODE_TOPOLOGY_MCP_ENDPOINT", func(c Config) string { return c.NodeTopology.Endpoint }},
+		"OFFER_AVAILABILITY_MCP_ENDPOINT":      {"OFFER_AVAILABILITY_MCP_ENDPOINT", func(c Config) string { return c.OfferAvailability.Endpoint }},
+		"ORDER_SOURCING_MCP_ENDPOINT":          {"ORDER_SOURCING_MCP_ENDPOINT", func(c Config) string { return c.OrderSourcing.Endpoint }},
+		"SHIPPING_AND_TRACKING_MCP_ENDPOINT":   {"SHIPPING_AND_TRACKING_MCP_ENDPOINT", func(c Config) string { return c.ShippingAndTracking.Endpoint }},
+		"VENDOR_CONNECTIVITY_MCP_ENDPOINT":     {"VENDOR_CONNECTIVITY_MCP_ENDPOINT", func(c Config) string { return c.VendorConnectivity.Endpoint }},
+		"TASK_INTERLEAVING_MCP_ENDPOINT":       {"TASK_INTERLEAVING_MCP_ENDPOINT", func(c Config) string { return c.TaskInterleaving.Endpoint }},
+		"PICK_FACE_REPLENISHMENT_MCP_ENDPOINT": {"PICK_FACE_REPLENISHMENT_MCP_ENDPOINT", func(c Config) string { return c.PickFaceReplenishment.Endpoint }},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Setenv(tc.env, "")
+			if got := tc.read(mustLoad(t)); got != "" {
+				t.Errorf("an unset endpoint must stay empty (= not configured), got %q", got)
+			}
+			want := "http://" + name + ".example:8090/mcp"
+			t.Setenv(tc.env, want)
+			if got := tc.read(mustLoad(t)); got != want {
+				t.Errorf("endpoint = %q, want %q", got, want)
+			}
+		})
+	}
+}
