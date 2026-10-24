@@ -1,0 +1,277 @@
+[
+  {
+    "annotations": {
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "Read one route of a delivery service partner: its state (PLANNED, OUT_FOR_DELIVERY or COMPLETED), its numbered stops with the trackingNumbers of each and the outcome derived from the per-package attempts (omitted until every package of the stop has one), and every recorded attempt (trackingNumber, DELIVERED or FAILED, failureReason, at). Read-only; an unknown route fails with not-found.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "routeId": {
+          "description": "the route id, e.g. route-9f2c-...",
+          "type": "string"
+        }
+      },
+      "required": [
+        "routeId"
+      ],
+      "type": "object"
+    },
+    "name": "get_route",
+    "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "attempts": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "at": {
+                "type": "string"
+              },
+              "failureReason": {
+                "type": "string"
+              },
+              "outcome": {
+                "type": "string"
+              },
+              "routeId": {
+                "type": "string"
+              },
+              "trackingNumber": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "routeId",
+              "trackingNumber",
+              "outcome",
+              "at"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "null",
+            "array"
+          ]
+        },
+        "dspId": {
+          "type": "string"
+        },
+        "routeId": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        },
+        "stationNodeId": {
+          "type": "string"
+        },
+        "stopCount": {
+          "type": "integer"
+        },
+        "stops": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "outcome": {
+                "type": "string"
+              },
+              "stopNo": {
+                "type": "integer"
+              },
+              "trackingNumbers": {
+                "items": {
+                  "type": "string"
+                },
+                "type": [
+                  "null",
+                  "array"
+                ]
+              }
+            },
+            "required": [
+              "stopNo",
+              "trackingNumbers"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "null",
+            "array"
+          ]
+        },
+        "waveId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "routeId",
+        "waveId",
+        "dspId",
+        "stationNodeId",
+        "state",
+        "stopCount",
+        "stops",
+        "attempts"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "annotations": {
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "Read the stops of one wave: the packages inducted in it grouped by the opaque stopKey (the keyed hash of the normalized address; pkg:\u003ctrackingNumber\u003e when no label data was received), in the order of each stop's first induction. Each stop carries its trackingNumbers and destinationPostalPrefix when the label data had it; no address is ever returned. Read-only; an unknown wave fails with not-found.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "waveId": {
+          "description": "the wave id, e.g. wave-1b4e28ba-2fa1-4d3c-8f6e-0a1b2c3d4e5f",
+          "type": "string"
+        }
+      },
+      "required": [
+        "waveId"
+      ],
+      "type": "object"
+    },
+    "name": "get_wave_stops",
+    "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "items": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "destinationPostalPrefix": {
+                "type": "string"
+              },
+              "stopKey": {
+                "type": "string"
+              },
+              "trackingNumbers": {
+                "items": {
+                  "type": "string"
+                },
+                "type": [
+                  "null",
+                  "array"
+                ]
+              }
+            },
+            "required": [
+              "stopKey",
+              "trackingNumbers"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "null",
+            "array"
+          ]
+        }
+      },
+      "required": [
+        "items"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "annotations": {
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "List the delivery waves of one station for one service date, ordered by inductCutoffAt: state (OPEN, INDUCTION_CLOSED, DISPATCHED, COMPLETED or CANCELLED), the induct cutoff and delivery window, the stop capacity with assignedStops and remainingStops, and cancelReason on a cancelled wave. A station and date with no wave is an empty list. Read-only; a malformed station or a serviceDate that is not YYYY-MM-DD fails with validation-failed.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "serviceDate": {
+          "description": "the station's local service date, YYYY-MM-DD, e.g. 2026-10-24",
+          "type": "string"
+        },
+        "stationNodeId": {
+          "description": "the delivery station whose waves to list, e.g. node-42",
+          "type": "string"
+        }
+      },
+      "required": [
+        "stationNodeId",
+        "serviceDate"
+      ],
+      "type": "object"
+    },
+    "name": "list_waves",
+    "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "items": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "assignedStops": {
+                "type": "integer"
+              },
+              "cancelReason": {
+                "type": "string"
+              },
+              "inductCutoffAt": {
+                "type": "string"
+              },
+              "remainingStops": {
+                "type": "integer"
+              },
+              "serviceDate": {
+                "type": "string"
+              },
+              "state": {
+                "type": "string"
+              },
+              "stationNodeId": {
+                "type": "string"
+              },
+              "stopCapacity": {
+                "type": "integer"
+              },
+              "waveId": {
+                "type": "string"
+              },
+              "windowEnd": {
+                "type": "string"
+              },
+              "windowStart": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "waveId",
+              "stationNodeId",
+              "serviceDate",
+              "inductCutoffAt",
+              "windowStart",
+              "windowEnd",
+              "stopCapacity",
+              "assignedStops",
+              "remainingStops",
+              "state"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "null",
+            "array"
+          ]
+        }
+      },
+      "required": [
+        "items"
+      ],
+      "type": "object"
+    }
+  }
+]
