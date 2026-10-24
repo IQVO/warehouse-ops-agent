@@ -97,6 +97,35 @@ spec:
               value: {{ .Values.upstreams.returnsProcessing.endpoint | quote }}
             - name: EXCEPTION_MANAGEMENT_MCP_ENDPOINT
               value: {{ .Values.upstreams.exceptionManagement.endpoint | quote }}
+            # The twelve ADR-0025 upstream endpoints. Rendered from
+            # values so the ConfigMap and Deployment agree; if
+            # warehouse-infra still sets the same names via extraEnv,
+            # the explicit entries here win the standard Kubernetes
+            # merge (ADR 0025 asks infra to drop its duplicates).
+            - name: CUSTOMER_ORDERING_MCP_ENDPOINT
+              value: {{ .Values.upstreams.customerOrdering.endpoint | quote }}
+            - name: DELIVERY_PROMISE_MCP_ENDPOINT
+              value: {{ .Values.upstreams.deliveryPromise.endpoint | quote }}
+            - name: LAST_MILE_DELIVERY_MCP_ENDPOINT
+              value: {{ .Values.upstreams.lastMileDelivery.endpoint | quote }}
+            - name: LINEHAUL_TRANSPORTATION_MCP_ENDPOINT
+              value: {{ .Values.upstreams.linehaulTransportation.endpoint | quote }}
+            - name: NODE_PERFORMANCE_MCP_ENDPOINT
+              value: {{ .Values.upstreams.nodePerformance.endpoint | quote }}
+            - name: NODE_TOPOLOGY_MCP_ENDPOINT
+              value: {{ .Values.upstreams.nodeTopology.endpoint | quote }}
+            - name: OFFER_AVAILABILITY_MCP_ENDPOINT
+              value: {{ .Values.upstreams.offerAvailability.endpoint | quote }}
+            - name: ORDER_SOURCING_MCP_ENDPOINT
+              value: {{ .Values.upstreams.orderSourcing.endpoint | quote }}
+            - name: SHIPPING_AND_TRACKING_MCP_ENDPOINT
+              value: {{ .Values.upstreams.shippingAndTracking.endpoint | quote }}
+            - name: VENDOR_CONNECTIVITY_MCP_ENDPOINT
+              value: {{ .Values.upstreams.vendorConnectivity.endpoint | quote }}
+            - name: TASK_INTERLEAVING_MCP_ENDPOINT
+              value: {{ .Values.upstreams.taskInterleaving.endpoint | quote }}
+            - name: PICK_FACE_REPLENISHMENT_MCP_ENDPOINT
+              value: {{ .Values.upstreams.pickFaceReplenishment.endpoint | quote }}
             {{- if .Values.config.capacityOutlookHorizon }}
             - name: CAPACITY_OUTLOOK_HORIZON
               value: {{ .Values.config.capacityOutlookHorizon | quote }}

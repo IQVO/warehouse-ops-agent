@@ -39,6 +39,18 @@ func TestNewOutboundClients_EmptyEndpointBuildsNoMCPClient(t *testing.T) {
 		"slotting-optimization":      c.slotting,
 		"returns-processing":         c.returnsProcessing,
 		"exception-management":       c.exceptionManagement,
+		"customer-ordering":          c.customerOrdering,
+		"delivery-promise":           c.deliveryPromise,
+		"last-mile-delivery":         c.lastMileDelivery,
+		"linehaul-transportation":    c.linehaulTransportation,
+		"node-performance":           c.nodePerformance,
+		"node-topology":              c.nodeTopology,
+		"offer-availability":         c.offerAvailability,
+		"order-sourcing":             c.orderSourcing,
+		"shipping-and-tracking":      c.shippingAndTracking,
+		"vendor-connectivity":        c.vendorConnectivity,
+		"task-interleaving":          c.taskInterleaving,
+		"pick-face-replenishment":    c.pickFaceReplenishment,
 	} {
 		if got != nil {
 			t.Errorf("%s: an empty endpoint must build no client, got %T", name, got)
@@ -65,6 +77,18 @@ func TestNewOutboundClients_SetEndpointBuildsEveryMCPClient(t *testing.T) {
 		SlottingOptimization:     up("slotting-optimization"),
 		ReturnsProcessing:        up("returns-processing"),
 		ExceptionManagement:      up("exception-management"),
+		CustomerOrdering:         up("customer-ordering"),
+		DeliveryPromise:          up("delivery-promise"),
+		LastMileDelivery:         up("last-mile-delivery"),
+		LinehaulTransportation:   up("linehaul-transportation"),
+		NodePerformance:          up("node-performance"),
+		NodeTopology:             up("node-topology"),
+		OfferAvailability:        up("offer-availability"),
+		OrderSourcing:            up("order-sourcing"),
+		ShippingAndTracking:      up("shipping-and-tracking"),
+		VendorConnectivity:       up("vendor-connectivity"),
+		TaskInterleaving:         up("task-interleaving"),
+		PickFaceReplenishment:    up("pick-face-replenishment"),
 	})
 	for name, got := range map[string]any{
 		"wes-work-planning":          c.wes,
@@ -81,6 +105,18 @@ func TestNewOutboundClients_SetEndpointBuildsEveryMCPClient(t *testing.T) {
 		"slotting-optimization":      c.slotting,
 		"returns-processing":         c.returnsProcessing,
 		"exception-management":       c.exceptionManagement,
+		"customer-ordering":          c.customerOrdering,
+		"delivery-promise":           c.deliveryPromise,
+		"last-mile-delivery":         c.lastMileDelivery,
+		"linehaul-transportation":    c.linehaulTransportation,
+		"node-performance":           c.nodePerformance,
+		"node-topology":              c.nodeTopology,
+		"offer-availability":         c.offerAvailability,
+		"order-sourcing":             c.orderSourcing,
+		"shipping-and-tracking":      c.shippingAndTracking,
+		"vendor-connectivity":        c.vendorConnectivity,
+		"task-interleaving":          c.taskInterleaving,
+		"pick-face-replenishment":    c.pickFaceReplenishment,
 	} {
 		if got == nil {
 			t.Errorf("%s: a set endpoint must build the client", name)

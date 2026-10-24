@@ -71,6 +71,19 @@ import of any sibling's internal packages:
 | `returns-processing` | `get_return`, `list_returns_by_order`, `get_disposition_policy` (its three read-only tools) | none yet: the client is wired but no use case consumes it. Off until `RETURNS_PROCESSING_MCP_ENDPOINT` is set |
 | `exception-management` | `list_open_exceptions`, `get_exception`, `get_exception_policies`, `get_sla_report` (its four read-only tools) | none yet: the client is wired but no use case consumes it. Off until `EXCEPTION_MANAGEMENT_MCP_ENDPOINT` is set |
 
+| `customer-ordering` | `get_order`, `get_order_tracking`, `get_ship_to` (its three read-only tools) | none yet: the client is wired but no use case consumes it. Off until `CUSTOMER_ORDERING_MCP_ENDPOINT` is set (ADR 0025) |
+| `delivery-promise` | `get_current_policy`, `get_delivery_offer`, `get_promise`, `list_promise_books`, `list_promises_by_order` (its five read-only tools) | none yet: the client is wired but no use case consumes it. Off until `DELIVERY_PROMISE_MCP_ENDPOINT` is set (ADR 0025) |
+| `last-mile-delivery` | `list_waves`, `get_wave_stops`, `get_route` (its three read-only tools) | none yet: the client is wired but no use case consumes it. Off until `LAST_MILE_DELIVERY_MCP_ENDPOINT` is set (ADR 0025) |
+| `linehaul-transportation` | `get_departure`, `list_departures` (its two read-only tools) | none yet: the client is wired but no use case consumes it. Off until `LINEHAUL_TRANSPORTATION_MCP_ENDPOINT` is set (ADR 0025) |
+| `node-performance` | `get_scorecard`, `list_scorecards_by_grade` (its two read-only tools) | none yet: the client is wired but no use case consumes it. Off until `NODE_PERFORMANCE_MCP_ENDPOINT` is set (ADR 0025) |
+| `node-topology` | `get_node`, `get_region`, `list_nodes`, `list_regions`, `list_lanes`, `resolve_service_area` (its six read-only tools) | none yet: the client is wired but no use case consumes it. Off until `NODE_TOPOLOGY_MCP_ENDPOINT` is set (ADR 0025) |
+| `offer-availability` | `browse_catalog`, `get_catalog_item`, `list_listings`, `get_inventory_feed` (its four read-only tools) | none yet: the client is wired but no use case consumes it. Off until `OFFER_AVAILABILITY_MCP_ENDPOINT` is set (ADR 0025) |
+| `order-sourcing` | `get_assignment`, `list_assignments` (its two read-only tools) | none yet: the client is wired but no use case consumes it. Off until `ORDER_SOURCING_MCP_ENDPOINT` is set (ADR 0025) |
+| `shipping-and-tracking` | `get_journey` (its one read-only tool) | none yet: the client is wired but no use case consumes it. Off until `SHIPPING_AND_TRACKING_MCP_ENDPOINT` is set (ADR 0025) |
+| `vendor-connectivity` | `get_vendor`, `get_vendor_node`, `list_vendor_nodes`, `get_purchase_order`, `poll_purchase_orders`, `get_inbound_shipment`, `poll_inbound_shipments`, `get_transaction`, `get_node_scorecard` (its nine read-only tools) | none yet: the client is wired but no use case consumes it. Off until `VENDOR_CONNECTIVITY_MCP_ENDPOINT` is set (ADR 0025) |
+| `task-interleaving` | `get_hint`, `get_site_policy`, `get_station`, `list_hints` (its four read-only tools) | none yet: the client is wired but no use case consumes it. Off until `TASK_INTERLEAVING_MCP_ENDPOINT` is set (ADR 0025) |
+| `pick-face-replenishment` | `get_policy`, `list_policies`, `get_replenishment`, `list_replenishments`, `list_pick_faces` (its five read-only tools) | none yet: the client is wired but no use case consumes it. Off until `PICK_FACE_REPLENISHMENT_MCP_ENDPOINT` is set (ADR 0025) |
+
 Beyond MCP, the agent also reads Prometheus and Loki for its
 [runtime-signals report](../api-surface.md), and fans out over plain REST
 for the `console-bff` routes (see the [context map](../ecosystem/context-map.md)).

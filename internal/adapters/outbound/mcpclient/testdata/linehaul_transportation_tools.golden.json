@@ -1,0 +1,228 @@
+[
+  {
+    "annotations": {
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "Read one departure by id: its lane, kind (PICKUP, LINEHAUL or AIR), origin and destination nodes, cutoffAt (no booking after it), departsAt and arrivesAt, capacityPackages, bookedPackages, remainingPackages and its state (SCHEDULED, CLOSED, DEPARTED, ARRIVED or CANCELLED), plus cancelReason and cancelledAt once it was cancelled, departedAt once it left and arrivedAt once it arrived. Read-only; an unknown id fails with not-found.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "departureId": {
+          "description": "the departure id, e.g. dep-7f3a",
+          "type": "string"
+        }
+      },
+      "required": [
+        "departureId"
+      ],
+      "type": "object"
+    },
+    "name": "get_departure",
+    "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "arrivedAt": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "arrivesAt": {
+          "type": "string"
+        },
+        "bookedPackages": {
+          "type": "integer"
+        },
+        "cancelReason": {
+          "type": "string"
+        },
+        "cancelledAt": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "capacityPackages": {
+          "type": "integer"
+        },
+        "cutoffAt": {
+          "type": "string"
+        },
+        "departedAt": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "departsAt": {
+          "type": "string"
+        },
+        "departureId": {
+          "type": "string"
+        },
+        "destinationNodeId": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "laneId": {
+          "type": "string"
+        },
+        "originNodeId": {
+          "type": "string"
+        },
+        "remainingPackages": {
+          "type": "integer"
+        },
+        "state": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "departureId",
+        "laneId",
+        "kind",
+        "originNodeId",
+        "destinationNodeId",
+        "cutoffAt",
+        "departsAt",
+        "arrivesAt",
+        "capacityPackages",
+        "bookedPackages",
+        "remainingPackages",
+        "state"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "annotations": {
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "List departures of the horizon by cutoffAt (then departureId), a page at a time, optionally only those leaving one origin (origin), bound for one destination (destination) and/or whose cutoffAt falls in a window [from, to) (RFC 3339 instants, from inclusive, to exclusive); at most limit rows (1..1000, default 500). Each departure carries its lane, kind (PICKUP, LINEHAUL, AIR), origin and destination nodes, cutoff/departs/arrives, capacity, booked and remaining packages and its state (SCHEDULED, CLOSED, DEPARTED, ARRIVED, CANCELLED). Read-only; a limit outside 1..1000 or a from after to fails with validation-failed, and a from/to that is not an RFC 3339 instant likewise.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "destination": {
+          "description": "optional: keep only departures bound for this destination node id; omitted means every destination",
+          "type": "string"
+        },
+        "from": {
+          "description": "optional: earliest cutoffAt (an RFC 3339 instant such as 2026-10-24T08:00:00Z), inclusive; omitted means unbounded",
+          "type": "string"
+        },
+        "limit": {
+          "description": "optional: at most this many departures, 1..1000; omitted or 0 means the default of 500",
+          "type": "integer"
+        },
+        "origin": {
+          "description": "optional: keep only departures leaving this origin node id; omitted means every origin",
+          "type": "string"
+        },
+        "to": {
+          "description": "optional: latest cutoffAt (an RFC 3339 instant), exclusive; omitted means unbounded",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "name": "list_departures",
+    "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "departures": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "arrivedAt": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
+              "arrivesAt": {
+                "type": "string"
+              },
+              "bookedPackages": {
+                "type": "integer"
+              },
+              "cancelReason": {
+                "type": "string"
+              },
+              "cancelledAt": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
+              "capacityPackages": {
+                "type": "integer"
+              },
+              "cutoffAt": {
+                "type": "string"
+              },
+              "departedAt": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              },
+              "departsAt": {
+                "type": "string"
+              },
+              "departureId": {
+                "type": "string"
+              },
+              "destinationNodeId": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string"
+              },
+              "laneId": {
+                "type": "string"
+              },
+              "originNodeId": {
+                "type": "string"
+              },
+              "remainingPackages": {
+                "type": "integer"
+              },
+              "state": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "departureId",
+              "laneId",
+              "kind",
+              "originNodeId",
+              "destinationNodeId",
+              "cutoffAt",
+              "departsAt",
+              "arrivesAt",
+              "capacityPackages",
+              "bookedPackages",
+              "remainingPackages",
+              "state"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "null",
+            "array"
+          ]
+        }
+      },
+      "required": [
+        "departures"
+      ],
+      "type": "object"
+    }
+  }
+]

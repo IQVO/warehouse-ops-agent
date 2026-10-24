@@ -266,6 +266,43 @@ upstreams:
   # (fail-open); no use case consumes it yet, so nothing else changes.
   exceptionManagement:
     endpoint: ""
+  # The twelve ADR-0025 upstreams: the ten retail-network contexts
+  # (customer-ordering, delivery-promise, last-mile-delivery,
+  # linehaul-transportation, node-performance, node-topology,
+  # offer-availability, order-sourcing, shipping-and-tracking,
+  # vendor-connectivity) plus task-interleaving and
+  # pick-face-replenishment (WMS). Every one is a read-only MCP server
+  # whose client is pinned to its published registry golden. All default
+  # to "" (unconfigured): the binary builds no client (fail-open, ADR
+  # 0023); no use case consumes any of them yet, so nothing else
+  # changes. NOTE (ADR 0025): warehouse-infra currently ALSO sets these
+  # exact env names via extraEnv; once this chart renders them from
+  # values, infra must drop its extraEnv duplicates in a follow-up
+  # change so the Deployment does not carry the same key twice.
+  customerOrdering:
+    endpoint: ""
+  deliveryPromise:
+    endpoint: ""
+  lastMileDelivery:
+    endpoint: ""
+  linehaulTransportation:
+    endpoint: ""
+  nodePerformance:
+    endpoint: ""
+  nodeTopology:
+    endpoint: ""
+  offerAvailability:
+    endpoint: ""
+  orderSourcing:
+    endpoint: ""
+  shippingAndTracking:
+    endpoint: ""
+  vendorConnectivity:
+    endpoint: ""
+  taskInterleaving:
+    endpoint: ""
+  pickFaceReplenishment:
+    endpoint: ""
 
 # warehouse-infra Prometheus base URL, for the telemetry-reader port's
 # REAL implementation (already wired: cmd/agent's newTelemetryReader picks

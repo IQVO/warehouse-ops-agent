@@ -139,6 +139,29 @@ type Config struct {
 	// use case consumes it yet.
 	ExceptionManagement UpstreamConfig
 
+	// The twelve ADR-0025 upstreams: the ten retail-network contexts
+	// (customer-ordering, delivery-promise, last-mile-delivery,
+	// linehaul-transportation, node-performance, node-topology,
+	// offer-availability, order-sourcing, shipping-and-tracking,
+	// vendor-connectivity) plus task-interleaving and
+	// pick-face-replenishment on the WMS side. Each is a read-only MCP
+	// server whose client is pinned to its published registry golden. An
+	// empty endpoint means "not configured": the composition root builds
+	// no client (fail-open, ADR 0023) and nothing else changes -- no use
+	// case consumes any of them yet.
+	CustomerOrdering       UpstreamConfig
+	DeliveryPromise        UpstreamConfig
+	LastMileDelivery       UpstreamConfig
+	LinehaulTransportation UpstreamConfig
+	NodePerformance        UpstreamConfig
+	NodeTopology           UpstreamConfig
+	OfferAvailability      UpstreamConfig
+	OrderSourcing          UpstreamConfig
+	ShippingAndTracking    UpstreamConfig
+	VendorConnectivity     UpstreamConfig
+	TaskInterleaving       UpstreamConfig
+	PickFaceReplenishment  UpstreamConfig
+
 	// SlotPlanStaleAge is the approval age past which an Approved slot
 	// plan with unexecuted moves is flagged in the daily brief's
 	// slot-plan section (SLOT_PLAN_STALE_AGE, a Go duration; default
@@ -262,7 +285,7 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	return Config{
+	cfg := Config{
 		Addr: getenv("AGENT_ADDR", ":8095"),
 
 		WesWorkPlanning: UpstreamConfig{
@@ -312,14 +335,6 @@ func Load() (Config, error) {
 		WesWorkPlanningRESTURL:      getenv("WES_WORK_PLANNING_REST_URL", "http://localhost:8083"),
 		FulfillmentExecutionRESTURL: getenv("FULFILLMENT_EXECUTION_REST_URL", "http://localhost:8084"),
 
-		FacilityLayoutReportsRESTURL:       getenv("FACILITY_LAYOUT_REPORTS_REST_URL", "http://localhost:8101"),
-		InventoryStorageReportsRESTURL:     getenv("INVENTORY_STORAGE_REPORTS_REST_URL", "http://localhost:8102"),
-		WesWorkPlanningReportsRESTURL:      getenv("WES_WORK_PLANNING_REPORTS_REST_URL", "http://localhost:8103"),
-		FulfillmentExecutionReportsRESTURL: getenv("FULFILLMENT_EXECUTION_REPORTS_REST_URL", "http://localhost:8104"),
-		WorkforceManagementReportsRESTURL:  getenv("WORKFORCE_MANAGEMENT_REPORTS_REST_URL", "http://localhost:8105"),
-		OrderManagementReportsRESTURL:      getenv("ORDER_MANAGEMENT_REPORTS_REST_URL", "http://localhost:8106"),
-		LaborPerformanceReportsRESTURL:     getenv("LABOR_PERFORMANCE_REPORTS_REST_URL", "http://localhost:8107"),
-
 		PrometheusURL: getenv("PROMETHEUS_URL", ""),
 		LokiURL:       getenv("LOKI_URL", ""),
 
@@ -336,7 +351,42 @@ func Load() (Config, error) {
 			Timeout:       loadDuration("LLM_TIMEOUT", 8*time.Second),
 			ToolAllowList: loadList("LLM_TOOL_ALLOWLIST", defaultLLMToolAllowList),
 		},
-	}, nil
+	}
+	loadNetworkFleetEndpoints(&cfg)
+	loadReportsURLs(&cfg)
+	return cfg, nil
+}
+
+// loadReportsURLs reads the console-bff analytics-reader base URLs (see
+// Config's own doc comment for the port-assignment history) onto cfg.
+func loadReportsURLs(cfg *Config) {
+	cfg.FacilityLayoutReportsRESTURL = getenv("FACILITY_LAYOUT_REPORTS_REST_URL", "http://localhost:8101")
+	cfg.InventoryStorageReportsRESTURL = getenv("INVENTORY_STORAGE_REPORTS_REST_URL", "http://localhost:8102")
+	cfg.WesWorkPlanningReportsRESTURL = getenv("WES_WORK_PLANNING_REPORTS_REST_URL", "http://localhost:8103")
+	cfg.FulfillmentExecutionReportsRESTURL = getenv("FULFILLMENT_EXECUTION_REPORTS_REST_URL", "http://localhost:8104")
+	cfg.WorkforceManagementReportsRESTURL = getenv("WORKFORCE_MANAGEMENT_REPORTS_REST_URL", "http://localhost:8105")
+	cfg.OrderManagementReportsRESTURL = getenv("ORDER_MANAGEMENT_REPORTS_REST_URL", "http://localhost:8106")
+	cfg.LaborPerformanceReportsRESTURL = getenv("LABOR_PERFORMANCE_REPORTS_REST_URL", "http://localhost:8107")
+}
+
+// loadNetworkFleetEndpoints reads the twelve ADR-0025 upstream endpoints
+// (the ten retail-network contexts plus task-interleaving and
+// pick-face-replenishment) onto cfg. Kept as one helper so Load's own
+// literal stays readable; every env name matches the chart's rendered
+// name exactly.
+func loadNetworkFleetEndpoints(cfg *Config) {
+	cfg.CustomerOrdering = UpstreamConfig{Endpoint: getenv("CUSTOMER_ORDERING_MCP_ENDPOINT", "")}
+	cfg.DeliveryPromise = UpstreamConfig{Endpoint: getenv("DELIVERY_PROMISE_MCP_ENDPOINT", "")}
+	cfg.LastMileDelivery = UpstreamConfig{Endpoint: getenv("LAST_MILE_DELIVERY_MCP_ENDPOINT", "")}
+	cfg.LinehaulTransportation = UpstreamConfig{Endpoint: getenv("LINEHAUL_TRANSPORTATION_MCP_ENDPOINT", "")}
+	cfg.NodePerformance = UpstreamConfig{Endpoint: getenv("NODE_PERFORMANCE_MCP_ENDPOINT", "")}
+	cfg.NodeTopology = UpstreamConfig{Endpoint: getenv("NODE_TOPOLOGY_MCP_ENDPOINT", "")}
+	cfg.OfferAvailability = UpstreamConfig{Endpoint: getenv("OFFER_AVAILABILITY_MCP_ENDPOINT", "")}
+	cfg.OrderSourcing = UpstreamConfig{Endpoint: getenv("ORDER_SOURCING_MCP_ENDPOINT", "")}
+	cfg.ShippingAndTracking = UpstreamConfig{Endpoint: getenv("SHIPPING_AND_TRACKING_MCP_ENDPOINT", "")}
+	cfg.VendorConnectivity = UpstreamConfig{Endpoint: getenv("VENDOR_CONNECTIVITY_MCP_ENDPOINT", "")}
+	cfg.TaskInterleaving = UpstreamConfig{Endpoint: getenv("TASK_INTERLEAVING_MCP_ENDPOINT", "")}
+	cfg.PickFaceReplenishment = UpstreamConfig{Endpoint: getenv("PICK_FACE_REPLENISHMENT_MCP_ENDPOINT", "")}
 }
 
 // defaultCapacityOutlookHorizon is one shift: the capacity outlook looks

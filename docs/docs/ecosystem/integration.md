@@ -55,6 +55,19 @@ column); for an "optional" one the feature is off.
 | returns-processing | `RETURNS_PROCESSING_MCP_ENDPOINT` (optional) | `get_return`, `list_returns_by_order`, `get_disposition_policy` | none | none yet (wired for the returns read surface; no consuming use case) | none: unset = no client, nothing depends on it (fail-open) |
 | exception-management | `EXCEPTION_MANAGEMENT_MCP_ENDPOINT` (optional) | `list_open_exceptions`, `get_exception`, `get_exception_policies`, `get_sla_report` | none | none yet (wired for the exceptions read surface; no consuming use case) | none: unset = no client, nothing depends on it (fail-open) |
 
+| customer-ordering | `CUSTOMER_ORDERING_MCP_ENDPOINT` (optional) | `get_order`, `get_order_tracking`, `get_ship_to` | none | none yet (ADR 0025; wired for the order read surface; no consuming use case) | none: unset = no client, nothing depends on it (fail-open) |
+| delivery-promise | `DELIVERY_PROMISE_MCP_ENDPOINT` (optional) | `get_current_policy`, `get_delivery_offer`, `get_promise`, `list_promise_books`, `list_promises_by_order` | none | none yet (ADR 0025; wired for the promise read surface; no consuming use case) | none: unset = no client, nothing depends on it (fail-open) |
+| last-mile-delivery | `LAST_MILE_DELIVERY_MCP_ENDPOINT` (optional) | `list_waves`, `get_wave_stops`, `get_route` | none | none yet (ADR 0025; wired for the wave/route read surface; no consuming use case) | none: unset = no client, nothing depends on it (fail-open) |
+| linehaul-transportation | `LINEHAUL_TRANSPORTATION_MCP_ENDPOINT` (optional) | `get_departure`, `list_departures` | none | none yet (ADR 0025; wired for the departure read surface; no consuming use case) | none: unset = no client, nothing depends on it (fail-open) |
+| node-performance | `NODE_PERFORMANCE_MCP_ENDPOINT` (optional) | `get_scorecard`, `list_scorecards_by_grade` | none | none yet (ADR 0025; wired for the scorecard read surface; no consuming use case) | none: unset = no client, nothing depends on it (fail-open) |
+| node-topology | `NODE_TOPOLOGY_MCP_ENDPOINT` (optional) | `get_node`, `get_region`, `list_nodes`, `list_regions`, `list_lanes`, `resolve_service_area` | none | none yet (ADR 0025; wired for the topology read surface; no consuming use case) | none: unset = no client, nothing depends on it (fail-open) |
+| offer-availability | `OFFER_AVAILABILITY_MCP_ENDPOINT` (optional) | `browse_catalog`, `get_catalog_item`, `list_listings`, `get_inventory_feed` | none | none yet (ADR 0025; wired for the catalogue read surface; no consuming use case) | none: unset = no client, nothing depends on it (fail-open) |
+| order-sourcing | `ORDER_SOURCING_MCP_ENDPOINT` (optional) | `get_assignment`, `list_assignments` | none | none yet (ADR 0025; wired for the assignment read surface; no consuming use case) | none: unset = no client, nothing depends on it (fail-open) |
+| shipping-and-tracking | `SHIPPING_AND_TRACKING_MCP_ENDPOINT` (optional) | `get_journey` | none | none yet (ADR 0025; wired for the journey read surface; no consuming use case) | none: unset = no client, nothing depends on it (fail-open) |
+| vendor-connectivity | `VENDOR_CONNECTIVITY_MCP_ENDPOINT` (optional) | `get_vendor`, `get_vendor_node`, `list_vendor_nodes`, `get_purchase_order`, `poll_purchase_orders`, `get_inbound_shipment`, `poll_inbound_shipments`, `get_transaction`, `get_node_scorecard` | none | none yet (ADR 0025; wired for the vendor read surface; no consuming use case) | none: unset = no client, nothing depends on it (fail-open) |
+| task-interleaving | `TASK_INTERLEAVING_MCP_ENDPOINT` (optional) | `get_hint`, `get_site_policy`, `get_station`, `list_hints` | none | none yet (ADR 0025; wired for the interleaving read surface; no consuming use case) | none: unset = no client, nothing depends on it (fail-open) |
+| pick-face-replenishment | `PICK_FACE_REPLENISHMENT_MCP_ENDPOINT` (optional) | `get_policy`, `list_policies`, `get_replenishment`, `list_replenishments`, `list_pick_faces` | none | none yet (ADR 0025; wired for the pick-face read surface; no consuming use case) | none: unset = no client, nothing depends on it (fail-open) |
+
 The process-path-management client was removed entirely (ADR 0024, gap A9):
 catalogue configuration is not an ops signal, and no use case ever consumed
 it. `PROCESS_PATH_MANAGEMENT_MCP_ENDPOINT` is no longer read; the endpoint
@@ -63,9 +76,9 @@ removes it in a later infra change.
 
 The zero-write tests (`internal/architecture/zerowrite`) fail the build if
 any client calls a tool outside the read set, and pin product-master's,
-inbound-receiving's, slotting-optimization's, returns-processing's and
-exception-management's clients to exactly the
-tools above.
+inbound-receiving's, slotting-optimization's, returns-processing's,
+exception-management's and the twelve ADR-0025 clients' files to exactly
+the tools above.
 
 ### Tools the LLM may call
 

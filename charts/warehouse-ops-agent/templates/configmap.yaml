@@ -31,6 +31,18 @@ data:
   INBOUND_STALE_RECEIPT_AGE: {{ .Values.config.inboundStaleReceiptAge | quote }}
   {{- end }}
   NETWORK_INVENTORY_PLANNING_MCP_ENDPOINT: {{ .Values.upstreams.networkInventoryPlanning.endpoint | quote }}
+  CUSTOMER_ORDERING_MCP_ENDPOINT: {{ .Values.upstreams.customerOrdering.endpoint | quote }}
+  DELIVERY_PROMISE_MCP_ENDPOINT: {{ .Values.upstreams.deliveryPromise.endpoint | quote }}
+  LAST_MILE_DELIVERY_MCP_ENDPOINT: {{ .Values.upstreams.lastMileDelivery.endpoint | quote }}
+  LINEHAUL_TRANSPORTATION_MCP_ENDPOINT: {{ .Values.upstreams.linehaulTransportation.endpoint | quote }}
+  NODE_PERFORMANCE_MCP_ENDPOINT: {{ .Values.upstreams.nodePerformance.endpoint | quote }}
+  NODE_TOPOLOGY_MCP_ENDPOINT: {{ .Values.upstreams.nodeTopology.endpoint | quote }}
+  OFFER_AVAILABILITY_MCP_ENDPOINT: {{ .Values.upstreams.offerAvailability.endpoint | quote }}
+  ORDER_SOURCING_MCP_ENDPOINT: {{ .Values.upstreams.orderSourcing.endpoint | quote }}
+  SHIPPING_AND_TRACKING_MCP_ENDPOINT: {{ .Values.upstreams.shippingAndTracking.endpoint | quote }}
+  VENDOR_CONNECTIVITY_MCP_ENDPOINT: {{ .Values.upstreams.vendorConnectivity.endpoint | quote }}
+  TASK_INTERLEAVING_MCP_ENDPOINT: {{ .Values.upstreams.taskInterleaving.endpoint | quote }}
+  PICK_FACE_REPLENISHMENT_MCP_ENDPOINT: {{ .Values.upstreams.pickFaceReplenishment.endpoint | quote }}
   {{- if .Values.restUrls.orderManagement }}
   ORDER_MANAGEMENT_REST_URL: {{ .Values.restUrls.orderManagement | quote }}
   {{- end }}
