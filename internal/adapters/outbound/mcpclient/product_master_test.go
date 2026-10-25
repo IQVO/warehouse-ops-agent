@@ -22,7 +22,7 @@ import (
 // productMasterGoldenPath is a VERBATIM copy of product-master's own
 // published tool registry golden
 // (product-master: internal/adapters/inbound/mcp/testdata/tool_registry.golden.json,
-// pinned at product-master origin/develop a0a303e). Refresh it with
+// pinned at product-master origin/develop cf18289). Refresh it with
 //
 //	git -C ../product-master show origin/develop:internal/adapters/inbound/mcp/testdata/tool_registry.golden.json
 //
@@ -30,10 +30,25 @@ import (
 // then say exactly which consumer-side assumption broke.
 const productMasterGoldenPath = "testdata/product_master_tools.golden.json"
 
-// wantProductMasterTools is every tool product-master publishes (four, the
-// verbatim golden); the client itself deliberately calls only the one in
+// wantProductMasterTools is every tool product-master publishes (eight, the
+// verbatim golden: six reads plus the two pack-level writes the mastercase
+// programme added); the client itself deliberately calls only the one in
 // wantProductMasterCalledTools below.
-var wantProductMasterTools = []string{"get_physical_profile", "get_product", "get_product_classification", "list_products"}
+var wantProductMasterTools = []string{
+	"declare_pack_level", "get_pack_levels", "get_physical_profile", "get_product",
+	"get_product_classification", "list_products", "resolve_gtin", "retire_pack_level",
+}
+
+// wantProductMasterWriteTools is the subset of the registry annotated
+// readOnlyHint=false (product-master ADR 0011 pack-level writes). They are
+// pinned so their schemas are tracked, never so they can be called: the
+// client must not name them (zerowrite.TestMCPClientsCallOnlyReadTools).
+var wantProductMasterWriteTools = []string{"declare_pack_level", "retire_pack_level"}
+
+// wantProductMasterToolCount is the number of tools in the pinned registry.
+// It is deliberately a literal, not len(wantProductMasterTools), so growing
+// either side alone fails TestProductMaster_PinnedToolCountMatchesRegistry.
+const wantProductMasterToolCount = 8
 
 // wantProductMasterCalledTools is the exact set of tools this client calls
 // (the one the master-data-gaps use case consumes, ADR 0020).
@@ -65,7 +80,7 @@ func loadProductMasterGolden(t *testing.T) map[string]goldenTool {
 
 // --- the published contract ------------------------------------------------
 
-func TestProductMaster_GoldenPinsExactlyTheFourReadOnlyTools(t *testing.T) {
+func TestProductMaster_GoldenPinsExactlyTheEightPublishedTools(t *testing.T) {
 	golden := loadProductMasterGolden(t)
 
 	names := make([]string, 0, len(golden))
@@ -76,10 +91,45 @@ func TestProductMaster_GoldenPinsExactlyTheFourReadOnlyTools(t *testing.T) {
 	if strings.Join(names, ",") != strings.Join(wantProductMasterTools, ",") {
 		t.Fatalf("product-master publishes %v, this golden is built for exactly %v", names, wantProductMasterTools)
 	}
+	isWrite := map[string]bool{}
+	for _, name := range wantProductMasterWriteTools {
+		isWrite[name] = true
+	}
 	for _, name := range wantProductMasterTools {
-		if golden[name].Annotations["readOnlyHint"] != true {
-			t.Errorf("%s is not annotated readOnlyHint in product-master's registry: this agent may only call read tools (ADR 0020)", name)
+		// Strict both ways: a read tool must stay readOnlyHint=true and a
+		// known write tool must stay readOnlyHint=false, so a flipped
+		// annotation (a write silently becoming "read", or the reverse)
+		// is drift this agent must look at.
+		if got, want := golden[name].Annotations["readOnlyHint"], !isWrite[name]; got != want {
+			t.Errorf("%s: readOnlyHint = %v in product-master's registry, pinned as %v", name, got, want)
 		}
+	}
+	for _, name := range wantProductMasterCalledTools {
+		if isWrite[name] {
+			t.Errorf("the client calls %s, a product-master write tool: this agent may only call read tools (ADR 0020)", name)
+		}
+	}
+}
+
+// TestProductMaster_PinnedToolCountMatchesRegistry fails when the number of
+// tools in the pinned registry copy, the expected-name list and the
+// expected count disagree. It counts the raw JSON array (not the name-keyed
+// map) so a duplicated entry cannot hide, and fails with the refresh command
+// so drift is a one-step fix.
+func TestProductMaster_PinnedToolCountMatchesRegistry(t *testing.T) {
+	raw, err := os.ReadFile(productMasterGoldenPath)
+	if err != nil {
+		t.Fatalf("read golden: %v", err)
+	}
+	var entries []json.RawMessage
+	if err := json.Unmarshal(raw, &entries); err != nil {
+		t.Fatalf("decode golden: %v", err)
+	}
+	if len(entries) != wantProductMasterToolCount || len(wantProductMasterTools) != wantProductMasterToolCount {
+		t.Fatalf("pinned registry has %d tools, expected-name list has %d, expected count is %d: "+
+			"refresh the golden with `git -C ../product-master show origin/develop:internal/adapters/inbound/mcp/testdata/tool_registry.golden.json` "+
+			"and update wantProductMasterTools",
+			len(entries), len(wantProductMasterTools), wantProductMasterToolCount)
 	}
 }
 
@@ -238,12 +288,20 @@ func newProductMasterTestUpstream(t *testing.T) *productMasterUpstream {
 				return h(ctx, req, in)
 			})
 	}
-	// A write tool product-master does NOT publish; the client must never
-	// reach anything like it.
-	mcp.AddTool(server, &mcp.Tool{Name: "classify_product"}, func(context.Context, *mcp.CallToolRequest, map[string]any) (*mcp.CallToolResult, any, error) {
-		t.Error("write tool classify_product was invoked")
-		return nil, map[string]any{}, nil
-	})
+	// The write tools product-master really publishes (carrying their
+	// golden schemas) plus one it does not: the client must never reach
+	// any of them.
+	trap := func(name string) mcp.ToolHandlerFor[map[string]any, any] {
+		return func(context.Context, *mcp.CallToolRequest, map[string]any) (*mcp.CallToolResult, any, error) {
+			t.Errorf("write tool %s was invoked", name)
+			return nil, map[string]any{}, nil
+		}
+	}
+	mcp.AddTool(server, &mcp.Tool{Name: "classify_product"}, trap("classify_product"))
+	for _, name := range wantProductMasterWriteTools {
+		g := golden[name]
+		mcp.AddTool(server, &mcp.Tool{Name: name, InputSchema: g.InputSchema, OutputSchema: g.OutputSchema}, trap(name))
+	}
 	up.Server = httptest.NewServer(mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server }, nil))
 	t.Cleanup(up.Close)
 	return up

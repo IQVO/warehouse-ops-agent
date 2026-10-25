@@ -17,19 +17,22 @@ import (
 // broader than planning's own verbs so it also guards the other contexts'
 // write tools (assign_labor, revoke_reservation, ...). classify_ and record_
 // cover product-master's REST-only writes (classify a product, record a
-// measurement; ADR 0020) should they ever be published as tools. book_,
+// measurement; ADR 0020) should they ever be published as tools; retire_
+// covers its published retire_pack_level write (declare_pack_level is
+// caught by declare_). book_,
 // check_in_, open_, receive_ and close_ cover inbound-receiving's REST-only
 // write verbs (ADR 0021) on the same terms.
 var writeToolPrefixes = []string{
 	"create_", "publish_", "register_", "declare_", "assign_", "release_",
 	"revoke_", "update_", "delete_", "cancel_", "set_", "add_", "remove_",
 	"submit_", "reserve_", "activate_", "deactivate_", "classify_", "record_",
-	"book_", "check_in_", "open_", "receive_", "close_",
+	"book_", "check_in_", "open_", "receive_", "close_", "retire_",
 }
 
 // productMasterReadTools is the exact allow-list for the product-master
-// client (ADR 0020): the one of its four published read tools the
-// master-data-gaps use case consumes. A prefix scan alone would let a new
+// client (ADR 0020): the one of its six published read tools the
+// master-data-gaps use case consumes (it also publishes two pack-level
+// write tools, which are never callable from here). A prefix scan alone would let a new
 // non-prefixed verb through; this pins the whole set.
 var productMasterReadTools = []string{"list_products"}
 
@@ -230,12 +233,12 @@ func TestMCPClientsCallOnlyReadTools(t *testing.T) {
 // TestWritePrefixDetector pins the detector itself, so the scan above
 // cannot silently stop recognising write tools.
 func TestWritePrefixDetector(t *testing.T) {
-	for _, name := range []string{"create_capacity_plan", "publish_capacity_plan", "register_process_path", "declare_station_standard", "assign_labor", "revoke_reservation", "classify_product", "record_measurement", "register_asn", "cancel_asn", "book_appointment", "check_in_appointment", "open_receipt", "receive_line", "close_receipt"} {
+	for _, name := range []string{"create_capacity_plan", "publish_capacity_plan", "register_process_path", "declare_station_standard", "assign_labor", "revoke_reservation", "classify_product", "record_measurement", "register_asn", "cancel_asn", "book_appointment", "check_in_appointment", "open_receipt", "receive_line", "close_receipt", "declare_pack_level", "retire_pack_level"} {
 		if writePrefixOf(name) == "" {
 			t.Errorf("%q must be flagged as a write tool", name)
 		}
 	}
-	for _, name := range []string{"get_process_path_capacity", "get_capacity_plan", "get_storage_capacity", "list_station_standards", "find_claimable_work", "diagnose_stuck_tasks", "get_product", "list_products", "get_product_classification", "get_physical_profile", "list_asns", "get_asn", "list_appointments", "get_appointment", "list_receipts", "get_receipt", "list_docks"} {
+	for _, name := range []string{"get_process_path_capacity", "get_capacity_plan", "get_storage_capacity", "list_station_standards", "find_claimable_work", "diagnose_stuck_tasks", "get_product", "list_products", "get_product_classification", "get_physical_profile", "get_pack_levels", "resolve_gtin", "list_asns", "get_asn", "list_appointments", "get_appointment", "list_receipts", "get_receipt", "list_docks"} {
 		if p := writePrefixOf(name); p != "" {
 			t.Errorf("%q is a read tool but was flagged by prefix %q", name, p)
 		}

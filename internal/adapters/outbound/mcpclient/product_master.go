@@ -8,11 +8,14 @@ import (
 
 // ProductMaster implements ports.ProductMasterClient by calling
 // product-master's published READ tool list_products (ADR 0020). The other
-// three published read tools (get_product, get_product_classification,
-// get_physical_profile) are deliberately not wired: no use case calls them.
+// five read tools (get_product, get_product_classification,
+// get_physical_profile, get_pack_levels, resolve_gtin) are deliberately not
+// wired: no use case calls them. The two pack-level WRITE tools
+// (declare_pack_level, retire_pack_level; product-master ADR 0011) are
+// pinned in the golden but must never be called from here.
 //
-// product-master's MCP server is read-only by its own ADR 0005; this client
-// is additionally held read-only from this side: the zero-write fitness test
+// product-master's MCP server is read+write since the mastercase programme;
+// this client is held read-only from this side: the zero-write fitness test
 // (internal/architecture/zerowrite) scans this package's tool-name literals,
 // and TestProductMasterClientCallsOnlyPinnedTools allows exactly this one
 // name. The argument keys and result shapes are pinned against
