@@ -40,13 +40,17 @@ stale_set="$(helm template "$release" "$chart_dir" --set-string 'config.slotPlan
 grep -q 'SLOT_PLAN_STALE_AGE: "12h"' <<<"$stale_set" || fail "config.slotPlanStaleAge is not rendered into the ConfigMap as SLOT_PLAN_STALE_AGE"
 
 # SLOTTING_OPTIMIZATION_MCP_ENDPOINT is always rendered in the Deployment
-# (empty = client disabled, fail-open), and the removed
-# process-path-management client's env var never comes back (ADR 0024,
-# gap A9).
+# (empty = client disabled, fail-open). PROCESS_PATH_MANAGEMENT_MCP_ENDPOINT
+# is rendered in BOTH the Deployment and the ConfigMap from
+# upstreams.processPathManagement.endpoint (ADR 0026 re-added the client
+# after ADR 0024's removal; a set value reaches the Deployment verbatim).
 grep -q 'SLOTTING_OPTIMIZATION_MCP_ENDPOINT' <<<"$deployment" || fail "upstreams.slottingOptimization.endpoint is not rendered into the Deployment"
-if grep -q 'PROCESS_PATH_MANAGEMENT' <<<"$deployment"; then
-  fail "PROCESS_PATH_MANAGEMENT_MCP_ENDPOINT still rendered: the client was removed (ADR 0024)"
-fi
+grep -q 'PROCESS_PATH_MANAGEMENT_MCP_ENDPOINT' <<<"$deployment" || fail "upstreams.processPathManagement.endpoint is not rendered into the Deployment as PROCESS_PATH_MANAGEMENT_MCP_ENDPOINT"
+grep -q 'PROCESS_PATH_MANAGEMENT_MCP_ENDPOINT' <<<"$configmap_default" || fail "upstreams.processPathManagement.endpoint is not rendered into the ConfigMap as PROCESS_PATH_MANAGEMENT_MCP_ENDPOINT"
+set_ppm_endpoint="$(helm template "$release" "$chart_dir" --set-string 'upstreams.processPathManagement.endpoint=http://process-path-management.warehouse-systems.svc.cluster.local:8090/mcp' --show-only templates/deployment.yaml)"
+grep -q 'PROCESS_PATH_MANAGEMENT_MCP_ENDPOINT' <<<"$set_ppm_endpoint" || fail "upstreams.processPathManagement.endpoint is not rendered into the Deployment"
+grep -q 'value: "http://process-path-management.warehouse-systems.svc.cluster.local:8090/mcp"' <<<"$set_ppm_endpoint" ||
+  fail "upstreams.processPathManagement.endpoint does not reach the Deployment as PROCESS_PATH_MANAGEMENT_MCP_ENDPOINT verbatim"
 
 # Every one of the twelve ADR-0025 upstream endpoints is rendered into
 # BOTH the Deployment env and the ConfigMap (envFrom mounts it), from
@@ -61,10 +65,4 @@ set_vendor_endpoint="$(helm template "$release" "$chart_dir" --set-string 'upstr
 grep -q 'VENDOR_CONNECTIVITY_MCP_ENDPOINT' <<<"$set_vendor_endpoint" || fail "upstreams.vendorConnectivity.endpoint is not rendered into the Deployment"
 grep -q 'value: "http://vendor-connectivity-mcp.warehouse-systems.svc.cluster.local:8090/mcp"' <<<"$set_vendor_endpoint" ||
   fail "upstreams.vendorConnectivity.endpoint does not reach the Deployment as VENDOR_CONNECTIVITY_MCP_ENDPOINT verbatim"
-# Nothing the binary does not read is rendered: the removed
-# process-path-management name must stay absent from the ConfigMap too.
-if grep -q 'PROCESS_PATH_MANAGEMENT' <<<"$configmap_default"; then
-  fail "PROCESS_PATH_MANAGEMENT_MCP_ENDPOINT still rendered into the ConfigMap: the client was removed (ADR 0024)"
-fi
-
 echo "warehouse-ops-agent chart render assertions passed"

@@ -51,6 +51,7 @@ func TestNewOutboundClients_EmptyEndpointBuildsNoMCPClient(t *testing.T) {
 		"vendor-connectivity":        c.vendorConnectivity,
 		"task-interleaving":          c.taskInterleaving,
 		"pick-face-replenishment":    c.pickFaceReplenishment,
+		"process-path-management":    c.processPathManagement,
 	} {
 		if got != nil {
 			t.Errorf("%s: an empty endpoint must build no client, got %T", name, got)
@@ -70,6 +71,7 @@ func TestNewOutboundClients_SetEndpointBuildsEveryMCPClient(t *testing.T) {
 		InventoryStorage:         up("inventory-storage"),
 		LaborPerformance:         up("labor-performance"),
 		OrderManagement:          up("order-management"),
+		ProcessPathManagement:    up("process-path-management"),
 		WarehousePlanning:        up("warehouse-planning"),
 		ProductMaster:            up("product-master"),
 		InboundReceiving:         up("inbound-receiving"),
@@ -117,6 +119,7 @@ func TestNewOutboundClients_SetEndpointBuildsEveryMCPClient(t *testing.T) {
 		"vendor-connectivity":        c.vendorConnectivity,
 		"task-interleaving":          c.taskInterleaving,
 		"pick-face-replenishment":    c.pickFaceReplenishment,
+		"process-path-management":    c.processPathManagement,
 	} {
 		if got == nil {
 			t.Errorf("%s: a set endpoint must build the client", name)
@@ -359,5 +362,67 @@ func TestNewDecisionSupport_PromiseHealthOnlyWiredWhenOrderManagementConfigured(
 	got := newDecisionSupport(cfg, clients).dailyBrief.PromiseHealth
 	if got == nil || got.OrderMgmt == nil {
 		t.Fatalf("a configured order-management client must wire the promise-health section: %+v", got)
+	}
+}
+
+// TestNewProcessPathManagementClient_UnsetEndpoint_IsANilInterface is the
+// ADR-0026 re-add's fail-open half: an unset
+// PROCESS_PATH_MANAGEMENT_MCP_ENDPOINT builds no client at all.
+func TestNewProcessPathManagementClient_UnsetEndpoint_IsANilInterface(t *testing.T) {
+	if got := newProcessPathManagementClient(config.Config{}); got != nil {
+		t.Fatalf("an unset PROCESS_PATH_MANAGEMENT_MCP_ENDPOINT must yield a nil client (fail-open), got %T", got)
+	}
+	cfg := config.Config{ProcessPathManagement: config.UpstreamConfig{Endpoint: "http://process-path-management-mcp:8090/mcp"}}
+	if got := newProcessPathManagementClient(cfg); got == nil {
+		t.Fatal("a configured endpoint must build the process-path-management client")
+	}
+}
+
+// TestNewDecisionSupport_NetworkOrderOutlookAnchoredOnCustomerOrdering
+// pins the ADR-0026 wiring rule: the order outlook exists only when its
+// anchor client customer-ordering is configured, and every non-anchor
+// port is passed through as-is (nil when that upstream is unset).
+func TestNewDecisionSupport_NetworkOrderOutlookAnchoredOnCustomerOrdering(t *testing.T) {
+	cfg := config.Config{}
+	if got := newDecisionSupport(cfg, outboundClients{}).networkOrderOutlook; got != nil {
+		t.Fatalf("no customer-ordering client => no order outlook (a genuine nil, so the tool is not registered), got %+v", got)
+	}
+
+	cfg.CustomerOrdering.Endpoint = "http://customer-ordering-mcp:8090/mcp"
+	cfg.DeliveryPromise.Endpoint = "http://delivery-promise-mcp:8090/mcp"
+	clients := newOutboundClients(cfg)
+	got := newDecisionSupport(cfg, clients).networkOrderOutlook
+	if got == nil || got.Orders == nil {
+		t.Fatalf("a configured customer-ordering must anchor the order outlook: %+v", got)
+	}
+	if got.Promises == nil {
+		t.Fatal("a configured delivery-promise must be passed through to the order outlook")
+	}
+	if got.Sourcing != nil || got.Journeys != nil {
+		t.Fatal("unset non-anchor upstreams must stay nil: their sections degrade per section at run time")
+	}
+}
+
+// TestNewDecisionSupport_NetworkNodeOutlookAnchoredOnNodeTopology pins the
+// node-side ADR-0026 wiring rule.
+func TestNewDecisionSupport_NetworkNodeOutlookAnchoredOnNodeTopology(t *testing.T) {
+	cfg := config.Config{}
+	if got := newDecisionSupport(cfg, outboundClients{}).networkNodeOutlook; got != nil {
+		t.Fatalf("no node-topology client => no node outlook (a genuine nil, so the tool is not registered), got %+v", got)
+	}
+
+	cfg.NodeTopology.Endpoint = "http://node-topology-mcp:8090/mcp"
+	cfg.NodePerformance.Endpoint = "http://node-performance-mcp:8090/mcp"
+	cfg.LastMileDelivery.Endpoint = "http://last-mile-delivery-mcp:8090/mcp"
+	clients := newOutboundClients(cfg)
+	got := newDecisionSupport(cfg, clients).networkNodeOutlook
+	if got == nil || got.Topology == nil {
+		t.Fatalf("a configured node-topology must anchor the node outlook: %+v", got)
+	}
+	if got.Performance == nil || got.Waves == nil {
+		t.Fatal("configured non-anchor upstreams must be passed through to the node outlook")
+	}
+	if got.Listings != nil || got.Vendor != nil || got.Departures != nil {
+		t.Fatal("unset non-anchor upstreams must stay nil: their sections degrade per section at run time")
 	}
 }

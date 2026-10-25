@@ -126,6 +126,12 @@ spec:
               value: {{ .Values.upstreams.taskInterleaving.endpoint | quote }}
             - name: PICK_FACE_REPLENISHMENT_MCP_ENDPOINT
               value: {{ .Values.upstreams.pickFaceReplenishment.endpoint | quote }}
+            # process-path-management (ADR 0026): the thirteenth client,
+            # re-added after ADR 0024 removal, pinned to the current
+            # three-tool registry; rendered from values so the ConfigMap
+            # and Deployment agree, like the ADR-0025 set above.
+            - name: PROCESS_PATH_MANAGEMENT_MCP_ENDPOINT
+              value: {{ .Values.upstreams.processPathManagement.endpoint | quote }}
             {{- if .Values.config.capacityOutlookHorizon }}
             - name: CAPACITY_OUTLOOK_HORIZON
               value: {{ .Values.config.capacityOutlookHorizon | quote }}

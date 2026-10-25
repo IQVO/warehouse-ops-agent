@@ -38,8 +38,10 @@ every field without `omitempty` as required.
 | `triage_stuck_transfers` | yes | `NETWORK_INVENTORY_PLANNING_MCP_ENDPOINT` is set | `olderThanMinutes` | `state`, `limit` | `GET /transfer-watch/stuck` |
 | `get_transfer_status` | yes | `NETWORK_INVENTORY_PLANNING_MCP_ENDPOINT` is set | `transferId` | none | `GET /transfer-watch/transfers/{id}` |
 | `explain_network_imbalance` | yes | `NETWORK_INVENTORY_PLANNING_MCP_ENDPOINT` is set | none | none | `GET /transfer-watch/imbalance` |
+| `get_network_order_outlook` | yes | `CUSTOMER_ORDERING_MCP_ENDPOINT` is set ([ADR 0026](../adr/0026-network-outlook-and-process-path-client.md)) | `orderId` | none | no REST route |
+| `get_network_node_outlook` | yes | `NODE_TOPOLOGY_MCP_ENDPOINT` is set ([ADR 0026](../adr/0026-network-outlook-and-process-path-client.md)) | `nodeId` | none | no REST route |
 
-All ten carry `ReadOnlyHint: true`. The agent has no write tool.
+All twelve carry `ReadOnlyHint: true`. The agent has no write tool.
 `internal/architecture/zerowrite/zerowrite_test.go`
 (`TestNoMutatingToolAnnotationInMCPServer`) fails the build if a tool is
 registered without the read-only hint. See the
@@ -169,6 +171,49 @@ returns `advisory`, `asOf`, `imbalanced`, `sites[]` (`balance` is `short`
 or `covered`), `summary` and `nextCheck`. It is a tool error while
 network-inventory-planning's read models are not fresh. The tool never
 proposes a quantity or a route.
+
+### `get_network_order_outlook`
+
+| Field | Type | Meaning |
+|---|---|---|
+| `orderId` | string | the customer order id to assemble the picture for |
+
+Six sections over the ADR-0025 clients, each with the inbound outlook's
+`omitted` / `complete` / `count` / `items` envelope:
+`order` (customer-ordering `get_order`: lines and shipment groups),
+`tracking` (`get_order_tracking`: per-group promise verdict and packages),
+`shipTo` (`get_ship_to`), `promises` (delivery-promise
+`list_promises_by_order`, with `get_promise` covering a group the list
+missed — or every group when the list call failed), `sourcing`
+(order-sourcing `list_assignments` filtered by order) and `journeys`
+(shipping-and-tracking `get_journey` per tracking number, at most 20
+reads; a failed journey keeps its slot with an `error` field). A section
+whose upstream is unconfigured is omitted with `not-configured`; the tool
+errors only when every attempted section failed. Registered only when
+customer-ordering (the anchor) is configured. No REST route
+([ADR 0026](../adr/0026-network-outlook-and-process-path-client.md)).
+
+### `get_network_node_outlook`
+
+| Field | Type | Meaning |
+|---|---|---|
+| `nodeId` | string | the network node id to assemble the picture for |
+
+Ten sections: `node` (node-topology `get_node` with a summarized
+operational profile), `inboundLanes` / `outboundLanes` (`list_lanes` by
+destination / origin), `scorecards` (node-performance `get_scorecard`),
+`listings` (offer-availability `list_listings` filtered by node, at most
+5,000 per call), `inventoryFeed` (`get_inventory_feed` on the freshest
+feed the node's listings reference), `vendor` / `vendorScores`
+(vendor-connectivity `get_vendor_node` + `get_node_scorecard`, only when
+node-topology registered the node under a vendor), `departures`
+(linehaul-transportation `list_departures`, origin=node, from=now) and
+`waves` (last-mile-delivery `list_waves` for the node's local service
+date — only for a `DELIVERY_STATION` node; other nodes carry the explicit
+"not a delivery station" omission). Same degradation envelope as the
+order outlook; registered only when node-topology (the anchor) is
+configured. No REST route
+([ADR 0026](../adr/0026-network-outlook-and-process-path-client.md)).
 
 ## Tool errors
 

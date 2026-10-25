@@ -1,5 +1,5 @@
 // Command agent is the composition root for warehouse-ops-agent: it wires
-// env config to the twenty-six outbound MCP-client adapters (one per upstream
+// env config to the twenty-seven outbound MCP-client adapters (one per upstream
 // bounded context; each is built only when its *_MCP_ENDPOINT is set, so
 // an empty endpoint means no client and the use case reports that
 // upstream as unavailable), the REST clients for the console-bff, and the
@@ -7,13 +7,14 @@
 // is set, a no-op stub otherwise; a Loki reader when LOKI_URL is set),
 // then wires those into the decision-support use cases (daily brief, flow
 // balance, explain travel factor, stranded reservation, master-data gaps,
-// inbound outlook, transfer watch) and the console-bff and
-// runtime-signals use cases. Every outbound http.Client carries an
-// otelhttp transport (internal/adapters/outbound/httpclient). It serves
-// them over BOTH an inbound HTTP endpoint and this agent's own inbound MCP
-// server (up to ten tools: see internal/adapters/inbound/mcp/tools.go) —
-// a single process, two driving adapters over the same use cases, exactly
-// the pattern the bounded contexts use for their own HTTP+MCP pair.
+// inbound outlook, transfer watch, network order/node outlooks) and the
+// console-bff and runtime-signals use cases. Every outbound http.Client
+// carries an otelhttp transport (internal/adapters/outbound/httpclient).
+// It serves them over BOTH an inbound HTTP endpoint and this agent's own
+// inbound MCP server (up to twelve tools: see
+// internal/adapters/inbound/mcp/tools.go) — a single process, two driving
+// adapters over the same use cases, exactly the pattern the bounded
+// contexts use for their own HTTP+MCP pair.
 package main
 
 import (
@@ -92,6 +93,8 @@ func run() error {
 		MasterDataGaps:      decision.masterDataGaps,
 		InboundOutlook:      decision.inboundOutlook,
 		TransferWatch:       decision.transferWatch,
+		NetworkOrderOutlook: decision.networkOrderOutlook,
+		NetworkNodeOutlook:  decision.networkNodeOutlook,
 	}
 	mcpHandler := inboundmcp.Handler(inboundmcp.NewServer(mcpDeps))
 
@@ -170,8 +173,14 @@ type outboundClients struct {
 	vendorConnectivity     ports.VendorConnectivityClient
 	taskInterleaving       ports.TaskInterleavingClient
 	pickFaceReplenishment  ports.PickFaceReplenishmentClient
-	telemetry              ports.TelemetryReader
-	logs                   ports.LogReader
+	// processPathManagement is the thirteenth ADR-0026 client (re-added
+	// after ADR 0024's gap-A9 deletion, now pinned to the current
+	// three-tool registry). It is nil when
+	// PROCESS_PATH_MANAGEMENT_MCP_ENDPOINT is unset (fail-open); no use
+	// case consumes it yet.
+	processPathManagement ports.ProcessPathManagementClient
+	telemetry             ports.TelemetryReader
+	logs                  ports.LogReader
 }
 
 // newMCPClient builds one upstream's MCP client, or returns the zero
@@ -248,6 +257,15 @@ func newPlanningClient(cfg config.Config) ports.WarehousePlanningClient {
 	})
 }
 
+// newProcessPathManagementClient builds the process-path-management MCP
+// client (its three read tools only, ADR 0026), or nil when no endpoint is
+// configured (fail-open). No use case consumes the client yet.
+func newProcessPathManagementClient(cfg config.Config) ports.ProcessPathManagementClient {
+	return newMCPClient("process-path-management", cfg.ProcessPathManagement.Endpoint, func(c mcpclient.Config) ports.ProcessPathManagementClient {
+		return mcpclient.NewProcessPathManagement(c)
+	})
+}
+
 // newOutboundClients builds every outbound MCP client (one per upstream
 // bounded context, each only when its endpoint is set) plus the telemetry
 // and log readers.
@@ -319,6 +337,7 @@ func newOutboundClients(cfg config.Config) outboundClients {
 		pickFaceReplenishment: newMCPClient("pick-face-replenishment", cfg.PickFaceReplenishment.Endpoint, func(c mcpclient.Config) ports.PickFaceReplenishmentClient {
 			return mcpclient.NewPickFaceReplenishment(c)
 		}),
+		processPathManagement: newProcessPathManagementClient(cfg),
 	}
 }
 
@@ -339,6 +358,12 @@ type decisionSupport struct {
 	// transferWatch is nil when network-inventory-planning is not
 	// configured (ADR 0019).
 	transferWatch *usecases.TransferWatch
+	// networkOrderOutlook is nil when customer-ordering is not configured
+	// (ADR 0026): get_network_order_outlook is then not registered.
+	networkOrderOutlook *usecases.NetworkOrderOutlook
+	// networkNodeOutlook is nil when node-topology is not configured
+	// (ADR 0026): get_network_node_outlook is then not registered.
+	networkNodeOutlook *usecases.NetworkNodeOutlook
 }
 
 // newDecisionSupport wires the decision-support use cases over the
@@ -410,6 +435,42 @@ func newDecisionSupport(cfg config.Config, clients outboundClients) decisionSupp
 		masterDataGaps:      masterDataGaps,
 		inboundOutlook:      newInboundOutlook(cfg, clients),
 		transferWatch:       newTransferWatch(clients),
+		networkOrderOutlook: newNetworkOrderOutlook(clients),
+		networkNodeOutlook:  newNetworkNodeOutlook(clients),
+	}
+}
+
+// newNetworkOrderOutlook wires the ADR-0026 order outlook over the
+// ADR-0025 clients, or returns nil when the anchor client customer-
+// ordering is not configured. The nil must be a real nil
+// *NetworkOrderOutlook so the inbound adapter's "not configured" check is
+// genuine; every non-anchor section degrades per section at run time.
+func newNetworkOrderOutlook(clients outboundClients) *usecases.NetworkOrderOutlook {
+	if clients.customerOrdering == nil {
+		return nil
+	}
+	return &usecases.NetworkOrderOutlook{
+		Orders:   clients.customerOrdering,
+		Promises: clients.deliveryPromise,
+		Sourcing: clients.orderSourcing,
+		Journeys: clients.shippingAndTracking,
+	}
+}
+
+// newNetworkNodeOutlook wires the ADR-0026 node outlook over the
+// ADR-0025 clients, or returns nil when the anchor client node-topology
+// is not configured. Same genuine-nil rule as newNetworkOrderOutlook.
+func newNetworkNodeOutlook(clients outboundClients) *usecases.NetworkNodeOutlook {
+	if clients.nodeTopology == nil {
+		return nil
+	}
+	return &usecases.NetworkNodeOutlook{
+		Topology:    clients.nodeTopology,
+		Performance: clients.nodePerformance,
+		Listings:    clients.offerAvailability,
+		Vendor:      clients.vendorConnectivity,
+		Departures:  clients.linehaulTransportation,
+		Waves:       clients.lastMileDelivery,
 	}
 }
 
@@ -531,6 +592,7 @@ func serveAgent(cfg config.Config, logger *slog.Logger, serviceName string, hand
 			"vendor_connectivity_endpoint_configured", cfg.VendorConnectivity.Endpoint != "",
 			"task_interleaving_endpoint_configured", cfg.TaskInterleaving.Endpoint != "",
 			"pick_face_replenishment_endpoint_configured", cfg.PickFaceReplenishment.Endpoint != "",
+			"process_path_management_endpoint_configured", cfg.ProcessPathManagement.Endpoint != "",
 			"path_targets", len(cfg.PathTargets),
 		)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {

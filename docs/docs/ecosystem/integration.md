@@ -55,24 +55,36 @@ column); for an "optional" one the feature is off.
 | returns-processing | `RETURNS_PROCESSING_MCP_ENDPOINT` (optional) | `get_return`, `list_returns_by_order`, `get_disposition_policy` | none | none yet (wired for the returns read surface; no consuming use case) | none: unset = no client, nothing depends on it (fail-open) |
 | exception-management | `EXCEPTION_MANAGEMENT_MCP_ENDPOINT` (optional) | `list_open_exceptions`, `get_exception`, `get_exception_policies`, `get_sla_report` | none | none yet (wired for the exceptions read surface; no consuming use case) | none: unset = no client, nothing depends on it (fail-open) |
 
-| customer-ordering | `CUSTOMER_ORDERING_MCP_ENDPOINT` (optional) | `get_order`, `get_order_tracking`, `get_ship_to` | none | none yet (ADR 0025; wired for the order read surface; no consuming use case) | none: unset = no client, nothing depends on it (fail-open) |
-| delivery-promise | `DELIVERY_PROMISE_MCP_ENDPOINT` (optional) | `get_current_policy`, `get_delivery_offer`, `get_promise`, `list_promise_books`, `list_promises_by_order` | none | none yet (ADR 0025; wired for the promise read surface; no consuming use case) | none: unset = no client, nothing depends on it (fail-open) |
-| last-mile-delivery | `LAST_MILE_DELIVERY_MCP_ENDPOINT` (optional) | `list_waves`, `get_wave_stops`, `get_route` | none | none yet (ADR 0025; wired for the wave/route read surface; no consuming use case) | none: unset = no client, nothing depends on it (fail-open) |
-| linehaul-transportation | `LINEHAUL_TRANSPORTATION_MCP_ENDPOINT` (optional) | `get_departure`, `list_departures` | none | none yet (ADR 0025; wired for the departure read surface; no consuming use case) | none: unset = no client, nothing depends on it (fail-open) |
-| node-performance | `NODE_PERFORMANCE_MCP_ENDPOINT` (optional) | `get_scorecard`, `list_scorecards_by_grade` | none | none yet (ADR 0025; wired for the scorecard read surface; no consuming use case) | none: unset = no client, nothing depends on it (fail-open) |
-| node-topology | `NODE_TOPOLOGY_MCP_ENDPOINT` (optional) | `get_node`, `get_region`, `list_nodes`, `list_regions`, `list_lanes`, `resolve_service_area` | none | none yet (ADR 0025; wired for the topology read surface; no consuming use case) | none: unset = no client, nothing depends on it (fail-open) |
-| offer-availability | `OFFER_AVAILABILITY_MCP_ENDPOINT` (optional) | `browse_catalog`, `get_catalog_item`, `list_listings`, `get_inventory_feed` | none | none yet (ADR 0025; wired for the catalogue read surface; no consuming use case) | none: unset = no client, nothing depends on it (fail-open) |
-| order-sourcing | `ORDER_SOURCING_MCP_ENDPOINT` (optional) | `get_assignment`, `list_assignments` | none | none yet (ADR 0025; wired for the assignment read surface; no consuming use case) | none: unset = no client, nothing depends on it (fail-open) |
-| shipping-and-tracking | `SHIPPING_AND_TRACKING_MCP_ENDPOINT` (optional) | `get_journey` | none | none yet (ADR 0025; wired for the journey read surface; no consuming use case) | none: unset = no client, nothing depends on it (fail-open) |
-| vendor-connectivity | `VENDOR_CONNECTIVITY_MCP_ENDPOINT` (optional) | `get_vendor`, `get_vendor_node`, `list_vendor_nodes`, `get_purchase_order`, `poll_purchase_orders`, `get_inbound_shipment`, `poll_inbound_shipments`, `get_transaction`, `get_node_scorecard` | none | none yet (ADR 0025; wired for the vendor read surface; no consuming use case) | none: unset = no client, nothing depends on it (fail-open) |
+| customer-ordering | `CUSTOMER_ORDERING_MCP_ENDPOINT` (optional) | `get_order`, `get_order_tracking`, `get_ship_to` | none | `get_network_order_outlook` (anchor: order, tracking, shipTo sections, ADR 0026) | unset = no outlook, tool not registered (fail-open); the outlook section is `omitted` with the reason; the tool errors only when every attempted section failed |
+| delivery-promise | `DELIVERY_PROMISE_MCP_ENDPOINT` (optional) | `list_promises_by_order`, `get_promise` | `get_current_policy`, `get_delivery_offer`, `list_promise_books` (published; no use case here calls them) | `get_network_order_outlook` (promises section, incl. the per-group get_promise fallback, ADR 0026) | the outlook section is `omitted` with the reason; the tool errors only when every attempted section failed |
+| last-mile-delivery | `LAST_MILE_DELIVERY_MCP_ENDPOINT` (optional) | `list_waves` | `get_wave_stops`, `get_route` (published; no use case here calls them) | `get_network_node_outlook` (waves section, DELIVERY_STATION nodes only, the node's local service date, ADR 0026) | the outlook section is `omitted` with the reason; the tool errors only when every attempted section failed |
+| linehaul-transportation | `LINEHAUL_TRANSPORTATION_MCP_ENDPOINT` (optional) | `list_departures` | `get_departure` (published; no use case here calls it) | `get_network_node_outlook` (departures section, origin=node, from=now, ADR 0026) | the outlook section is `omitted` with the reason; the tool errors only when every attempted section failed |
+| node-performance | `NODE_PERFORMANCE_MCP_ENDPOINT` (optional) | `get_scorecard` | `list_scorecards_by_grade` (published; no use case here calls it) | `get_network_node_outlook` (scorecards section, ADR 0026) | the outlook section is `omitted` with the reason; the tool errors only when every attempted section failed |
+| node-topology | `NODE_TOPOLOGY_MCP_ENDPOINT` (optional) | `get_node`, `list_lanes` | `get_region`, `list_nodes`, `list_regions`, `resolve_service_area` (published; no use case here calls them) | `get_network_node_outlook` (anchor: node, inboundLanes, outboundLanes sections; the vendorRef keys vendor-connectivity's sections, ADR 0026) | unset = no outlook, tool not registered (fail-open); the outlook section is `omitted` with the reason; the tool errors only when every attempted section failed |
+| offer-availability | `OFFER_AVAILABILITY_MCP_ENDPOINT` (optional) | `list_listings`, `get_inventory_feed` | `browse_catalog`, `get_catalog_item` (published; no use case here calls them) | `get_network_node_outlook` (listings + inventoryFeed sections, the freshest feed the node's listings reference, ADR 0026) | the outlook section is `omitted` with the reason; the tool errors only when every attempted section failed |
+| order-sourcing | `ORDER_SOURCING_MCP_ENDPOINT` (optional) | `list_assignments` (filtered by order) | `get_assignment` (published; no use case here calls it) | `get_network_order_outlook` (sourcing section; assignment tracking numbers also feed the journeys section, ADR 0026) | the outlook section is `omitted` with the reason; the tool errors only when every attempted section failed |
+| shipping-and-tracking | `SHIPPING_AND_TRACKING_MCP_ENDPOINT` (optional) | `get_journey` | none | `get_network_order_outlook` (journeys section: one summarized journey per tracking number, at most 20 reads, ADR 0026) | the outlook section is `omitted` with the reason; the tool errors only when every attempted section failed |
+| vendor-connectivity | `VENDOR_CONNECTIVITY_MCP_ENDPOINT` (optional) | `get_vendor_node`, `get_node_scorecard` | `get_vendor`, `list_vendor_nodes`, `get_purchase_order`, `poll_purchase_orders`, `get_inbound_shipment`, `poll_inbound_shipments`, `get_transaction` (published; no use case here calls them) | `get_network_node_outlook` (vendor + vendorScores sections, only when node-topology registered the node under a vendor, ADR 0026) | the outlook section is `omitted` with the reason; the tool errors only when every attempted section failed |
 | task-interleaving | `TASK_INTERLEAVING_MCP_ENDPOINT` (optional) | `get_hint`, `get_site_policy`, `get_station`, `list_hints` | none | none yet (ADR 0025; wired for the interleaving read surface; no consuming use case) | none: unset = no client, nothing depends on it (fail-open) |
 | pick-face-replenishment | `PICK_FACE_REPLENISHMENT_MCP_ENDPOINT` (optional) | `get_policy`, `list_policies`, `get_replenishment`, `list_replenishments`, `list_pick_faces` | none | none yet (ADR 0025; wired for the pick-face read surface; no consuming use case) | none: unset = no client, nothing depends on it (fail-open) |
 
-The process-path-management client was removed entirely (ADR 0024, gap A9):
-catalogue configuration is not an ops signal, and no use case ever consumed
-it. `PROCESS_PATH_MANAGEMENT_MCP_ENDPOINT` is no longer read; the endpoint
-stays configured in warehouse-infra's terraform until the orchestrator
-removes it in a later infra change.
+process-path-management is the thirteenth client
+([ADR 0026](../adr/0026-network-outlook-and-process-path-client.md)):
+its two-tool client was deleted by ADR 0024 (gap A9), but its registry has
+since grown `get_cpt_schedule` (an ops signal) and the fleet's posture on
+wired-unconsumed clients changed with ADR 0025 — so the client is back,
+pinned to the current three-tool registry (the upstream's older TSV
+registry golden was converted into this repo's JSON golden convention),
+wired-unconsumed for now, and `PROCESS_PATH_MANAGEMENT_MCP_ENDPOINT` is
+rendered by the chart again from `upstreams.processPathManagement.endpoint`:
+
+| process-path-management | `PROCESS_PATH_MANAGEMENT_MCP_ENDPOINT` (optional) | none | `get_process_path`, `list_process_paths`, `get_cpt_schedule` (published; no use case here calls them yet) | none yet (ADR 0026; wired for the path-catalogue + CPT-schedule read surface; a CPT-countdown consumer is the natural follow-up) | none: unset = no client, nothing depends on it (fail-open) |
+
+task-interleaving and pick-face-replenishment remain wired-unconsumed
+exactly as ADR 0025 left them: the former is keyed by WMS site/station
+codes (no published site↔node mapping exists to fold it into the node
+outlook), the latter is warehouse-internal replenishment state with no
+order/node-picture role that would not be a fake section.
 
 The zero-write tests (`internal/architecture/zerowrite`) fail the build if
 any client calls a tool outside the read set, and pin product-master's,
