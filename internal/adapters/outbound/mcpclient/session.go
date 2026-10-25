@@ -67,7 +67,20 @@ func (s *Session) connect(ctx context.Context) (*mcp.ClientSession, error) {
 		// No client-side timeout; callTool's context bounds the call.
 		HTTPClient: httpclient.New(0),
 	}
-	session, err := client.Connect(ctx, transport, nil)
+	// Pin the handshake to the latest LEGACY protocol version
+	// (2025-11-25). Every MCP server in this fleet is a stateful
+	// Streamable HTTP server, and the go-sdk's default (2026-07-28,
+	// SEP-2575) is accepted by stateful servers only after a
+	// server/discover negotiation that proved fragile in-mesh (observed
+	// live 2026-10-25: pods in the service mesh had their initialize
+	// rejected with `protocol version "2026-07-28" is not supported by
+	// this server`, while the same client version worked from outside
+	// the mesh). A pinned legacy version skips the discover dance
+	// entirely and initializes directly, which every deployed server
+	// accepts (verified against the WMS and retail-network servers).
+	session, err := client.Connect(ctx, transport, &mcp.ClientSessionOptions{
+		ProtocolVersion: "2025-11-25",
+	})
 	if err != nil {
 		return nil, fmt.Errorf("%s: connect: %w", s.cfg.Name, err)
 	}
