@@ -78,10 +78,11 @@ Its MCP server is read+write; this agent calls read tools only.
 `product-master`'s outbound client
 ([ADR 0020](./adr/0020-product-master-mcp-client-and-master-data-gaps.md))
 is consumed only through `list_products` (the master-data gaps report);
-`get_product`, `get_product_classification` and `get_physical_profile` are
-deliberately not wired (Phase 5.4). The client's DTOs are still
-contract-tested against product-master's published registry.
-product-master's MCP server is read-only.
+`get_product`, `get_product_classification`, `get_physical_profile`,
+`get_pack_levels` and `resolve_gtin` are deliberately not wired, and its two
+pack-level write tools (`declare_pack_level`, `retire_pack_level`) are never
+called. The client's DTOs are still contract-tested against product-master's
+published registry (all eight tools pinned).
 
 `inbound-receiving`'s outbound client
 ([ADR 0021](./adr/0021-inbound-receiving-mcp-client-and-inbound-outlook.md))

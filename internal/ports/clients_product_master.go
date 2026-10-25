@@ -3,13 +3,14 @@
 // master data: description, handling classification and the physical
 // profile (declared vs measured unit dimensions).
 //
-// product-master's MCP server is READ-ONLY (its own ADR 0005: four tools,
-// every one annotated readOnlyHint, a write-verb sensor in its governance
-// test). This port mirrors only the one the agent consumes (list_products;
-// get_product, get_product_classification and get_physical_profile are not
-// wired because no use case calls them); product-master's writes
-// (register, classify, declare dimensions, record measurement) are REST-only
-// there and have no method here. The zero-write fitness test
+// product-master's MCP server publishes eight tools: six reads annotated
+// readOnlyHint (list_products, get_product, get_product_classification,
+// get_physical_profile, get_pack_levels, resolve_gtin) and two pack-level
+// writes (declare_pack_level, retire_pack_level; its ADR 0011). This port
+// mirrors only the one the agent consumes (list_products; the other five
+// reads are not wired because no use case calls them); every product-master
+// write, tool or REST (register, classify, declare dimensions, record
+// measurement, declare/retire a pack level), has no method here. The zero-write fitness test
 // (internal/architecture/zerowrite) fails the build if the mcpclient adapter
 // ever names a write-verb tool, and the contract snapshot test in mcpclient
 // pins the published tools against product-master's published registry.
