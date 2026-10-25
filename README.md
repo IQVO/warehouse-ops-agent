@@ -32,8 +32,8 @@ configuration is not an ops signal. `warehouse-planning` (read tools only; its M
 server is read+write) feeds an optional, fail-open capacity outlook in the
 daily brief and has three more read tools wired but unconsumed
 ([ADR 0013](./docs/docs/adr/0013-warehouse-planning-mcp-client-and-capacity-outlook.md)).
-`product-master` (read-only server, contract pinned to its published tool
-registry) feeds the master-data gaps report
+`product-master` (read+write server, eight tools, contract pinned to its published tool
+registry; only the read tool `list_products` is called) feeds the master-data gaps report
 ([ADR 0020](./docs/docs/adr/0020-product-master-mcp-client-and-master-data-gaps.md));
 in the kind cluster warehouse-infra sets `PRODUCT_MASTER_MCP_ENDPOINT` to
 `product-master-mcp:8090/mcp`, so the report is live there.

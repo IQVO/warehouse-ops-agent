@@ -30,8 +30,9 @@ of the fleet, added in different phases and never merged into one:
    optional capacity outlook, the other three read tools are wired but
    unconsumed), `product-master`
    ([ADR 0020](../adr/0020-product-master-mcp-client-and-master-data-gaps.md):
-   read-only server; `list_products` feeds the master-data gaps report, the
-   other three read tools are wired but unconsumed; deployed and switched on
+   read+write server (eight tools); `list_products` feeds the master-data gaps
+   report, the other five read tools are unwired and the two pack-level write
+   tools are never called; deployed and switched on
    in the kind cluster), `inbound-receiving`
    ([ADR 0021](../adr/0021-inbound-receiving-mcp-client-and-inbound-outlook.md):
    read-only server; `list_asns`, `list_appointments` and `list_receipts` feed
@@ -130,7 +131,7 @@ context.
 | `fulfillment-execution` (Core) | OHS / Conformist | MCP `get_queue_status`, `diagnose_stuck_tasks` (live); REST `GET /tasks?orderRef=` (joined via each WorkUnit's id, not the plain order id — see ADR 0002); reports `/reports/throughput` | live | `mcpclient/fulfillment_execution.go`, `restclient/clients.go` |
 | `inventory-storage` (Core) | OHS / Conformist | MCP `check_availability`, `get_bin_occupancy` (E2, exposed as the MCP tool `detect_stranded_reservation`); REST `GET /reservations?demandRef=`; reports `/reports/flow-accuracy` | live | `mcpclient/inventory_storage.go`, `usecases/stranded_reservation.go` |
 | `warehouse-planning` (Core) | OHS / Conformist, **read tools only** (its MCP server is read+write) | MCP `get_process_path_capacity` (live, daily-brief capacity outlook) | live, only when `WAREHOUSE_PLANNING_MCP_ENDPOINT` is set | `mcpclient/warehouse_planning.go`, `usecases/capacity_outlook.go`, `zerowrite/mcpclient_tools_test.go` |
-| `product-master` (Supporting) | OHS / Conformist (read-only server; contract pinned to its published registry golden) | MCP `list_products` (live, master-data gaps) | live, only when `PRODUCT_MASTER_MCP_ENDPOINT` is set (warehouse-infra sets it in the kind cluster: `product-master-mcp:8090/mcp`) | `mcpclient/product_master.go`, `mcpclient/testdata/product_master_tools.golden.json`, `usecases/master_data_gaps.go` |
+| `product-master` (Supporting) | OHS / Conformist (read+write server, eight tools; contract pinned to its published registry golden; only the read tool `list_products` is called) | MCP `list_products` (live, master-data gaps) | live, only when `PRODUCT_MASTER_MCP_ENDPOINT` is set (warehouse-infra sets it in the kind cluster: `product-master-mcp:8090/mcp`) | `mcpclient/product_master.go`, `mcpclient/testdata/product_master_tools.golden.json`, `usecases/master_data_gaps.go` |
 | `network-inventory-planning` | OHS / Conformist, read tools only | MCP `find_stuck_transfers`, `get_transfer`, `simulate_transfer_options` (live, transfer watch, ADR 0019) | live, only when `NETWORK_INVENTORY_PLANNING_MCP_ENDPOINT` is set | `mcpclient/network_inventory_planning.go`, `usecases/transfer_watch.go` |
 | `workforce-management` (Supporting) | OHS / Conformist | MCP `get_staffing_gap` (live); reports `/reports/labor` | live | `mcpclient/workforce_management.go` |
 | `labor-performance` (Supporting) | OHS / Conformist | MCP `get_task_type_utilization` (live, ADR 0008) + 3 wired tools; reports `/reports/performance` | live | `mcpclient/labor_performance.go`, `usecases/flow_balance_advisory.go` |

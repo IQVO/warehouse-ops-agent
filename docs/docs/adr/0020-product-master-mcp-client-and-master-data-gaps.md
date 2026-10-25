@@ -2,7 +2,7 @@
 id: 0020-product-master-mcp-client-and-master-data-gaps
 title: "0020 — product-master MCP client (read-only) and the master-data gaps report"
 sidebar_label: "0020 · product-master client + master-data gaps"
-description: "The agent reads product-master's four published read tools through a schema-pinned MCP client (PRODUCT_MASTER_MCP_ENDPOINT, unset = disabled, fail-open) and uses list_products for one decision-support report: unclassified products and products whose declared and measured dimensions disagree."
+description: "The agent reads product-master through a schema-pinned MCP client (PRODUCT_MASTER_MCP_ENDPOINT, unset = disabled, fail-open) and uses list_products for one decision-support report: unclassified products and products whose declared and measured dimensions disagree."
 ---
 
 # ADR 0020: product-master MCP client (read-only) and the master-data gaps report
@@ -131,3 +131,24 @@ implements only `list_products`. `testdata/product_master_tools.golden.json`
 stays a verbatim copy of product-master's full registry, so the DTO contract
 test still covers `list_products`, and a test pins that the client calls only
 that one tool. The server still publishes all four.
+
+## Addendum: registry grew from four to eight tools (mastercase programme)
+
+product-master's registry now publishes **eight** tools: the four above plus
+`get_pack_levels` and `resolve_gtin` (reads, `readOnlyHint`) and
+`declare_pack_level` and `retire_pack_level` (pack-level **writes**,
+`readOnlyHint: false`; product-master ADR 0011). `testdata/product_master_tools.golden.json`
+is again a byte-identical copy of that registry (product-master `cf18289`).
+
+- The contract tests pin all eight names, require `readOnlyHint: true` on
+  the six reads and `false` on the two writes (a flipped annotation is
+  drift), and `TestProductMaster_PinnedToolCountMatchesRegistry` fails when
+  the number of tools in the golden differs from the pinned count.
+- Agent behaviour is unchanged: the client still calls only `list_products`.
+  The write tools are pinned so their schemas are tracked, never so they can
+  be called; the stand-in server traps any call to them, and
+  `zerowrite` now also rejects the `retire_` verb prefix (`declare_` was
+  already rejected).
+- Read "four tools, every one annotated `readOnlyHint`" and "exactly the four
+  tools" in the sections above as the original surface; the pinned set is now
+  the eight listed here.
