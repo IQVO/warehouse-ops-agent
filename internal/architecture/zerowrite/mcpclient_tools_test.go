@@ -155,10 +155,11 @@ func TestExceptionManagementClientCallsOnlyPinnedTools(t *testing.T) {
 	}
 }
 
-// --- the twelve ADR-0025 clients (network fleet + two WMS ones) -------
+// --- the ADR-0025 clients (network fleet + two WMS ones) and the
+// ADR-0026 process-path-management client -------
 //
-// Each is the exact allow-list for one of the twelve clients wired per
-// ADR 0025: the whole of its upstream's published read surface (every
+// Each is the exact allow-list for one of the clients wired per
+// ADR 0025/0026: the whole of its upstream's published read surface (every
 // one of these upstreams is a read-only server).
 
 var networkFleetReadTools = map[string][]string{
@@ -174,10 +175,11 @@ var networkFleetReadTools = map[string][]string{
 	"vendor_connectivity.go":     {"get_inbound_shipment", "get_node_scorecard", "get_purchase_order", "get_transaction", "get_vendor", "get_vendor_node", "list_vendor_nodes", "poll_inbound_shipments", "poll_purchase_orders"},
 	"task_interleaving.go":       {"get_hint", "get_site_policy", "get_station", "list_hints"},
 	"pick_face_replenishment.go": {"get_policy", "get_replenishment", "list_pick_faces", "list_policies", "list_replenishments"},
+	"process_path_management.go": {"get_cpt_schedule", "get_process_path", "list_process_paths"},
 }
 
-// TestNetworkFleetClientsCallOnlyPinnedTools scans each of the twelve
-// ADR-0025 client files and fails unless it names exactly its pinned
+// TestNetworkFleetClientsCallOnlyPinnedTools scans each of the
+// ADR-0025/0026 client files and fails unless it names exactly its pinned
 // read tools, and only read-verb-free ones at that.
 func TestNetworkFleetClientsCallOnlyPinnedTools(t *testing.T) {
 	for file, want := range networkFleetReadTools {

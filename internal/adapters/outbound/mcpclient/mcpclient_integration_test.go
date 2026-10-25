@@ -110,3 +110,48 @@ func TestMCPClient_UnreachableEndpointFailsFast(t *testing.T) {
 		t.Fatal("an unreachable upstream must return an error, not hang or return a zero DTO")
 	}
 }
+
+// TestMCPClient_ProcessPathManagement is the ADR-0026 client's integration
+// seam: the three-tool read surface over a real Streamable-HTTP server.
+func TestMCPClient_ProcessPathManagement(t *testing.T) {
+	ctx := context.Background()
+	server := mcp.NewServer(&mcp.Implementation{Name: "process-path-management", Version: "1.0.0"}, nil)
+	mcp.AddTool(server, &mcp.Tool{Name: "get_process_path", Description: "one catalogue entry"},
+		func(ctx context.Context, req *mcp.CallToolRequest, in map[string]any) (*mcp.CallToolResult, map[string]any, error) {
+			return nil, map[string]any{
+				"pathId": "PICK", "matchPrefix": "PICK-", "direct": false,
+				"requiredCapabilities": []any{"CARTON"}, "status": "ACTIVE", "active": true,
+				"createdAt": "2026-01-05T09:00:00Z", "updatedAt": "2026-02-01T12:00:00Z",
+				"cycleTimeP95": "45m0s", "eligibility": map[string]any{}, "intake": []any{"CUSTOMER_ORDER"},
+			}, nil
+		})
+	mcp.AddTool(server, &mcp.Tool{Name: "get_cpt_schedule", Description: "one site's CPT schedule"},
+		func(ctx context.Context, req *mcp.CallToolRequest, in map[string]any) (*mcp.CallToolResult, map[string]any, error) {
+			return nil, map[string]any{
+				"siteId": "sp1", "timezone": "America/Chicago",
+				"cutoffs": []any{map[string]any{
+					"cptId": "cpt-eod", "localTime": "17:00", "daysOfWeek": []any{"MON", "FRI"},
+					"shipMethod": "GROUND", "eligiblePathIds": []any{"PICK"},
+				}},
+				"createdAt": "2026-01-05T09:00:00Z", "updatedAt": "2026-02-01T12:00:00Z",
+			}, nil
+		})
+	hs := httptest.NewServer(mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server }, nil))
+	t.Cleanup(hs.Close)
+
+	client := mcpclient.NewProcessPathManagement(mcpclient.Config{Endpoint: hs.URL, Timeout: 5 * time.Second})
+	entry, err := client.GetProcessPath(ctx, "PICK")
+	if err != nil {
+		t.Fatalf("GetProcessPath over real Streamable HTTP: %v", err)
+	}
+	if entry.PathID != "PICK" || entry.Status != "ACTIVE" || !entry.Active || len(entry.Intake) != 1 {
+		t.Fatalf("decoded path DTO mismatch: %+v", entry)
+	}
+	schedule, err := client.GetCPTSchedule(ctx, "sp1")
+	if err != nil {
+		t.Fatalf("GetCPTSchedule over real Streamable HTTP: %v", err)
+	}
+	if schedule.Timezone != "America/Chicago" || len(schedule.Cutoffs) != 1 || schedule.Cutoffs[0].LocalTime != "17:00" {
+		t.Fatalf("decoded CPT schedule DTO mismatch: %+v", schedule)
+	}
+}

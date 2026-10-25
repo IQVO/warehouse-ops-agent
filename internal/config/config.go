@@ -79,13 +79,14 @@ type Config struct {
 	// "skip this client". LaborPerformance has since graduated to consumed
 	// by FlowBalanceAdvisory's labor-utilization correlation overlay
 	// (ADR 0008 Phase 3); OrderManagement is consumed by the daily brief's
-	// promise-health section (ADR 0024). ProcessPathManagement was REMOVED
-	// (ADR 0024, gap A9): catalogue configuration is not an ops signal,
-	// and the client's PROCESS_PATH_MANAGEMENT_MCP_ENDPOINT is no longer
-	// read. The endpoint itself stays configured in warehouse-infra's
-	// terraform until the orchestrator removes it in a later infra change.
-	OrderManagement  UpstreamConfig
-	LaborPerformance UpstreamConfig
+	// promise-health section (ADR 0024). ProcessPathManagement was removed
+	// by ADR 0024 (gap A9) and RE-ADDED by ADR 0026, pinned to the
+	// current three-tool registry (its surface grew get_cpt_schedule, an
+	// actual ops signal): an empty endpoint means "not configured" and the
+	// agent boots fail-open exactly as before.
+	OrderManagement       UpstreamConfig
+	LaborPerformance      UpstreamConfig
+	ProcessPathManagement UpstreamConfig
 
 	// WarehousePlanning is the third-wave upstream (ADR 0013). An empty
 	// endpoint means "not configured": the composition root then builds no
@@ -308,6 +309,9 @@ func Load() (Config, error) {
 		},
 		LaborPerformance: UpstreamConfig{
 			Endpoint: getenv("LABOR_PERFORMANCE_MCP_ENDPOINT", ""),
+		},
+		ProcessPathManagement: UpstreamConfig{
+			Endpoint: getenv("PROCESS_PATH_MANAGEMENT_MCP_ENDPOINT", ""),
 		},
 		WarehousePlanning: UpstreamConfig{
 			Endpoint: getenv("WAREHOUSE_PLANNING_MCP_ENDPOINT", ""),

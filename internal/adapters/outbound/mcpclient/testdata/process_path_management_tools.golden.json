@@ -1,0 +1,345 @@
+[
+  {
+    "annotations": {
+      "idempotentHint": false,
+      "readOnlyHint": true
+    },
+    "description": "Return one site's Critical Pull Time (CPT) schedule: timezone and the recurring daily cutoffs (cptId, localTime, daysOfWeek, shipMethod, eligiblePathIds). Not found is returned as a tool-level error. Read-only (ADR 0010) — there is no write tool for the schedule.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "siteId": {
+          "description": "the site id to look up the CPT schedule for, e.g. sp1",
+          "type": "string"
+        }
+      },
+      "required": [
+        "siteId"
+      ],
+      "type": "object"
+    },
+    "name": "get_cpt_schedule",
+    "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "createdAt": {
+          "type": "string"
+        },
+        "cutoffs": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "cptId": {
+                "type": "string"
+              },
+              "daysOfWeek": {
+                "items": {
+                  "type": "string"
+                },
+                "type": [
+                  "null",
+                  "array"
+                ]
+              },
+              "eligiblePathIds": {
+                "items": {
+                  "type": "string"
+                },
+                "type": [
+                  "null",
+                  "array"
+                ]
+              },
+              "localTime": {
+                "type": "string"
+              },
+              "shipMethod": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "cptId",
+              "localTime",
+              "daysOfWeek",
+              "shipMethod",
+              "eligiblePathIds"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "null",
+            "array"
+          ]
+        },
+        "siteId": {
+          "type": "string"
+        },
+        "timezone": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "siteId",
+        "timezone",
+        "cutoffs",
+        "createdAt",
+        "updatedAt"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "annotations": {
+      "idempotentHint": false,
+      "readOnlyHint": true
+    },
+    "description": "Return the full definition of one process path by its canonical id: matchPrefix, direct, requiredCapabilities, cycleTimeP95, eligibility, intake (the demand sources allowed to route work onto it: CUSTOMER_ORDER, STOCK_TRANSFER, SLOT_RELOCATION, INVENTORY_CONTROL, REPLENISHMENT; [] means only an explicit path id reaches it), status, and timestamps. Not found is returned as a tool-level error.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "pathId": {
+          "description": "the canonical process path id to look up, e.g. PICK, PACK, REBIN, SLAM",
+          "type": "string"
+        }
+      },
+      "required": [
+        "pathId"
+      ],
+      "type": "object"
+    },
+    "name": "get_process_path",
+    "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "active": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string"
+        },
+        "cycleTimeP95": {
+          "type": "string"
+        },
+        "destinationLocationRole": {
+          "type": "string"
+        },
+        "direct": {
+          "type": "boolean"
+        },
+        "eligibility": {
+          "additionalProperties": false,
+          "properties": {
+            "excludedProductAttributes": {
+              "items": {
+                "type": "string"
+              },
+              "type": [
+                "null",
+                "array"
+              ]
+            },
+            "maxUnitsPerLine": {
+              "type": [
+                "null",
+                "integer"
+              ]
+            },
+            "nonSortable": {
+              "type": "boolean"
+            },
+            "requiredProductAttributes": {
+              "items": {
+                "type": "string"
+              },
+              "type": [
+                "null",
+                "array"
+              ]
+            }
+          },
+          "type": "object"
+        },
+        "intake": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "null",
+            "array"
+          ]
+        },
+        "matchPrefix": {
+          "type": "string"
+        },
+        "pathId": {
+          "type": "string"
+        },
+        "requiredCapabilities": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "null",
+            "array"
+          ]
+        },
+        "status": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "pathId",
+        "matchPrefix",
+        "direct",
+        "requiredCapabilities",
+        "status",
+        "active",
+        "createdAt",
+        "updatedAt",
+        "cycleTimeP95",
+        "eligibility",
+        "intake"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "annotations": {
+      "idempotentHint": false,
+      "readOnlyHint": true
+    },
+    "description": "List process paths in the catalogue. activeOnly (default true) restricts the result to ACTIVE paths; set it false to include deactivated ones too.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "activeOnly": {
+          "description": "when true (the default), only ACTIVE paths are returned; when false, deactivated paths are included too",
+          "type": [
+            "null",
+            "boolean"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "name": "list_process_paths",
+    "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "paths": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "active": {
+                "type": "boolean"
+              },
+              "createdAt": {
+                "type": "string"
+              },
+              "cycleTimeP95": {
+                "type": "string"
+              },
+              "destinationLocationRole": {
+                "type": "string"
+              },
+              "direct": {
+                "type": "boolean"
+              },
+              "eligibility": {
+                "additionalProperties": false,
+                "properties": {
+                  "excludedProductAttributes": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": [
+                      "null",
+                      "array"
+                    ]
+                  },
+                  "maxUnitsPerLine": {
+                    "type": [
+                      "null",
+                      "integer"
+                    ]
+                  },
+                  "nonSortable": {
+                    "type": "boolean"
+                  },
+                  "requiredProductAttributes": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": [
+                      "null",
+                      "array"
+                    ]
+                  }
+                },
+                "type": "object"
+              },
+              "intake": {
+                "items": {
+                  "type": "string"
+                },
+                "type": [
+                  "null",
+                  "array"
+                ]
+              },
+              "matchPrefix": {
+                "type": "string"
+              },
+              "pathId": {
+                "type": "string"
+              },
+              "requiredCapabilities": {
+                "items": {
+                  "type": "string"
+                },
+                "type": [
+                  "null",
+                  "array"
+                ]
+              },
+              "status": {
+                "type": "string"
+              },
+              "updatedAt": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "pathId",
+              "matchPrefix",
+              "direct",
+              "requiredCapabilities",
+              "status",
+              "active",
+              "createdAt",
+              "updatedAt",
+              "cycleTimeP95",
+              "eligibility",
+              "intake"
+            ],
+            "type": "object"
+          },
+          "type": [
+            "null",
+            "array"
+          ]
+        }
+      },
+      "required": [
+        "paths"
+      ],
+      "type": "object"
+    }
+  }
+]

@@ -55,6 +55,18 @@ type Deps struct {
 	// network-inventory-planning. Nil is a valid value; the three
 	// transfer-watch tools are simply not registered when nil.
 	TransferWatch *usecases.TransferWatch
+
+	// NetworkOrderOutlook is the ADR 0026 order-side composed view over
+	// the ADR-0025 retail-network clients. Nil (no
+	// CUSTOMER_ORDERING_MCP_ENDPOINT) means get_network_order_outlook is
+	// simply not registered.
+	NetworkOrderOutlook *usecases.NetworkOrderOutlook
+
+	// NetworkNodeOutlook is the ADR 0026 node-side composed view over
+	// the ADR-0025 retail-network clients. Nil (no
+	// NODE_TOPOLOGY_MCP_ENDPOINT) means get_network_node_outlook is
+	// simply not registered.
+	NetworkNodeOutlook *usecases.NetworkNodeOutlook
 }
 
 // --- get_daily_brief -----------------------------------------------------
@@ -323,11 +335,12 @@ func (d Deps) detectStrandedReservation(ctx context.Context, in strandedReservat
 // registerTools adds every tool to the server, each wrapped so its handler
 // runs inside an OTel span named "mcp.tool <name>". get_daily_brief and
 // list_open_exceptions are always registered; get_flow_balance_exception,
-// explain_travel_factor, detect_stranded_reservation and
-// find_master_data_gaps and get_inbound_outlook are registered only when their use case is wired
-// (see each one's own nil check below) — up to ten tools total (with the
-// three transfer-watch tools), every one
-// of them read-only. This agent has no write tool at all.
+// explain_travel_factor, detect_stranded_reservation,
+// find_master_data_gaps, get_inbound_outlook, the three transfer-watch
+// tools and the two network-outlook tools are registered only when their
+// use case is wired (see each one's own nil check below) — up to twelve
+// tools total, every one of them read-only. This agent has no write tool
+// at all.
 func (d Deps) registerTools(server *mcp.Server) {
 	readOnly := true
 
@@ -385,6 +398,22 @@ func (d Deps) registerTools(server *mcp.Server) {
 
 	if d.TransferWatch != nil {
 		d.registerTransferWatchTools(server)
+	}
+
+	if d.NetworkOrderOutlook != nil {
+		addTool(server, &mcp.Tool{
+			Name:        "get_network_order_outlook",
+			Description: "Assemble one customer order's retail-network picture across the wired read-only clients: the placed order with its lines and shipment groups (customer-ordering get_order), how each group is travelling with its packages and promise verdict (get_order_tracking), the ship-to address (get_ship_to), the delivery promises against its groups including a per-group promise the order list did not cover (delivery-promise list_promises_by_order + get_promise), the fulfillment assignments sourcing it (order-sourcing list_assignments filtered by order), and one summarized package journey per tracking number (shipping-and-tracking get_journey, at most 20 reads). Each section carries its own omitted reason ('not-configured' when that upstream's endpoint is unset, the error when its call failed) and complete flag; an omitted section is NOT 'nothing to report'. Read-only: it only reports, it never places, promises, sources, labels or hands over anything.",
+			Annotations: &mcp.ToolAnnotations{ReadOnlyHint: readOnly},
+		}, d.getNetworkOrderOutlook)
+	}
+
+	if d.NetworkNodeOutlook != nil {
+		addTool(server, &mcp.Tool{
+			Name:        "get_network_node_outlook",
+			Description: "Assemble one fulfilment node's retail-network picture across the wired read-only clients: the node with its operational profile (node-topology get_node), the directed lanes into and out of it (list_lanes by destination/origin), its rolling 7-day/30-day scorecards (node-performance get_scorecard), what it sells and the freshest vendor inventory feed behind that (offer-availability list_listings filtered by node + get_inventory_feed), its vendor registration and vendor-relayed scorecards (vendor-connectivity get_vendor_node + get_node_scorecard, only when node-topology registered the node under a vendor), the linehaul departures whose cutoff is still ahead (linehaul-transportation list_departures by origin), and — only for a DELIVERY_STATION node — today's waves in the node's own timezone (last-mile-delivery list_waves). Each section carries its own omitted reason ('not-configured' when that upstream's endpoint is unset, 'not a delivery station' and similar when a section genuinely does not apply) and complete flag; an omitted section is NOT 'nothing to report'. Read-only: it only reports, it never grades, lists, releases, books or dispatches anything.",
+			Annotations: &mcp.ToolAnnotations{ReadOnlyHint: readOnly},
+		}, d.getNetworkNodeOutlook)
 	}
 }
 

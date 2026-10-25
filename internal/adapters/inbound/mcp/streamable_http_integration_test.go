@@ -105,7 +105,8 @@ func TestAgentMCP_NilDepsRegisterOnlyTheAlwaysOnTools(t *testing.T) {
 	// get_daily_brief and list_open_exceptions are always registered
 	// (nil-safe by design); every optional tool (flow balance, travel
 	// factor, stranded reservation, master-data gaps, inbound outlook,
-	// transfer watch) must be absent when its use case is nil.
+	// transfer watch, the two network outlooks) must be absent when its
+	// use case is nil.
 	if len(names) != 2 || names[0] != "get_daily_brief" || names[1] != "list_open_exceptions" {
 		t.Fatalf("with every optional use case nil only the two always-on tools may be registered, got %v", names)
 	}
