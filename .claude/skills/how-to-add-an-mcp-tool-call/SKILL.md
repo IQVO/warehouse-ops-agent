@@ -11,7 +11,7 @@ publishing/consuming Kafka integration events — this repo has **no Kafka
 consumer or publisher of its own, and no AsyncAPI spec**. This
 repo's actual cross-context integration mechanism is different in kind:
 it is an MCP **Customer** of sibling contexts' published Open Host
-Services (ADR 0001; fourteen outbound clients today: the five original ones plus labor-performance and order-management (ADR 0007), warehouse-planning ADR 0013, network-inventory-planning ADR 0019, product-master ADR 0020, inbound-receiving ADR 0021, slotting-optimization ADR 0024, and returns-processing and exception-management (read-only servers; wired, not yet consumed)), calling their read-only tools over Streamable HTTP.
+Services (ADR 0001; twenty-seven outbound clients today: the five original ones plus labor-performance and order-management (ADR 0007), warehouse-planning ADR 0013, the twelve ADR-0025 upstreams (the ten retail-network contexts, task-interleaving, pick-face-replenishment), and process-path-management (ADR 0026, alongside that ADR's get_network_order_outlook and get_network_node_outlook tools that consume ten of the ADR-0025 clients; returns-processing and exception-management remain wired, not yet consumed), network-inventory-planning ADR 0019, product-master ADR 0020, inbound-receiving ADR 0021, slotting-optimization ADR 0024, and returns-processing and exception-management (read-only servers; wired, not yet consumed)), calling their read-only tools over Streamable HTTP.
 This guide replaces the Kafka how-to with the equivalent real workflow
 for this repo: **adding a new outbound MCP tool call to one of the
 upstream contexts**, plus the read-only/zero-write guardrail that is this
