@@ -122,6 +122,8 @@ spec:
               value: {{ .Values.upstreams.shippingAndTracking.endpoint | quote }}
             - name: VENDOR_CONNECTIVITY_MCP_ENDPOINT
               value: {{ .Values.upstreams.vendorConnectivity.endpoint | quote }}
+            - name: SELLER_INBOUND_MCP_ENDPOINT
+              value: {{ .Values.upstreams.sellerInbound.endpoint | quote }}
             - name: TASK_INTERLEAVING_MCP_ENDPOINT
               value: {{ .Values.upstreams.taskInterleaving.endpoint | quote }}
             - name: PICK_FACE_REPLENISHMENT_MCP_ENDPOINT
