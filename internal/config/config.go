@@ -160,8 +160,14 @@ type Config struct {
 	OrderSourcing          UpstreamConfig
 	ShippingAndTracking    UpstreamConfig
 	VendorConnectivity     UpstreamConfig
-	TaskInterleaving       UpstreamConfig
-	PickFaceReplenishment  UpstreamConfig
+
+	// SellerInbound is seller-inbound's read-only MCP server (its four
+	// read tools), SELLER_INBOUND_MCP_ENDPOINT. Wired but not consumed by
+	// any use case yet (ADR 0027); an empty endpoint means "not
+	// configured" and no client is built (fail-open, ADR 0023).
+	SellerInbound         UpstreamConfig
+	TaskInterleaving      UpstreamConfig
+	PickFaceReplenishment UpstreamConfig
 
 	// SlotPlanStaleAge is the approval age past which an Approved slot
 	// plan with unexecuted moves is flagged in the daily brief's
@@ -389,6 +395,7 @@ func loadNetworkFleetEndpoints(cfg *Config) {
 	cfg.OrderSourcing = UpstreamConfig{Endpoint: getenv("ORDER_SOURCING_MCP_ENDPOINT", "")}
 	cfg.ShippingAndTracking = UpstreamConfig{Endpoint: getenv("SHIPPING_AND_TRACKING_MCP_ENDPOINT", "")}
 	cfg.VendorConnectivity = UpstreamConfig{Endpoint: getenv("VENDOR_CONNECTIVITY_MCP_ENDPOINT", "")}
+	cfg.SellerInbound = UpstreamConfig{Endpoint: getenv("SELLER_INBOUND_MCP_ENDPOINT", "")}
 	cfg.TaskInterleaving = UpstreamConfig{Endpoint: getenv("TASK_INTERLEAVING_MCP_ENDPOINT", "")}
 	cfg.PickFaceReplenishment = UpstreamConfig{Endpoint: getenv("PICK_FACE_REPLENISHMENT_MCP_ENDPOINT", "")}
 }

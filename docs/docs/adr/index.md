@@ -45,6 +45,7 @@ accepted.
 | [0024](./0024-slot-plan-watch-promise-health-and-ppm-client-removal.md) | slotting-optimization client + slot-plan watch and order-management promise health in the daily brief (fail-open); process-path-management client removed | Accepted |
 | [0025](./0025-network-fleet-mcp-clients.md) | Twelve more outbound MCP clients: the retail-network fleet and two WMS contexts, wired per ADR 0023 and pinned to each upstream's published registry golden | Accepted |
 | [0026](./0026-network-outlook-and-process-path-client.md) | Network order/node outlooks composed over the ADR-0025 clients (per-section fail-open degradation); the thirteenth client process-path-management re-added, golden-pinned and chart-rendered | Accepted |
+| [0027](./0027-seller-inbound-mcp-client.md) | The fourteenth read-only MCP client (seller-inbound, four tools) golden-pinned and chart-rendered; wired, not yet consumed | Accepted |
 
 ## Proposing a new one
 

@@ -252,6 +252,7 @@ func TestLoad_NetworkFleetEndpoints_DefaultAndRead(t *testing.T) {
 		"ORDER_SOURCING_MCP_ENDPOINT":          {"ORDER_SOURCING_MCP_ENDPOINT", func(c Config) string { return c.OrderSourcing.Endpoint }},
 		"SHIPPING_AND_TRACKING_MCP_ENDPOINT":   {"SHIPPING_AND_TRACKING_MCP_ENDPOINT", func(c Config) string { return c.ShippingAndTracking.Endpoint }},
 		"VENDOR_CONNECTIVITY_MCP_ENDPOINT":     {"VENDOR_CONNECTIVITY_MCP_ENDPOINT", func(c Config) string { return c.VendorConnectivity.Endpoint }},
+		"SELLER_INBOUND_MCP_ENDPOINT":          {"SELLER_INBOUND_MCP_ENDPOINT", func(c Config) string { return c.SellerInbound.Endpoint }},
 		"TASK_INTERLEAVING_MCP_ENDPOINT":       {"TASK_INTERLEAVING_MCP_ENDPOINT", func(c Config) string { return c.TaskInterleaving.Endpoint }},
 		"PICK_FACE_REPLENISHMENT_MCP_ENDPOINT": {"PICK_FACE_REPLENISHMENT_MCP_ENDPOINT", func(c Config) string { return c.PickFaceReplenishment.Endpoint }},
 	}
