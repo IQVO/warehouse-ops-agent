@@ -3,6 +3,7 @@ module github.com/claudioed/warehouse-ops-agent
 go 1.26.10
 
 require (
+	github.com/a2aproject/a2a-go/v2 v2.7.0
 	github.com/arch-go/arch-go v1.7.0
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/cucumber/godog v0.16.0

@@ -261,6 +261,25 @@ type Config struct {
 	// no API key is also a startup error, so a misconfigured cluster can
 	// never quietly run without the model it was told to use.
 	LLM LLMConfig
+
+	// Act is the ADR-0027 human-confirmed write slice (opt-in).
+	Act ActConfig
+}
+
+// ActConfig configures the act slice (ADR 0027): the one human-confirmed
+// write this agent can perform. It is opt-in — an empty WorkPlanningA2AURL
+// leaves the act routes answering 503 and no write adapter is built.
+type ActConfig struct {
+	// WorkPlanningA2AURL is WES_WORK_PLANNING_A2A_URL, the base URL of the
+	// wes-work-planning A2A agent (its card is discovered under it).
+	WorkPlanningA2AURL string
+	// SigningKey is APPROVAL_SIGNING_KEY, from a Kubernetes Secret. Never
+	// logged. Empty means "generate an ephemeral key at startup", which is
+	// only coherent with a single replica (the chart default). If set it
+	// must be at least 32 bytes; the signer rejects a weak one at wiring.
+	SigningKey string
+	// TokenTTL is APPROVAL_TTL, how long a confirmation token lives.
+	TokenTTL time.Duration
 }
 
 // LLMConfig configures the model-backed Reasoner (ADR 0004).
@@ -364,6 +383,9 @@ func Load() (Config, error) {
 	}
 	loadNetworkFleetEndpoints(&cfg)
 	loadReportsURLs(&cfg)
+	if cfg.Act, err = loadAct(); err != nil {
+		return Config{}, err
+	}
 	return cfg, nil
 }
 
@@ -417,6 +439,30 @@ var defaultLLMToolAllowList = []string{
 	"workforce-management/get_staffing_gap",
 	"fulfillment-execution/get_queue_status",
 	"fulfillment-execution/diagnose_stuck_tasks",
+}
+
+// defaultApprovalTTL is how long a confirmation token lives when
+// APPROVAL_TTL is unset: long enough for a human to read the evidence,
+// short enough that a stale recommendation cannot be redeemed.
+const defaultApprovalTTL = 5 * time.Minute
+
+// loadAct reads the act-slice settings. Unlike loadDuration it REJECTS a
+// malformed or non-positive APPROVAL_TTL: a mistyped confirmation lifetime
+// must stop startup, not quietly become a different security parameter.
+func loadAct() (ActConfig, error) {
+	ttl := defaultApprovalTTL
+	if raw := os.Getenv("APPROVAL_TTL"); raw != "" {
+		d, err := time.ParseDuration(raw)
+		if err != nil || d <= 0 {
+			return ActConfig{}, fmt.Errorf("config: APPROVAL_TTL %q must be a positive Go duration (e.g. 5m)", raw)
+		}
+		ttl = d
+	}
+	return ActConfig{
+		WorkPlanningA2AURL: getenv("WES_WORK_PLANNING_A2A_URL", ""),
+		SigningKey:         os.Getenv("APPROVAL_SIGNING_KEY"),
+		TokenTTL:           ttl,
+	}, nil
 }
 
 func loadDuration(key string, fallback time.Duration) time.Duration {

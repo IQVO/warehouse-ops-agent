@@ -270,3 +270,38 @@ func TestLoad_NetworkFleetEndpoints_DefaultAndRead(t *testing.T) {
 		})
 	}
 }
+
+func TestLoad_Act_UnsetIsNotConfiguredWithDefaultTTL(t *testing.T) {
+	t.Setenv("WES_WORK_PLANNING_A2A_URL", "")
+	t.Setenv("APPROVAL_SIGNING_KEY", "")
+	t.Setenv("APPROVAL_TTL", "")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.Act.WorkPlanningA2AURL != "" || cfg.Act.SigningKey != "" || cfg.Act.TokenTTL != 5*time.Minute {
+		t.Fatalf("Act = %+v, want unset URL/key and a 5m TTL", cfg.Act)
+	}
+}
+
+func TestLoad_Act_ReadsEnv(t *testing.T) {
+	t.Setenv("WES_WORK_PLANNING_A2A_URL", "http://wes-work-planning-a2a.ns.svc.cluster.local:8093/")
+	t.Setenv("APPROVAL_SIGNING_KEY", "0123456789abcdef0123456789abcdef")
+	t.Setenv("APPROVAL_TTL", "90s")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.Act.WorkPlanningA2AURL != "http://wes-work-planning-a2a.ns.svc.cluster.local:8093/" || cfg.Act.SigningKey == "" || cfg.Act.TokenTTL != 90*time.Second {
+		t.Fatalf("Act = %+v", cfg.Act)
+	}
+}
+
+func TestLoad_Act_MalformedTTLIsAStartupError(t *testing.T) {
+	for _, bad := range []string{"soon", "-5m", "0s", "5"} {
+		t.Setenv("APPROVAL_TTL", bad)
+		if _, err := Load(); err == nil {
+			t.Errorf("APPROVAL_TTL=%q: Load succeeded, want an error (rejected, never defaulted)", bad)
+		}
+	}
+}

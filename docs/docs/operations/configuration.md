@@ -178,6 +178,19 @@ warehouse-infra runs the kind cluster with `llm.mode = "shadow"` and the
 key in the Secret `warehouse-ops-agent-anthropic`
 (`terraform/ops-agent.tf`).
 
+### Act slice (ADR 0027)
+
+The human-confirmed `release_next_work` write. Opt-in: with
+`WES_WORK_PLANNING_A2A_URL` unset the agent is read-only and both
+`POST /act/release-next-work/*` routes answer `503`. None of these has a chart
+value yet; warehouse-infra sets them through `extraEnv`.
+
+| Variable | Default | Required | Effect | Source | Helm value |
+|---|---|---|---|---|---|
+| `WES_WORK_PLANNING_A2A_URL` | empty (act slice off) | no | Base URL of the wes-work-planning A2A agent, e.g. `http://wes-work-planning-a2a.warehouse-systems.svc.cluster.local:8093/`. Its Agent Card is discovered under it on first use. Setting it builds the only write adapter in this agent. | `internal/config/config.go`, `cmd/agent/act.go` | none (`extraEnv`) |
+| `APPROVAL_TTL` | `5m` | no | Go duration: how long a confirmation token stays valid. Must be positive and at most `1h`. **A malformed or non-positive value aborts startup** (it is never defaulted: it is a security parameter). | `internal/config/config.go`, `internal/domain/approval/approval.go` | none (`extraEnv`) |
+| `APPROVAL_SIGNING_KEY` | empty, which generates an ephemeral per-process key | no | HMAC key for confirmation tokens, at least 32 bytes; a shorter value aborts startup. Never logged. Empty is only coherent with `replicaCount: 1`: a token minted by one process does not verify in another. | `internal/config/config.go` | none (a Secret via `extraEnv`) |
+
 ### OpenTelemetry
 
 | Variable | Default | Required | Meaning | Source | Chart value |

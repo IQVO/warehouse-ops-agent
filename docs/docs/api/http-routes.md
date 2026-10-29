@@ -19,9 +19,9 @@ REST contract. If they disagree with the router, the router is correct.
 |---|---|
 | Listener | One `net/http` server on `AGENT_ADDR` (default `:8095`) serves every REST route and the MCP endpoint (`cmd/agent/main.go`, `serveAgent`). In the Helm chart the Service listens on port 80 and forwards to the container's `http` port 8095. |
 | Edge | warehouse-infra exposes the agent through Kong at `http://localhost:8000/api/warehouse-ops-agent`. Kong strips the prefix (`konghq.com/strip-path: "true"`, warehouse-infra `terraform/ops-agent.tf`), so `/api/warehouse-ops-agent/daily-brief` reaches the router as `/daily-brief`. |
-| Methods | Every REST route is `GET`. `/mcp` accepts every method (chi `Handle`), because Streamable HTTP uses `POST` for messages and `GET` for the event stream. |
+| Methods | Every REST route is `GET` except the two opt-in act-slice routes, which are `POST` ([ADR 0027](../adr/0027-act-slice-human-confirmed-work-release.md)). `/mcp` accepts every method (chi `Handle`), because Streamable HTTP uses `POST` for messages and `GET` for the event stream. |
 | Authentication | None. REST and MCP are unauthenticated fleet-wide ([ADR 0006](../adr/0006-fleet-wide-auth-removal.md)). |
-| CORS | `go-chi/cors`. Allowed origins come from `CORS_ALLOWED_ORIGINS` (comma-separated, default `http://localhost:5173`). Allowed methods `GET` and `OPTIONS`. Allowed headers `Content-Type` and `Authorization`. No credentials, preflight cached for 300 s (`corsMiddleware`). |
+| CORS | `go-chi/cors`. Allowed origins come from `CORS_ALLOWED_ORIGINS` (comma-separated, default `http://localhost:5173`). Allowed methods `GET` and `OPTIONS` — deliberately *not* `POST`, so a browser on another origin fails the preflight for the act-slice routes. Allowed headers `Content-Type` and `Authorization`. No credentials, preflight cached for 300 s (`corsMiddleware`). |
 | Middleware order | `middleware.RequestID`, `otelchi.Middleware` (one server span per request, named after the chi route pattern), `otelchimetric.NewServerRequestDuration`, `otelchimetric.NewServerActiveRequests`, `RequestLogger`, `middleware.Recoverer`, CORS. `/mcp` goes through the same chain ([ADR 0010](../adr/0010-standard-metrics-convention.md)). |
 | Body | JSON with `Content-Type: application/json` (`writeJSON`). |
 | Errors | A flat `{"error": "<message>"}` object. It is not an RFC 7807 problem document, and there is no `type` slug to match on. |
@@ -45,6 +45,8 @@ REST contract. If they disagree with the router, the router is correct.
 | `GET /transfer-watch/stuck` | `TransferWatch.StuckTransfers` | network-inventory-planning over MCP | 200, 400, 502, 503 |
 | `GET /transfer-watch/transfers/{id}` | `TransferWatch.TransferStatus` | network-inventory-planning over MCP | 200, 400, 404, 502, 503 |
 | `GET /transfer-watch/imbalance` | `TransferWatch.NetworkImbalance` | network-inventory-planning over MCP | 200, 400, 502, 503 |
+| `POST /act/release-next-work/proposals` | `ReleaseWork.Propose` | the flow-balance policy (reads only); **writes nothing** | 200, 400, 409, 413, 415, 502, 503 |
+| `POST /act/release-next-work/approvals` | `ReleaseWork.Approve` | **wes-work-planning over A2A** (`release_next_work`) — this agent's only write | 200, 400, 404, 409, 410, 413, 415, 502, 503 |
 | `/mcp` (any method) | this agent's own MCP server | see [MCP tools](../mcp/tools.md) | MCP protocol |
 
 `Recoverer` turns a panic into a `500` on any route.
@@ -530,6 +532,59 @@ slug. `502` for any other upstream failure.
 answers with a tool error until its read models are fresh, and the agent
 passes that through instead of returning an empty reading. `400` for a
 validation slug.
+
+## Act slice — `POST /act/release-next-work/*`
+
+The only write this agent performs ([ADR 0027](../adr/0027-act-slice-human-confirmed-work-release.md)),
+and only after an explicit two-call human confirmation. **Opt-in:** both routes
+answer `503` until `WES_WORK_PLANNING_A2A_URL` is set. REST only — there is no
+MCP tool for either, by design. Both require `Content-Type: application/json`
+(anything else is `415`), an 8 KiB body at most (`413`), and reject unknown
+fields and trailing data (`400`).
+
+### `POST /act/release-next-work/proposals`
+
+Body `{"pathId": "...", "buildingId": "...", "shiftId": "..."}` (all three
+required, same meaning as `GET /flow-balance/{pathId}`). Runs the flow-balance
+policy and returns `200` with a confirmation token **only** if the policy
+itself recommends `release_next_work` on complete evidence:
+
+```json
+{
+  "token": "<opaque, single-use>",
+  "expiresAt": "2026-10-29T12:05:00Z",
+  "action": "release_next_work",
+  "pathId": "pick-zone-a",
+  "source": "deterministic",
+  "recommendation": { "...": "the full /flow-balance body: action, rationale, evidence, ..." }
+}
+```
+
+`409` when the policy recommends anything else (the message names the current
+recommendation) or the recommendation rests on partial signals. `400` on
+missing parameters. `502` if an upstream read failed.
+
+### `POST /act/release-next-work/approvals`
+
+Body `{"token": "..."}`. Verifies the token, consumes it (**at most once**),
+and delegates the release to the wes-work-planning agent:
+
+```json
+{ "pathId": "pick-zone-a", "workUnitId": "wu-...", "cpt": "2026-12-24T09:00:00Z",
+  "reference": "...", "executedAt": "2026-10-29T12:00:03Z" }
+```
+
+| Status | Meaning |
+|---|---|
+| `400` | token missing, malformed, forged, or for a non-act-enabled action |
+| `404` | wes-work-planning does not know the path |
+| `409` | token already used; or planning has nothing pending to release (a legitimate outcome) |
+| `410` | token expired (`APPROVAL_TTL`, default 5 min) — propose again |
+| `502` | the planning agent is unreachable or answered off-contract. The release outcome is unknown and the token is spent: check planning, then propose again |
+
+The release itself is a delegation, not a data write: planning keeps every
+release decision, and the authoritative fact still comes back as the
+`WorkReleased` CloudEvent on Kafka.
 
 ## MCP endpoint — `/mcp`
 

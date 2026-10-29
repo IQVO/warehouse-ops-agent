@@ -6,6 +6,10 @@
 // /inbound-outlook, /transfer-watch/stuck, /transfer-watch/transfers/{id},
 // /transfer-watch/imbalance) plus the optional /mcp mount, and
 // DTOs. Domain/application structs never leak across this boundary.
+//
+// The only POST routes are the two act-slice routes (ADR 0027,
+// act_release_work.go): POST /act/release-next-work/proposals and
+// /approvals — the human-confirmed release of the next work unit.
 package http
 
 import (
@@ -75,6 +79,13 @@ type Handlers struct {
 	// /transfer-watch routes answer 503 while
 	// NETWORK_INVENTORY_PLANNING_MCP_ENDPOINT is unset.
 	TransferWatch *usecases.TransferWatch
+
+	// ReleaseWork is the ADR-0027 act slice: the human-gated
+	// propose -> approve -> execute release of the next work unit. Nil (no
+	// WES_WORK_PLANNING_A2A_URL) answers 503 on both /act routes. It is
+	// wired here and NOWHERE else — never into the MCP server or the LLM
+	// reasoner (asserted in internal/architecture/zerowrite).
+	ReleaseWork *usecases.ReleaseWork
 	// MCPHandler is this agent's own inbound MCP server
 	// (internal/adapters/inbound/mcp), mounted at /mcp on this SAME chi
 	// router (ADR-0010) so MCP traffic gets the identical otelchi trace,
@@ -124,6 +135,10 @@ func NewRouter(h *Handlers, serviceName string) *chi.Mux {
 	r.Get("/transfer-watch/stuck", h.getStuckTransfers)
 	r.Get("/transfer-watch/transfers/{id}", h.getTransferStatus)
 	r.Get("/transfer-watch/imbalance", h.getNetworkImbalance)
+
+	// The act slice (ADR 0027): the only POST routes on this agent.
+	r.Post("/act/release-next-work/proposals", h.postReleaseProposal)
+	r.Post("/act/release-next-work/approvals", h.postReleaseApproval)
 
 	// /mcp: same router, same middleware chain as every REST route above
 	// (ADR-0010) — NOT a second handler mounted outside it on a raw
