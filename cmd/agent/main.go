@@ -85,6 +85,11 @@ func run() error {
 		return err
 	}
 
+	releaseWork, err := newReleaseWork(cfg, logger, decision.flowBalance)
+	if err != nil {
+		return err
+	}
+
 	mcpDeps := inboundmcp.Deps{
 		DailyBrief:          decision.dailyBrief,
 		FlowBalanceAdvisory: decision.flowBalance,
@@ -108,6 +113,9 @@ func run() error {
 		MasterDataGaps:      decision.masterDataGaps,
 		InboundOutlook:      decision.inboundOutlook,
 		TransferWatch:       decision.transferWatch,
+		// ReleaseWork is the ADR-0027 act slice, REST-only: it is NOT in
+		// mcpDeps above, by design.
+		ReleaseWork: releaseWork,
 		// MCPHandler mounts /mcp on the SAME chi router as every REST
 		// route (ADR-0010): otelchi trace, otelchimetric RED duration,
 		// and RequestLogger all apply to MCP traffic too, not just REST.

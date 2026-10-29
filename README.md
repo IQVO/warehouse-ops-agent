@@ -90,10 +90,14 @@ Sources under [`docs/docs/`](./docs/docs/):
   `TestNoDirectDependencyOnBoundedContexts` enforces this for the five
   original contexts' module paths plus `warehouse-planning`'s,
   `product-master`'s and `inbound-receiving`'s.
-- **Zero write capability (v1), CI-enforced.**
+- **Read-only except the act slice, CI-enforced.**
   `internal/architecture/zerowrite/zerowrite_test.go` fails the build if an
   outbound client (`mcpclient`, `restclient`) gains a mutating HTTP method or
-  an inbound MCP tool is registered without `ReadOnlyHint: true`.
+  an inbound MCP tool is registered without `ReadOnlyHint: true`. The one
+  deliberate exception is the human-confirmed `release_next_work` slice
+  ([ADR 0027](docs/docs/adr/0027-act-slice-human-confirmed-work-release.md)),
+  pinned by `act_slice_test.go`: REST-only, opt-in, never an MCP tool, never
+  reachable by the LLM.
 - **GitFlow.** `feature/*` branches → PR into `develop`; CI verified green
   before merge. Never commit directly to `main`.
 - **Untrusted model input.** Every tool argument this agent accepts (and
@@ -203,6 +207,15 @@ Plus:
   optional `planningPathId`, `unitsPerOrder`, `packagesPerOrder` (ADR 0013):
   the warehouse-planning process-path id and workload conversion factors for
   the capacity outlook. There is no default for any of them.
+- **Act slice (opt-in, ADR 0027):** `WES_WORK_PLANNING_A2A_URL` — base URL of
+  the wes-work-planning A2A agent
+  (`http://wes-work-planning-a2a.<ns>.svc.cluster.local:8093/`). Unset (the
+  default) = the agent stays read-only and `POST /act/...` answers 503. Set =
+  `POST /act/release-next-work/proposals` + `/approvals` (human-confirmed
+  release of the next work unit). `APPROVAL_TTL` (Go duration, default `5m`,
+  max `1h`; a malformed value aborts startup) is the confirmation token's
+  life. `APPROVAL_SIGNING_KEY` (Secret, optional, ≥ 32 bytes) pins the token
+  key; unset = an ephemeral per-process key, which needs `replicaCount: 1`.
 - `CAPACITY_OUTLOOK_HORIZON` (Go duration, default `8h`) — how far ahead the
   daily brief's warehouse-planning capacity window extends; only meaningful
   when `WAREHOUSE_PLANNING_MCP_ENDPOINT` is set (unset = no outlook, no

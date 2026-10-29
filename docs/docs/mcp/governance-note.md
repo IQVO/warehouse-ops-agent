@@ -56,7 +56,27 @@ registered without `ReadOnlyHint: true`. A future write-capable slice adds new o
 methods and a new tool-registration entry deliberately; it cannot happen
 by accident.
 
-## The future act slice: authorization gate + human confirmation
+## The act slice has landed (ADR 0027)
+
+The first and only write is live behind the two guardrails below, decided in
+[ADR 0027](../adr/0027-act-slice-human-confirmed-work-release.md):
+`release_next_work` on wes-work-planning, delegated over A2A, via
+`POST /act/release-next-work/{proposals,approvals}`. The rest of this page
+still governs every other surface; the "v1 scope" section above is now true
+*except* for this slice.
+
+- **The "re-introduced authorization gate" is a confirmation token, not
+  caller identity** — auth stays removed fleet-wide (ADR 0006). A short-lived
+  HMAC-signed token binds exactly what the human was shown; approving needs
+  it, so an execute can only run on a recommendation this agent made.
+- **Human confirmation is the mandatory second, explicit call**, carrying the
+  evidence.
+- **Not an MCP tool, not reachable by the LLM.** Approving is a human act;
+  both are asserted statically in `internal/architecture/zerowrite/act_slice_test.go`.
+- `assign_labor`, `revoke_reservation` and `complete_task` remain
+  recommendation-only: the same test fails if any of them is declared.
+
+## The act slice's guardrails (as decided ahead of the implementation): authorization gate + human confirmation
 
 When a write-capable slice does land, it inherits two guardrails already
 decided, not deferred:
