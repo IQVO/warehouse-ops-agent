@@ -82,9 +82,18 @@ routes are additionally hardened at the transport:
 
 - strict `Content-Type: application/json` (else `415`) — a cross-site HTML
   form can only send "simple" content types, so this forces a CORS preflight;
-- CORS stays **`GET`/`OPTIONS` only**, so that preflight is refused for every
-  other origin (the existing `TestCORS_PreflightRejectsWriteMethods` stays
-  green and a new test pins it for the `/act` paths);
+- CORS refuses the preflight for the write routes at **two layers**, because
+  behind Kong the gateway's CORS plugin answers the preflight itself and never
+  reaches the binary: (1) the binary's own policy stays **`GET`/`OPTIONS`
+  only** (the existing `TestCORS_PreflightRejectsWriteMethods` stays green and
+  a new test pins it for the `/act` paths); (2) the chart renders a dedicated
+  `/act` HTTPRoute (`httproute-act.yaml`) carrying a `…-cors-readonly` Kong
+  plugin that allows only `GET`/`OPTIONS`, while the main route keeps its
+  all-methods plugin because a browser MCP client legitimately needs `POST` on
+  `/mcp`. Chart tests pin both, including that the main route did **not** get
+  the read-only plugin. This only constrains browsers; any non-browser caller
+  that can reach the agent can still use the routes, which is what "no auth"
+  means;
 - bounded body (8 KiB), unknown JSON fields rejected, trailing data rejected;
 - the token is only ever in the propose *response*, which a cross-origin page
   cannot read.
