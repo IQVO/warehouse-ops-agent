@@ -556,9 +556,23 @@ itself recommends `release_next_work` on complete evidence:
   "action": "release_next_work",
   "pathId": "pick-zone-a",
   "source": "deterministic",
-  "recommendation": { "...": "the full /flow-balance body: action, rationale, evidence, ..." }
+  "recommendation": { "...": "the full /flow-balance body: action, rationale, evidence, ..." },
+  "exceptionContext": { "status": "ok", "summary": { "openCount": 17, "cases": [
+    { "caseId": "case-90a1a2e0", "status": "OPEN", "queue": "problem-solve",
+      "severity": "HIGH", "escalated": true, "reason": "CartonDiscrepancyRaised" } ] } }
 }
 ```
+
+`exceptionContext` is **advisory** ([ADR 0028](../adr/0028-advisory-exception-context-on-release-proposals.md)):
+what is open at exception-management that a human should know before
+approving, asked over A2A and read-only. It never decides whether a token is
+minted. `status` is `ok` (`summary.openCount` is the number of `OPEN`
+cases, nobody has triaged or assigned them yet; `cases` is the worst
+few, at most 10, escalated first then newest opened first, and `[]` when none),
+`unavailable` (the peer failed, answered off-contract or took over 3 s; no
+`summary`) or `disabled` (`EXCEPTION_MANAGEMENT_A2A_URL` unset; no `summary`).
+It is warehouse-wide: exception cases carry no process-path id. Refusals
+(`400`/`409`/`502`) never carry it and never call the hub.
 
 `409` when the policy recommends anything else (the message names the current
 recommendation) or the recommendation rests on partial signals. `400` on

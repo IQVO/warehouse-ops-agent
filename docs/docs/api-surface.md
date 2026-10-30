@@ -57,7 +57,10 @@ human-confirmed `release_next_work` act slice
 ([ADR 0027](./adr/0027-act-slice-human-confirmed-work-release.md)) exists only
 as two opt-in REST routes (`POST /act/release-next-work/proposals` and
 `/approvals`, see the [HTTP routes page](./api/http-routes.md)), deliberately
-unreachable from MCP and from the LLM.
+unreachable from MCP and from the LLM. The propose response also carries an
+advisory, read-only `exceptionContext` asked of exception-management over A2A
+([ADR 0028](./adr/0028-advisory-exception-context-on-release-proposals.md));
+it never changes the minting decision and is not an MCP tool either.
 
 ## What is not yet exposed
 

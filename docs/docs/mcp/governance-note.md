@@ -76,6 +76,19 @@ still governs every other surface; the "v1 scope" section above is now true
 - `assign_labor`, `revoke_reservation` and `complete_task` remain
   recommendation-only: the same test fails if any of them is declared.
 
+### Advisory exception context (ADR 0028)
+
+The act slice's propose step also asks exception-management, over A2A, what is
+open ([ADR 0028](../adr/0028-advisory-exception-context-on-release-proposals.md)).
+This is **not** a second write and does not touch the guardrails above: the
+second A2A client implements a read-only port (one method, one allow-listed
+read skill, no write verb), it runs after the minting decision is final and
+cannot alter it, `Approve` never calls it, the answer is not persisted, and
+neither the MCP server nor the LLM reasoner can reach it (all asserted
+statically in `internal/architecture/zerowrite/exception_context_test.go` and
+`act_slice_test.go`). The write surface is still exactly the two ADR-0027
+routes and the one `ReleaseNextWork` verb.
+
 ## The act slice's guardrails (as decided ahead of the implementation): authorization gate + human confirmation
 
 When a write-capable slice does land, it inherits two guardrails already
