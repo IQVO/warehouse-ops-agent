@@ -39,11 +39,26 @@ func newReleaseWork(cfg config.Config, logger *slog.Logger, advisory *usecases.F
 		return nil, fmt.Errorf("act slice: %w", err)
 	}
 
-	uc, err := usecases.NewReleaseWork(advisory, signer, outbounda2a.NewClient(cfg.Act.WorkPlanningA2AURL, nil), logger, nil)
+	uc, err := usecases.NewReleaseWork(advisory, signer, outbounda2a.NewClient(cfg.Act.WorkPlanningA2AURL, nil), logger, nil, exceptionContextOption(cfg, logger))
 	if err != nil {
 		return nil, fmt.Errorf("act slice: %w", err)
 	}
 	logger.Warn("act slice ENABLED: POST /act/release-next-work/{proposals,approvals} can release work through the wes-work-planning agent after explicit confirmation",
 		"agent", cfg.Act.WorkPlanningA2AURL, "tokenTTL", cfg.Act.TokenTTL)
 	return uc, nil
+}
+
+// exceptionContextOption wires the ADR-0028 advisory lookup: with
+// EXCEPTION_MANAGEMENT_A2A_URL unset it returns an option that leaves the
+// use case's lookup disabled (nil port, an untyped nil interface so the
+// use case's nil check holds). The client it builds implements the
+// READ-ONLY ExceptionContext port only; it can never release or change
+// anything at exception-management.
+func exceptionContextOption(cfg config.Config, logger *slog.Logger) usecases.ReleaseWorkOption {
+	if cfg.ExceptionManagementA2AURL == "" {
+		logger.Info("exception context disabled (EXCEPTION_MANAGEMENT_A2A_URL unset): proposals carry exceptionContext.status=disabled")
+		return usecases.WithExceptionContext(nil, 0)
+	}
+	logger.Info("exception context enabled: proposals consult exception-management over A2A (read-only, advisory)", "agent", cfg.ExceptionManagementA2AURL)
+	return usecases.WithExceptionContext(outbounda2a.NewExceptionClient(cfg.ExceptionManagementA2AURL, nil), 0)
 }

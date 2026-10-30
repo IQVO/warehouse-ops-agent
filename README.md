@@ -1,11 +1,5 @@
 # warehouse-ops-agent
 
-**⚠️ Study project.** This repository, and the bounded-context services it
-reads from, are a personal DDD / hexagonal-architecture learning exercise
-modeling a simplified warehouse fleet. Nothing here is production warehouse
-software; treat all business behavior, quality claims, and "production-grade"
-language as illustrative of the pattern being practiced, not operational
-fact.
 
 ## What this is
 
@@ -63,6 +57,13 @@ every ADR) is published from `docs/` — see
 [iqvo.github.io/warehouse-ops-agent](https://iqvo.github.io/warehouse-ops-agent/)
 once the `Docs` GitHub Actions workflow has deployed it, or run it locally
 with `cd docs && npm install && npm start`.
+
+## Disclaimer
+
+This project is a domain-driven design study. It is not associated with,
+endorsed by or affiliated with any company, and it uses no company's code,
+data, logos or trademarks. All names, figures and examples are illustrative
+or synthetic.
 
 ## Documentation
 
@@ -216,6 +217,15 @@ Plus:
   max `1h`; a malformed value aborts startup) is the confirmation token's
   life. `APPROVAL_SIGNING_KEY` (Secret, optional, ≥ 32 bytes) pins the token
   key; unset = an ephemeral per-process key, which needs `replicaCount: 1`.
+- **Advisory exception context (opt-in, ADR 0028):**
+  `EXCEPTION_MANAGEMENT_A2A_URL` — base URL of the exception-management A2A
+  agent (`http://exception-management-a2a.<ns>.svc.cluster.local:8093/`).
+  When set, every successful release proposal also carries an
+  `exceptionContext` object (`ok` with the open count and the top cases, or
+  `unavailable` if the peer fails or takes over 3 s); it is read-only,
+  advisory and never changes whether a token is minted. Unset (the default) =
+  `exceptionContext.status` is `disabled` and nothing else changes. A value
+  that is not an absolute `http(s)` URL aborts startup.
 - `CAPACITY_OUTLOOK_HORIZON` (Go duration, default `8h`) — how far ahead the
   daily brief's warehouse-planning capacity window extends; only meaningful
   when `WAREHOUSE_PLANNING_MCP_ENDPOINT` is set (unset = no outlook, no
@@ -276,6 +286,17 @@ otherwise), `LLM_MODEL` (default `claude-sonnet-4-5`), `LLM_TIMEOUT`
 (default `8s`), `LLM_BASE_URL` (tests/proxies). An unrecognised `LLM_MODE`
 is a startup error, never a silent `off`.
 
+## Helm chart
+
+`charts/warehouse-ops-agent` deploys the agent image
+(`ghcr.io/iqvo/warehouse-ops-agent`) to the `warehouse` kind cluster: one
+replica, a dedicated service account, and a non-root pod (`runAsNonRoot`,
+`runAsUser` 1000, no privilege escalation). Two CI jobs gate it: `helm-lint`
+runs `ct lint --charts charts/warehouse-ops-agent` and `chart-tests` runs the
+render assertions in `charts/warehouse-ops-agent/tests/render_test.sh`. The
+chart publishes to GHCR only from `main` (the `release` job attaches the
+`.tgz` to the GitHub Release).
+
 ## Quality gate
 
 ```
@@ -287,6 +308,14 @@ make vuln           # govulncheck ./...
 ```
 
 `lefthook install` once to activate the pre-commit/pre-push git hooks.
+
+## Running it
+
+Deployed by `warehouse-infra` (Helm values `helm-values/warehouse-ops-agent.yaml`,
+image tag operator-pinned in `terraform/terraform.tfvars`); it reads an
+Anthropic API key from the `warehouse-ops-agent-anthropic` Secret. Locally:
+`go run ./cmd/agent` with the same env as the chart's configmap (see
+Configuration below) and an `ANTHROPIC_API_KEY` in the environment.
 
 ## Status
 
@@ -343,3 +372,19 @@ Shipped on `develop` (all read-only, recommendations-only):
 
 No write path exists (see the
 [governance note](./docs/docs/mcp/governance-note.md)).
+
+## Observability
+
+Telemetry is wired through internal/observability (OTel): server spans for the
+HTTP surface, stdout structured logs, and Prometheus/Loki read clients for the
+runtime-signals classifier. Relevant env vars live in the Configuration table.
+
+## Architecture Decision Records
+
+The ADR index lives at [docs/docs/adr/index.md](docs/docs/adr/index.md) — 27
+decisions (outbound MCP client adoptions per context, correlator policies,
+model-backed reasoner).
+
+## License
+
+MIT — see [LICENSE](LICENSE).

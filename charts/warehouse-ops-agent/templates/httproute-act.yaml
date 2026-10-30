@@ -1,0 +1,60 @@
+{{- /*
+The act slice's own HTTPRoute (ADR 0027).
+
+The act routes (POST /act/release-next-work/{proposals,approvals}) are the only
+write this agent performs, and the endpoints are unauthenticated fleet-wide.
+Browsers are therefore kept off them at the EDGE as well as in the binary:
+this route carries a CORS plugin that allows only GET/OPTIONS, so a browser's
+preflight for POST is refused. The main route's cors plugin (all methods) is
+kept for everything else, because /mcp legitimately needs POST from a browser
+MCP client.
+
+Kong picks the most specific path, so <host path>/act wins over the host's
+PathPrefix route for /act/* only; every other path is unchanged. Rendered only
+when both the Gateway API route and the cors plugin are enabled (otherwise
+there is no CORS at the edge to narrow).
+*/ -}}
+{{- if and .Values.gatewayApi.enabled .Values.kongPlugins.cors.enabled -}}
+{{- $fullname := include "warehouse-ops-agent.fullname" . -}}
+{{- $plugins := list (printf "%s-cors-readonly" $fullname) -}}
+{{- range $name, $cfg := .Values.kongPlugins -}}
+{{- if and $cfg.enabled (ne $name "cors") -}}
+{{- $plugins = append $plugins (printf "%s-%s" $fullname $name) -}}
+{{- end -}}
+{{- end -}}
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ $fullname }}-act
+  annotations:
+    konghq.com/plugins: {{ join "," $plugins | quote }}
+  labels:
+    {{- include "warehouse-ops-agent.labels" . | nindent 4 }}
+spec:
+  parentRefs:
+    {{- range .Values.gatewayApi.parentRefs }}
+    - name: {{ .name }}
+      namespace: {{ .namespace }}
+      {{- if .sectionName }}
+      sectionName: {{ .sectionName }}
+      {{- end }}
+    {{- end }}
+  rules:
+    {{- range .Values.gatewayApi.hosts }}
+    - matches:
+        - path:
+            type: PathPrefix
+            value: {{ printf "%s/act" (.path | trimSuffix "/") }}
+      {{- if $.Values.gatewayApi.stripPath }}
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /act
+      {{- end }}
+      backendRefs:
+        - name: {{ $fullname }}
+          port: {{ $.Values.service.port }}
+    {{- end }}
+{{- end }}

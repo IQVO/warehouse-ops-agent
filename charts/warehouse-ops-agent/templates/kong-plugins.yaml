@@ -89,3 +89,33 @@ config:
 ---
 {{- end }}
 {{- end }}
+{{- if and .Values.gatewayApi.enabled .Values.kongPlugins.cors.enabled }}
+{{- /* Read-only twin of the cors plugin, attached ONLY to the act slice's own
+route (httproute-act.yaml, ADR 0027): GET/OPTIONS, so a browser's preflight for
+the write routes' POST is refused at the edge. Same exact origin, never "*". */}}
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: {{ printf "%s-cors-readonly" (include "warehouse-ops-agent.fullname" .) }}
+  labels:
+    {{- include "warehouse-ops-agent.labels" . | nindent 4 }}
+  annotations:
+    kubernetes.io/ingress.class: kong
+plugin: cors
+config:
+  origins:
+    - {{ .Values.kongPlugins.cors.origin | quote }}
+  methods:
+    - GET
+    - OPTIONS
+  headers:
+    - Accept
+    - Content-Type
+    - Origin
+  exposed_headers:
+    - Content-Length
+  credentials: false
+  max_age: 3600
+  preflight_continue: false
+---
+{{- end }}

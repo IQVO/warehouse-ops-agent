@@ -21,7 +21,7 @@ REST contract. If they disagree with the router, the router is correct.
 | Edge | warehouse-infra exposes the agent through Kong at `http://localhost:8000/api/warehouse-ops-agent`. Kong strips the prefix (`konghq.com/strip-path: "true"`, warehouse-infra `terraform/ops-agent.tf`), so `/api/warehouse-ops-agent/daily-brief` reaches the router as `/daily-brief`. |
 | Methods | Every REST route is `GET` except the two opt-in act-slice routes, which are `POST` ([ADR 0027](../adr/0027-act-slice-human-confirmed-work-release.md)). `/mcp` accepts every method (chi `Handle`), because Streamable HTTP uses `POST` for messages and `GET` for the event stream. |
 | Authentication | None. REST and MCP are unauthenticated fleet-wide ([ADR 0006](../adr/0006-fleet-wide-auth-removal.md)). |
-| CORS | `go-chi/cors`. Allowed origins come from `CORS_ALLOWED_ORIGINS` (comma-separated, default `http://localhost:5173`). Allowed methods `GET` and `OPTIONS` — deliberately *not* `POST`, so a browser on another origin fails the preflight for the act-slice routes. Allowed headers `Content-Type` and `Authorization`. No credentials, preflight cached for 300 s (`corsMiddleware`). |
+| CORS | `go-chi/cors`. Allowed origins come from `CORS_ALLOWED_ORIGINS` (comma-separated, default `http://localhost:5173`). Allowed methods `GET` and `OPTIONS` — deliberately *not* `POST`, so a browser fails the preflight for the act-slice routes. Behind Kong the gateway's own CORS plugin answers the preflight instead, so the chart gives `/act` a dedicated route with a `GET`/`OPTIONS`-only plugin (the rest of the agent, including `POST /mcp`, keeps the all-methods plugin). Allowed headers `Content-Type` and `Authorization`. No credentials, preflight cached for 300 s (`corsMiddleware`). |
 | Middleware order | `middleware.RequestID`, `otelchi.Middleware` (one server span per request, named after the chi route pattern), `otelchimetric.NewServerRequestDuration`, `otelchimetric.NewServerActiveRequests`, `RequestLogger`, `middleware.Recoverer`, CORS. `/mcp` goes through the same chain ([ADR 0010](../adr/0010-standard-metrics-convention.md)). |
 | Body | JSON with `Content-Type: application/json` (`writeJSON`). |
 | Errors | A flat `{"error": "<message>"}` object. It is not an RFC 7807 problem document, and there is no `type` slug to match on. |
@@ -556,9 +556,23 @@ itself recommends `release_next_work` on complete evidence:
   "action": "release_next_work",
   "pathId": "pick-zone-a",
   "source": "deterministic",
-  "recommendation": { "...": "the full /flow-balance body: action, rationale, evidence, ..." }
+  "recommendation": { "...": "the full /flow-balance body: action, rationale, evidence, ..." },
+  "exceptionContext": { "status": "ok", "summary": { "openCount": 17, "cases": [
+    { "caseId": "case-90a1a2e0", "status": "OPEN", "queue": "problem-solve",
+      "severity": "HIGH", "escalated": true, "reason": "CartonDiscrepancyRaised" } ] } }
 }
 ```
+
+`exceptionContext` is **advisory** ([ADR 0028](../adr/0028-advisory-exception-context-on-release-proposals.md)):
+what is open at exception-management that a human should know before
+approving, asked over A2A and read-only. It never decides whether a token is
+minted. `status` is `ok` (`summary.openCount` is the number of `OPEN`
+cases, nobody has triaged or assigned them yet; `cases` is the worst
+few, at most 10, escalated first then newest opened first, and `[]` when none),
+`unavailable` (the peer failed, answered off-contract or took over 3 s; no
+`summary`) or `disabled` (`EXCEPTION_MANAGEMENT_A2A_URL` unset; no `summary`).
+It is warehouse-wide: exception cases carry no process-path id. Refusals
+(`400`/`409`/`502`) never carry it and never call the hub.
 
 `409` when the policy recommends anything else (the message names the current
 recommendation) or the recommendation rests on partial signals. `400` on

@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -264,6 +265,14 @@ type Config struct {
 
 	// Act is the ADR-0027 human-confirmed write slice (opt-in).
 	Act ActConfig
+
+	// ExceptionManagementA2AURL is EXCEPTION_MANAGEMENT_A2A_URL, the base
+	// URL of the exception-management A2A agent consulted, read-only and
+	// advisory, when a release is proposed (ADR 0028). Empty (the default)
+	// disables the lookup: proposals answer exceptionContext.status
+	// "disabled" and behave exactly as before. A malformed value is a
+	// startup error, never silently dropped.
+	ExceptionManagementA2AURL string
 }
 
 // ActConfig configures the act slice (ADR 0027): the one human-confirmed
@@ -383,10 +392,36 @@ func Load() (Config, error) {
 	}
 	loadNetworkFleetEndpoints(&cfg)
 	loadReportsURLs(&cfg)
-	if cfg.Act, err = loadAct(); err != nil {
+	if err = loadA2ASettings(&cfg); err != nil {
 		return Config{}, err
 	}
 	return cfg, nil
+}
+
+// loadA2ASettings reads the settings of the two outbound A2A features onto
+// cfg: the ADR-0027 act slice and the ADR-0028 advisory exception lookup.
+func loadA2ASettings(cfg *Config) (err error) {
+	if cfg.Act, err = loadAct(); err != nil {
+		return err
+	}
+	cfg.ExceptionManagementA2AURL, err = loadOptionalHTTPURL("EXCEPTION_MANAGEMENT_A2A_URL")
+	return err
+}
+
+// loadOptionalHTTPURL reads an optional absolute http(s) URL. Unset or empty
+// is fine (the feature is off); anything else must parse as an absolute
+// http or https URL with a host, or Load fails: a mistyped endpoint must
+// stop startup, not quietly turn a feature off.
+func loadOptionalHTTPURL(key string) (string, error) {
+	raw := os.Getenv(key)
+	if raw == "" {
+		return "", nil
+	}
+	u, err := url.Parse(raw)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return "", fmt.Errorf("config: %s %q must be an absolute http(s) URL (e.g. http://exception-management-a2a.ns.svc.cluster.local:8093/)", key, raw)
+	}
+	return raw, nil
 }
 
 // loadReportsURLs reads the console-bff analytics-reader base URLs (see
