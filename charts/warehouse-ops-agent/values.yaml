@@ -302,6 +302,8 @@ upstreams:
     endpoint: ""
   vendorConnectivity:
     endpoint: ""
+  sellerInbound:
+    endpoint: ""
   taskInterleaving:
     endpoint: ""
   pickFaceReplenishment:

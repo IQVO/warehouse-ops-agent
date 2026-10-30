@@ -85,6 +85,11 @@ func run() error {
 		return err
 	}
 
+	releaseWork, err := newReleaseWork(cfg, logger, decision.flowBalance)
+	if err != nil {
+		return err
+	}
+
 	mcpDeps := inboundmcp.Deps{
 		DailyBrief:          decision.dailyBrief,
 		FlowBalanceAdvisory: decision.flowBalance,
@@ -108,6 +113,9 @@ func run() error {
 		MasterDataGaps:      decision.masterDataGaps,
 		InboundOutlook:      decision.inboundOutlook,
 		TransferWatch:       decision.transferWatch,
+		// ReleaseWork is the ADR-0027 act slice, REST-only: it is NOT in
+		// mcpDeps above, by design.
+		ReleaseWork: releaseWork,
 		// MCPHandler mounts /mcp on the SAME chi router as every REST
 		// route (ADR-0010): otelchi trace, otelchimetric RED duration,
 		// and RequestLogger all apply to MCP traffic too, not just REST.
@@ -171,8 +179,13 @@ type outboundClients struct {
 	orderSourcing          ports.OrderSourcingClient
 	shippingAndTracking    ports.ShippingAndTrackingClient
 	vendorConnectivity     ports.VendorConnectivityClient
-	taskInterleaving       ports.TaskInterleavingClient
-	pickFaceReplenishment  ports.PickFaceReplenishmentClient
+	// sellerInbound is nil when SELLER_INBOUND_MCP_ENDPOINT is unset
+	// (fail-open, ADR 0023). No use case consumes it yet: it exists so
+	// the partner-inbound read surface is reachable the moment one does
+	// (ADR 0027).
+	sellerInbound         ports.SellerInboundClient
+	taskInterleaving      ports.TaskInterleavingClient
+	pickFaceReplenishment ports.PickFaceReplenishmentClient
 	// processPathManagement is the thirteenth ADR-0026 client (re-added
 	// after ADR 0024's gap-A9 deletion, now pinned to the current
 	// three-tool registry). It is nil when
@@ -330,6 +343,9 @@ func newOutboundClients(cfg config.Config) outboundClients {
 		}),
 		vendorConnectivity: newMCPClient("vendor-connectivity", cfg.VendorConnectivity.Endpoint, func(c mcpclient.Config) ports.VendorConnectivityClient {
 			return mcpclient.NewVendorConnectivity(c)
+		}),
+		sellerInbound: newMCPClient("seller-inbound", cfg.SellerInbound.Endpoint, func(c mcpclient.Config) ports.SellerInboundClient {
+			return mcpclient.NewSellerInbound(c)
 		}),
 		taskInterleaving: newMCPClient("task-interleaving", cfg.TaskInterleaving.Endpoint, func(c mcpclient.Config) ports.TaskInterleavingClient {
 			return mcpclient.NewTaskInterleaving(c)
@@ -590,6 +606,7 @@ func serveAgent(cfg config.Config, logger *slog.Logger, serviceName string, hand
 			"order_sourcing_endpoint_configured", cfg.OrderSourcing.Endpoint != "",
 			"shipping_and_tracking_endpoint_configured", cfg.ShippingAndTracking.Endpoint != "",
 			"vendor_connectivity_endpoint_configured", cfg.VendorConnectivity.Endpoint != "",
+			"seller_inbound_endpoint_configured", cfg.SellerInbound.Endpoint != "",
 			"task_interleaving_endpoint_configured", cfg.TaskInterleaving.Endpoint != "",
 			"pick_face_replenishment_endpoint_configured", cfg.PickFaceReplenishment.Endpoint != "",
 			"process_path_management_endpoint_configured", cfg.ProcessPathManagement.Endpoint != "",

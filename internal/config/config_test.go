@@ -252,6 +252,7 @@ func TestLoad_NetworkFleetEndpoints_DefaultAndRead(t *testing.T) {
 		"ORDER_SOURCING_MCP_ENDPOINT":          {"ORDER_SOURCING_MCP_ENDPOINT", func(c Config) string { return c.OrderSourcing.Endpoint }},
 		"SHIPPING_AND_TRACKING_MCP_ENDPOINT":   {"SHIPPING_AND_TRACKING_MCP_ENDPOINT", func(c Config) string { return c.ShippingAndTracking.Endpoint }},
 		"VENDOR_CONNECTIVITY_MCP_ENDPOINT":     {"VENDOR_CONNECTIVITY_MCP_ENDPOINT", func(c Config) string { return c.VendorConnectivity.Endpoint }},
+		"SELLER_INBOUND_MCP_ENDPOINT":          {"SELLER_INBOUND_MCP_ENDPOINT", func(c Config) string { return c.SellerInbound.Endpoint }},
 		"TASK_INTERLEAVING_MCP_ENDPOINT":       {"TASK_INTERLEAVING_MCP_ENDPOINT", func(c Config) string { return c.TaskInterleaving.Endpoint }},
 		"PICK_FACE_REPLENISHMENT_MCP_ENDPOINT": {"PICK_FACE_REPLENISHMENT_MCP_ENDPOINT", func(c Config) string { return c.PickFaceReplenishment.Endpoint }},
 	}
@@ -267,5 +268,85 @@ func TestLoad_NetworkFleetEndpoints_DefaultAndRead(t *testing.T) {
 				t.Errorf("endpoint = %q, want %q", got, want)
 			}
 		})
+	}
+}
+
+func TestLoad_Act_UnsetIsNotConfiguredWithDefaultTTL(t *testing.T) {
+	t.Setenv("WES_WORK_PLANNING_A2A_URL", "")
+	t.Setenv("APPROVAL_SIGNING_KEY", "")
+	t.Setenv("APPROVAL_TTL", "")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.Act.WorkPlanningA2AURL != "" || cfg.Act.SigningKey != "" || cfg.Act.TokenTTL != 5*time.Minute {
+		t.Fatalf("Act = %+v, want unset URL/key and a 5m TTL", cfg.Act)
+	}
+}
+
+func TestLoad_Act_ReadsEnv(t *testing.T) {
+	t.Setenv("WES_WORK_PLANNING_A2A_URL", "http://wes-work-planning-a2a.ns.svc.cluster.local:8093/")
+	t.Setenv("APPROVAL_SIGNING_KEY", "0123456789abcdef0123456789abcdef")
+	t.Setenv("APPROVAL_TTL", "90s")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.Act.WorkPlanningA2AURL != "http://wes-work-planning-a2a.ns.svc.cluster.local:8093/" || cfg.Act.SigningKey == "" || cfg.Act.TokenTTL != 90*time.Second {
+		t.Fatalf("Act = %+v", cfg.Act)
+	}
+}
+
+func TestLoad_Act_MalformedTTLIsAStartupError(t *testing.T) {
+	for _, bad := range []string{"soon", "-5m", "0s", "5"} {
+		t.Setenv("APPROVAL_TTL", bad)
+		if _, err := Load(); err == nil {
+			t.Errorf("APPROVAL_TTL=%q: Load succeeded, want an error (rejected, never defaulted)", bad)
+		}
+	}
+}
+
+func TestLoad_ExceptionManagementA2AURL_UnsetMeansDisabled(t *testing.T) {
+	t.Setenv("EXCEPTION_MANAGEMENT_A2A_URL", "")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.ExceptionManagementA2AURL != "" {
+		t.Fatalf("ExceptionManagementA2AURL = %q, want empty (lookup disabled)", cfg.ExceptionManagementA2AURL)
+	}
+}
+
+func TestLoad_ExceptionManagementA2AURL_ReadsAValidURL(t *testing.T) {
+	for _, want := range []string{
+		"http://exception-management-a2a.warehouse-systems.svc.cluster.local:8093/",
+		"https://warehouse.example.com/api/a2a/exception-management",
+		"http://localhost:8000/api/a2a/exception-management/",
+	} {
+		t.Setenv("EXCEPTION_MANAGEMENT_A2A_URL", want)
+		cfg, err := Load()
+		if err != nil {
+			t.Fatalf("%q: Load: %v", want, err)
+		}
+		if cfg.ExceptionManagementA2AURL != want {
+			t.Errorf("ExceptionManagementA2AURL = %q, want %q", cfg.ExceptionManagementA2AURL, want)
+		}
+	}
+}
+
+func TestLoad_ExceptionManagementA2AURL_MalformedIsAStartupError(t *testing.T) {
+	for _, bad := range []string{
+		"exception-management-a2a:8093", "/api/a2a/exception-management", "ftp://exception-management/", "http://",
+		"https:///path", "://x", "not a url", " http://exception-management/", "http://bad host/", "//exception-management/",
+	} {
+		t.Setenv("EXCEPTION_MANAGEMENT_A2A_URL", bad)
+		_, err := Load()
+		if err == nil {
+			t.Errorf("EXCEPTION_MANAGEMENT_A2A_URL=%q: Load succeeded, want a startup error (never silently disabled)", bad)
+			continue
+		}
+		if !strings.Contains(err.Error(), "EXCEPTION_MANAGEMENT_A2A_URL") {
+			t.Errorf("%q: error %q does not name the variable", bad, err)
+		}
 	}
 }
