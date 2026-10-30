@@ -54,6 +54,41 @@ type releaseProposalDTO struct {
 	PathId         string                  `json:"pathId"`
 	Source         string                  `json:"source"`
 	Recommendation flowBalanceExceptionDTO `json:"recommendation"`
+	// ExceptionContext is advisory only (ADR 0028): it never changes
+	// whether a token is minted.
+	ExceptionContext exceptionContextDTO `json:"exceptionContext"`
+}
+
+type exceptionContextDTO struct {
+	Status  string               `json:"status"`
+	Summary *exceptionSummaryDTO `json:"summary,omitempty"`
+}
+
+type exceptionSummaryDTO struct {
+	OpenCount int                `json:"openCount"`
+	Cases     []exceptionCaseDTO `json:"cases"`
+}
+
+type exceptionCaseDTO struct {
+	CaseID    string `json:"caseId"`
+	Status    string `json:"status"`
+	Queue     string `json:"queue"`
+	Severity  string `json:"severity"`
+	Escalated bool   `json:"escalated"`
+	Reason    string `json:"reason"`
+}
+
+func toExceptionContextDTO(r usecases.ExceptionContextResult) exceptionContextDTO {
+	out := exceptionContextDTO{Status: string(r.Status)}
+	if r.Status != usecases.ExceptionContextOK || r.Summary == nil {
+		return out
+	}
+	cases := make([]exceptionCaseDTO, 0, len(r.Summary.Cases))
+	for _, c := range r.Summary.Cases {
+		cases = append(cases, exceptionCaseDTO{CaseID: c.CaseID, Status: c.Status, Queue: c.Queue, Severity: c.Severity, Escalated: c.Escalated, Reason: c.Reason})
+	}
+	out.Summary = &exceptionSummaryDTO{OpenCount: r.Summary.OpenCount, Cases: cases}
+	return out
 }
 
 type releaseOutcomeDTO struct {
@@ -80,12 +115,13 @@ func (h *Handlers) postReleaseProposal(w nethttp.ResponseWriter, r *nethttp.Requ
 		return
 	}
 	writeJSON(w, nethttp.StatusOK, releaseProposalDTO{
-		Token:          p.Token,
-		ExpiresAt:      p.ExpiresAt.UTC().Format(time.RFC3339),
-		Action:         string(approval.ActionReleaseNextWork),
-		PathId:         req.PathId,
-		Source:         string(p.Decision.Source),
-		Recommendation: toFlowBalanceExceptionDTO(p.Decision),
+		Token:            p.Token,
+		ExpiresAt:        p.ExpiresAt.UTC().Format(time.RFC3339),
+		Action:           string(approval.ActionReleaseNextWork),
+		PathId:           req.PathId,
+		Source:           string(p.Decision.Source),
+		Recommendation:   toFlowBalanceExceptionDTO(p.Decision),
+		ExceptionContext: toExceptionContextDTO(p.ExceptionContext),
 	})
 }
 

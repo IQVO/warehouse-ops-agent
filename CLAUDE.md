@@ -17,6 +17,8 @@ LLM reasoner behind that layer (ADR 0004).
 ## Hard rules (each one is CI-enforced or paid for by an incident)
 
 - **WRITE CAPABILITY = the ADR-0027 act slice ONLY — architecture rule, never
+
+The act slice's propose response also carries an advisory, read-only `exceptionContext` from exception-management over A2A (ADR 0028, opt-in `EXCEPTION_MANAGEMENT_A2A_URL`); the a2a adapter holds exactly two clients, the second implements only `ExceptionContext.OpenExceptions`, and it never gates or alters minting. A2A carries delegation only; the fleet rule is `.claude/rules/fleet/a2a.md`.
   widen it.** The one write is `release_next_work`, human-confirmed
   (`POST /act/release-next-work/{proposals,approvals}`, HMAC confirmation
   token), delegated over A2A to wes-work-planning, REST-only (never an MCP
