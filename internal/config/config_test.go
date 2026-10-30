@@ -305,3 +305,48 @@ func TestLoad_Act_MalformedTTLIsAStartupError(t *testing.T) {
 		}
 	}
 }
+
+func TestLoad_ExceptionManagementA2AURL_UnsetMeansDisabled(t *testing.T) {
+	t.Setenv("EXCEPTION_MANAGEMENT_A2A_URL", "")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.ExceptionManagementA2AURL != "" {
+		t.Fatalf("ExceptionManagementA2AURL = %q, want empty (lookup disabled)", cfg.ExceptionManagementA2AURL)
+	}
+}
+
+func TestLoad_ExceptionManagementA2AURL_ReadsAValidURL(t *testing.T) {
+	for _, want := range []string{
+		"http://exception-management-a2a.warehouse-systems.svc.cluster.local:8093/",
+		"https://warehouse.example.com/api/a2a/exception-management",
+		"http://localhost:8000/api/a2a/exception-management/",
+	} {
+		t.Setenv("EXCEPTION_MANAGEMENT_A2A_URL", want)
+		cfg, err := Load()
+		if err != nil {
+			t.Fatalf("%q: Load: %v", want, err)
+		}
+		if cfg.ExceptionManagementA2AURL != want {
+			t.Errorf("ExceptionManagementA2AURL = %q, want %q", cfg.ExceptionManagementA2AURL, want)
+		}
+	}
+}
+
+func TestLoad_ExceptionManagementA2AURL_MalformedIsAStartupError(t *testing.T) {
+	for _, bad := range []string{
+		"exception-management-a2a:8093", "/api/a2a/exception-management", "ftp://exception-management/", "http://",
+		"https:///path", "://x", "not a url", " http://exception-management/", "http://bad host/", "//exception-management/",
+	} {
+		t.Setenv("EXCEPTION_MANAGEMENT_A2A_URL", bad)
+		_, err := Load()
+		if err == nil {
+			t.Errorf("EXCEPTION_MANAGEMENT_A2A_URL=%q: Load succeeded, want a startup error (never silently disabled)", bad)
+			continue
+		}
+		if !strings.Contains(err.Error(), "EXCEPTION_MANAGEMENT_A2A_URL") {
+			t.Errorf("%q: error %q does not name the variable", bad, err)
+		}
+	}
+}

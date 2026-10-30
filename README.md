@@ -216,6 +216,15 @@ Plus:
   max `1h`; a malformed value aborts startup) is the confirmation token's
   life. `APPROVAL_SIGNING_KEY` (Secret, optional, ≥ 32 bytes) pins the token
   key; unset = an ephemeral per-process key, which needs `replicaCount: 1`.
+- **Advisory exception context (opt-in, ADR 0028):**
+  `EXCEPTION_MANAGEMENT_A2A_URL` — base URL of the exception-management A2A
+  agent (`http://exception-management-a2a.<ns>.svc.cluster.local:8093/`).
+  When set, every successful release proposal also carries an
+  `exceptionContext` object (`ok` with the open count and the top cases, or
+  `unavailable` if the peer fails or takes over 3 s); it is read-only,
+  advisory and never changes whether a token is minted. Unset (the default) =
+  `exceptionContext.status` is `disabled` and nothing else changes. A value
+  that is not an absolute `http(s)` URL aborts startup.
 - `CAPACITY_OUTLOOK_HORIZON` (Go duration, default `8h`) — how far ahead the
   daily brief's warehouse-planning capacity window extends; only meaningful
   when `WAREHOUSE_PLANNING_MCP_ENDPOINT` is set (unset = no outlook, no
