@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -261,6 +262,33 @@ type Config struct {
 	// no API key is also a startup error, so a misconfigured cluster can
 	// never quietly run without the model it was told to use.
 	LLM LLMConfig
+
+	// Act is the ADR-0027 human-confirmed write slice (opt-in).
+	Act ActConfig
+
+	// ExceptionManagementA2AURL is EXCEPTION_MANAGEMENT_A2A_URL, the base
+	// URL of the exception-management A2A agent consulted, read-only and
+	// advisory, when a release is proposed (ADR 0028). Empty (the default)
+	// disables the lookup: proposals answer exceptionContext.status
+	// "disabled" and behave exactly as before. A malformed value is a
+	// startup error, never silently dropped.
+	ExceptionManagementA2AURL string
+}
+
+// ActConfig configures the act slice (ADR 0027): the one human-confirmed
+// write this agent can perform. It is opt-in — an empty WorkPlanningA2AURL
+// leaves the act routes answering 503 and no write adapter is built.
+type ActConfig struct {
+	// WorkPlanningA2AURL is WES_WORK_PLANNING_A2A_URL, the base URL of the
+	// wes-work-planning A2A agent (its card is discovered under it).
+	WorkPlanningA2AURL string
+	// SigningKey is APPROVAL_SIGNING_KEY, from a Kubernetes Secret. Never
+	// logged. Empty means "generate an ephemeral key at startup", which is
+	// only coherent with a single replica (the chart default). If set it
+	// must be at least 32 bytes; the signer rejects a weak one at wiring.
+	SigningKey string
+	// TokenTTL is APPROVAL_TTL, how long a confirmation token lives.
+	TokenTTL time.Duration
 }
 
 // LLMConfig configures the model-backed Reasoner (ADR 0004).
@@ -364,7 +392,36 @@ func Load() (Config, error) {
 	}
 	loadNetworkFleetEndpoints(&cfg)
 	loadReportsURLs(&cfg)
+	if err = loadA2ASettings(&cfg); err != nil {
+		return Config{}, err
+	}
 	return cfg, nil
+}
+
+// loadA2ASettings reads the settings of the two outbound A2A features onto
+// cfg: the ADR-0027 act slice and the ADR-0028 advisory exception lookup.
+func loadA2ASettings(cfg *Config) (err error) {
+	if cfg.Act, err = loadAct(); err != nil {
+		return err
+	}
+	cfg.ExceptionManagementA2AURL, err = loadOptionalHTTPURL("EXCEPTION_MANAGEMENT_A2A_URL")
+	return err
+}
+
+// loadOptionalHTTPURL reads an optional absolute http(s) URL. Unset or empty
+// is fine (the feature is off); anything else must parse as an absolute
+// http or https URL with a host, or Load fails: a mistyped endpoint must
+// stop startup, not quietly turn a feature off.
+func loadOptionalHTTPURL(key string) (string, error) {
+	raw := os.Getenv(key)
+	if raw == "" {
+		return "", nil
+	}
+	u, err := url.Parse(raw)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return "", fmt.Errorf("config: %s %q must be an absolute http(s) URL (e.g. http://exception-management-a2a.ns.svc.cluster.local:8093/)", key, raw)
+	}
+	return raw, nil
 }
 
 // loadReportsURLs reads the console-bff analytics-reader base URLs (see
@@ -417,6 +474,30 @@ var defaultLLMToolAllowList = []string{
 	"workforce-management/get_staffing_gap",
 	"fulfillment-execution/get_queue_status",
 	"fulfillment-execution/diagnose_stuck_tasks",
+}
+
+// defaultApprovalTTL is how long a confirmation token lives when
+// APPROVAL_TTL is unset: long enough for a human to read the evidence,
+// short enough that a stale recommendation cannot be redeemed.
+const defaultApprovalTTL = 5 * time.Minute
+
+// loadAct reads the act-slice settings. Unlike loadDuration it REJECTS a
+// malformed or non-positive APPROVAL_TTL: a mistyped confirmation lifetime
+// must stop startup, not quietly become a different security parameter.
+func loadAct() (ActConfig, error) {
+	ttl := defaultApprovalTTL
+	if raw := os.Getenv("APPROVAL_TTL"); raw != "" {
+		d, err := time.ParseDuration(raw)
+		if err != nil || d <= 0 {
+			return ActConfig{}, fmt.Errorf("config: APPROVAL_TTL %q must be a positive Go duration (e.g. 5m)", raw)
+		}
+		ttl = d
+	}
+	return ActConfig{
+		WorkPlanningA2AURL: getenv("WES_WORK_PLANNING_A2A_URL", ""),
+		SigningKey:         os.Getenv("APPROVAL_SIGNING_KEY"),
+		TokenTTL:           ttl,
+	}, nil
 }
 
 func loadDuration(key string, fallback time.Duration) time.Duration {
