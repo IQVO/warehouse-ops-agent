@@ -1,140 +1,89 @@
-// Package a2a is the outbound Agent2Agent adapter: it implements the
-// WorkReleaser write port (the act slice, ADR 0027) against the
-// wes-work-planning A2A agent (its ADR-0046), using the official a2a-go/v2
-// SDK. It is the ONLY package in this agent allowed to import the SDK, and
-// the only write adapter (internal/architecture/zerowrite pins both). Card discovery is real — the
-// client fetches the agent's card from the well-known path and builds the
-// protocol client from it — so the wire contract is the one the peer
-// advertises, not an assumption.
+// Package a2a is the outbound Agent2Agent adapter, built on the official
+// a2a-go/v2 SDK. It is the ONLY package in this agent allowed to import the
+// SDK (internal/architecture/zerowrite pins that) and it holds exactly TWO
+// clients over one shared transport (peer.go: real Agent Card discovery,
+// the repo's otelhttp-instrumented http client, strict decoding of the
+// peer's in-band envelope and problems):
 //
-// This package depends inward on the port only; it never touches the domain. It speaks JSON-RPC 2.0 over HTTP (the transport the
-// wes-work-planning card declares) and is safe for concurrent use.
+//   - Client (this file) implements the WRITE port WorkReleaser: the act
+//     slice's human-confirmed release, delegated to wes-work-planning
+//     (ADR 0027, that agent's ADR-0046). It is the single write-port
+//     implementation.
+//   - ExceptionClient (exceptions.go) implements the READ-ONLY port
+//     ExceptionContext: an advisory question to exception-management
+//     (ADR 0028). It implements no write verb and calls one read skill.
+//
+// The card is fetched from the well-known path and the protocol client is
+// built from it, so the wire contract is the one the peer advertises, not
+// an assumption. This package depends inward on the ports only; it never
+// touches the domain. It speaks JSON-RPC 2.0 over HTTP (the transport the
+// peers' cards declare) and is safe for concurrent use.
 package a2a
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
-	"strings"
-	"sync"
 	"time"
 
-	"github.com/a2aproject/a2a-go/v2/a2a"
-	"github.com/a2aproject/a2a-go/v2/a2aclient"
-
-	"github.com/claudioed/warehouse-ops-agent/internal/adapters/outbound/httpclient"
 	"github.com/claudioed/warehouse-ops-agent/internal/ports"
 )
-
-// wellKnownPath is the Agent Card discovery path (A2A spec); served by every
-// agent in this fleet behind its Kong prefix as well as in-cluster.
-const wellKnownPath = "/.well-known/agent-card.json"
 
 // releaseSkill is the skill id the wes-work-planning agent advertises for
 // admitting the next work unit (its ADR-0046 card).
 const releaseSkill = "release_next_work"
 
-// Client is the WorkPlanning port over A2A. The protocol client is resolved
-// lazily from the peer's Agent Card on first use and cached: boot must not
-// depend on the planning agent being up (a cold cluster starts both at
-// once), but a card that cannot be resolved surfaces as
+// Client is the WorkReleaser port over A2A (the act slice's one write
+// transport). The protocol client is resolved lazily from the peer's Agent
+// Card on first use (see peer): boot must not depend on the planning agent
+// being up, but a card that cannot be resolved surfaces as
 // ports.ErrWorkPlanningUnreachable on the requests that need it.
 type Client struct {
 	baseURL string
-	http    *http.Client
-
-	mu     sync.Mutex
-	client *a2aclient.Client
+	peer    *peer
 }
 
 // NewClient builds the delegation client for the planning agent reachable at
 // baseURL (the agent's root, e.g. http://wes-work-planning-a2a.<ns>:8093/ or
 // its Kong path). baseURL's trailing slash is normalized.
 func NewClient(baseURL string, httpClient *http.Client) *Client {
-	if httpClient == nil {
-		// otelhttp-instrumented (fitness-tested): the trace context crosses
-		// the A2A hop, so a release shows up under the caller's request span.
-		httpClient = httpclient.New(10 * time.Second)
-	}
-	return &Client{baseURL: strings.TrimRight(baseURL, "/"), http: httpClient}
+	p := newPeer(baseURL, httpClient, 10*time.Second, ports.ErrWorkPlanningUnreachable)
+	return &Client{baseURL: p.baseURL, peer: p}
 }
 
-// agentEnvelope mirrors the wes-work-planning skill-answer envelope (its
-// ADR-0046 wire contract): exactly one of data or problem. A test-local copy
-// by design — if the peer's contract drifts, this adapter fails loudly
-// instead of silently misreading.
-type agentEnvelope struct {
-	Skill string `json:"skill"`
-	Data  struct {
-		ReleasedWork *struct {
-			WorkUnitId string `json:"workUnitId"`
-			CPT        string `json:"cpt"`
-			Ref        string `json:"ref"`
-		} `json:"releasedWork"`
-	} `json:"data"`
-	Problem *struct {
-		Type   string `json:"type"`
-		Title  string `json:"title"`
-		Detail string `json:"detail"`
-		Status int    `json:"status"`
-	} `json:"problem"`
+// releasedWorkData is the data shape of the wes-work-planning release skill
+// answer (its ADR-0046 wire contract). A local copy by design: if the
+// peer's contract drifts, this adapter fails loudly instead of misreading.
+type releasedWorkData struct {
+	ReleasedWork *struct {
+		WorkUnitId string `json:"workUnitId"`
+		CPT        string `json:"cpt"`
+		Ref        string `json:"ref"`
+	} `json:"releasedWork"`
 }
 
 // ReleaseNextWork delegates "admit the next unit for path" to the planning
 // agent and maps its answer onto the port's typed outcomes.
 func (c *Client) ReleaseNextWork(ctx context.Context, pathId string) (ports.ReleasedWork, error) {
-	client, err := c.resolve(ctx)
+	ans, err := c.peer.ask(ctx, releaseSkill, map[string]any{"pathId": pathId})
 	if err != nil {
 		return ports.ReleasedWork{}, err
 	}
-
-	msg := a2a.NewMessage(a2a.MessageRoleUser, a2a.NewDataPart(map[string]any{
-		"skill":     releaseSkill,
-		"arguments": map[string]any{"pathId": pathId},
-	}))
-	resp, err := client.SendMessage(ctx, &a2a.SendMessageRequest{Message: msg})
-	if err != nil {
-		return ports.ReleasedWork{}, fmt.Errorf("%w: SendMessage: %v", ports.ErrWorkPlanningUnreachable, err)
+	if ans.problem != nil {
+		return ports.ReleasedWork{}, mapProblem(ans.problem)
 	}
-	agentMsg, ok := resp.(*a2a.Message)
-	if !ok {
-		return ports.ReleasedWork{}, fmt.Errorf("%w: agent answered %T, want a message", ports.ErrWorkPlanningUnreachable, resp)
-	}
-	if len(agentMsg.Parts) == 0 {
-		return ports.ReleasedWork{}, fmt.Errorf("%w: agent answer carries no parts", ports.ErrWorkPlanningUnreachable)
-	}
-	data, ok := agentMsg.Parts[0].Content.(a2a.Data)
-	if !ok {
-		return ports.ReleasedWork{}, fmt.Errorf("%w: agent answer part is %T, want data", ports.ErrWorkPlanningUnreachable, agentMsg.Parts[0].Content)
-	}
-	raw, err := json.Marshal(data.Value)
-	if err != nil {
-		return ports.ReleasedWork{}, fmt.Errorf("%w: decoding answer: %v", ports.ErrWorkPlanningUnreachable, err)
-	}
-	var env agentEnvelope
-	if err := json.Unmarshal(raw, &env); err != nil {
-		return ports.ReleasedWork{}, fmt.Errorf("%w: answer is not the skill envelope: %v", ports.ErrWorkPlanningUnreachable, err)
-	}
-	if env.Problem != nil {
-		return ports.ReleasedWork{}, mapProblem(env.Problem)
-	}
-	if env.Data.ReleasedWork == nil {
+	var data releasedWorkData
+	if err := json.Unmarshal(ans.data, &data); err != nil || data.ReleasedWork == nil {
 		return ports.ReleasedWork{}, fmt.Errorf("%w: answer carries no releasedWork and no problem", ports.ErrWorkPlanningUnreachable)
 	}
-	rw := env.Data.ReleasedWork
+	rw := data.ReleasedWork
 	return ports.ReleasedWork{WorkUnitId: rw.WorkUnitId, CPT: rw.CPT, Ref: rw.Ref}, nil
 }
 
 // mapProblem maps the peer's RFC 7807-shaped in-band problem onto this
 // context's typed delegation outcomes, preserving its detail text.
-func mapProblem(p *struct {
-	Type   string `json:"type"`
-	Title  string `json:"title"`
-	Detail string `json:"detail"`
-	Status int    `json:"status"`
-}) error {
+func mapProblem(p *problem) error {
 	switch p.Status {
 	case 404:
 		return fmt.Errorf("%w: %s", ports.ErrUnknownWorkPlanningPath, p.Detail)
@@ -143,45 +92,6 @@ func mapProblem(p *struct {
 	default:
 		return fmt.Errorf("%w: agent problem %d %s: %s", ports.ErrWorkPlanningUnreachable, p.Status, p.Title, p.Detail)
 	}
-}
-
-// resolve fetches the peer's Agent Card (once, cached) and builds the
-// protocol client from it.
-func (c *Client) resolve(ctx context.Context) (*a2aclient.Client, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.client != nil {
-		return c.client, nil
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+wellKnownPath, nil)
-	if err != nil {
-		return nil, fmt.Errorf("%w: building card request: %v", ports.ErrWorkPlanningUnreachable, err)
-	}
-	res, err := c.http.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("%w: fetching agent card: %v", ports.ErrWorkPlanningUnreachable, err)
-	}
-	defer func() { _ = res.Body.Close() }()
-	if res.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("%w: agent card fetch answered %d", ports.ErrWorkPlanningUnreachable, res.StatusCode)
-	}
-	body, err := io.ReadAll(io.LimitReader(res.Body, 1<<20))
-	if err != nil {
-		return nil, fmt.Errorf("%w: reading agent card: %v", ports.ErrWorkPlanningUnreachable, err)
-	}
-	var card a2a.AgentCard
-	if err := json.Unmarshal(body, &card); err != nil {
-		return nil, fmt.Errorf("%w: agent card is not valid JSON: %v", ports.ErrWorkPlanningUnreachable, err)
-	}
-	// The SDK's JSON-RPC transport reuses OUR instrumented client, so the
-	// SendMessage call is traced too, not only the card fetch above.
-	client, err := a2aclient.NewFromCard(ctx, &card, a2aclient.WithJSONRPCTransport(c.http))
-	if err != nil {
-		return nil, fmt.Errorf("%w: building client from card: %v", ports.ErrWorkPlanningUnreachable, err)
-	}
-	c.client = client
-	return client, nil
 }
 
 // compile-time proof the adapter satisfies the port.

@@ -191,6 +191,17 @@ value yet; warehouse-infra sets them through `extraEnv`.
 | `APPROVAL_TTL` | `5m` | no | Go duration: how long a confirmation token stays valid. Must be positive and at most `1h`. **A malformed or non-positive value aborts startup** (it is never defaulted: it is a security parameter). | `internal/config/config.go`, `internal/domain/approval/approval.go` | none (`extraEnv`) |
 | `APPROVAL_SIGNING_KEY` | empty, which generates an ephemeral per-process key | no | HMAC key for confirmation tokens, at least 32 bytes; a shorter value aborts startup. Never logged. Empty is only coherent with `replicaCount: 1`: a token minted by one process does not verify in another. | `internal/config/config.go` | none (a Secret via `extraEnv`) |
 
+### Advisory exception context (ADR 0028)
+
+Read-only, advisory: when the act slice proposes a release, the agent also asks
+the exception-management A2A agent what is open. It never gates or changes the
+proposal. None of these has a chart value; warehouse-infra sets them through
+`extraEnv`.
+
+| Variable | Default | Required | Effect | Source | Helm value |
+|---|---|---|---|---|---|
+| `EXCEPTION_MANAGEMENT_A2A_URL` | empty (lookup off) | no | Base URL of the exception-management A2A agent, e.g. `http://exception-management-a2a.warehouse-systems.svc.cluster.local:8093/`. Unset: proposals carry `exceptionContext.status = "disabled"` and behave exactly as under ADR 0027. Set: each successful proposal asks `find_exceptions` (`status: OPEN`) under a 3 s bound and returns `ok` with a summary, or `unavailable` if the peer fails or is slow (the proposal still succeeds). **A value that is not an absolute `http(s)` URL with a host aborts startup** (it is never silently disabled). Has no effect while `WES_WORK_PLANNING_A2A_URL` is unset (no propose route). | `internal/config/config.go`, `cmd/agent/act.go` | none (`extraEnv`) |
+
 ### OpenTelemetry
 
 | Variable | Default | Required | Meaning | Source | Chart value |

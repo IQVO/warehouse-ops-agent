@@ -280,6 +280,11 @@ func identName(n ast.Node) string {
 func assertUnreachableFromActSlice(t *testing.T, path string) {
 	t.Helper()
 	forbiddenIdents := map[string]bool{"ReleaseWork": true, "NewReleaseWork": true, "WorkReleaser": true, "ReleaseNextWork": true, "ReleaseProposal": true, "ReleaseOutcome": true}
+	// ADR 0028: the advisory exception lookup is attached to proposals for a
+	// human; it is not a tool and the model never drives it.
+	for _, name := range exceptionLookupIdents {
+		forbiddenIdents[name] = true
+	}
 	forbiddenImports := []string{"/internal/domain/approval", a2aSDKImportPrefix, "/internal/adapters/outbound/a2a"}
 	f := parsed(t, path)
 	for _, v := range importPaths(f) {
@@ -318,6 +323,14 @@ func TestActSliceIsUnreachableFromMCPAndTheReasoner(t *testing.T) {
 	}
 }
 
+// exceptionLookupIdents are the ADR-0028 names that must stay out of the MCP
+// server and the LLM reasoner (and out of everything but REST, the use case
+// and the composition root).
+var exceptionLookupIdents = []string{
+	"ExceptionContext", "ExceptionContextQuery", "ExceptionContextResult", "ExceptionSummary", "ExceptionBrief",
+	"ExceptionClient", "NewExceptionClient", "WithExceptionContext", "ErrExceptionContextUnavailable",
+}
+
 // usesReleaseWork reports the selector name when n is usecases.ReleaseWork or
 // usecases.NewReleaseWork.
 func usesReleaseWork(n ast.Node) (string, bool) {
@@ -329,7 +342,11 @@ func usesReleaseWork(n ast.Node) (string, bool) {
 	if !ok || x.Name != "usecases" {
 		return "", false
 	}
-	return sel.Sel.Name, sel.Sel.Name == "ReleaseWork" || sel.Sel.Name == "NewReleaseWork"
+	switch sel.Sel.Name {
+	case "ReleaseWork", "NewReleaseWork", "WithExceptionContext", "ExceptionContextResult", "ReleaseWorkOption":
+		return sel.Sel.Name, true
+	}
+	return sel.Sel.Name, false
 }
 
 // (4b) Only the REST adapter and the composition root may use the write use

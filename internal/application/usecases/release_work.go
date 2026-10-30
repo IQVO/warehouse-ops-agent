@@ -47,12 +47,41 @@ type FlowBalanceDecider interface {
 	Execute(ctx context.Context, buildingId, shiftId, pathId string) (policy.Decision, error)
 }
 
+// ExceptionContextStatus says how the advisory exception lookup went.
+type ExceptionContextStatus string
+
+// The three outcomes of the advisory lookup (ADR 0028).
+const (
+	// ExceptionContextOK: the exception hub answered; Summary is set.
+	ExceptionContextOK ExceptionContextStatus = "ok"
+	// ExceptionContextUnavailable: the hub was configured but failed or
+	// timed out; the proposal is unaffected.
+	ExceptionContextUnavailable ExceptionContextStatus = "unavailable"
+	// ExceptionContextDisabled: no hub is configured; behaviour is exactly
+	// as before ADR 0028.
+	ExceptionContextDisabled ExceptionContextStatus = "disabled"
+)
+
+// DefaultExceptionLookupTimeout bounds the advisory lookup so a slow peer
+// can delay a proposal by at most this long.
+const DefaultExceptionLookupTimeout = 3 * time.Second
+
+// ExceptionContextResult is the advisory "what is open that a human should
+// know before approving?" answer carried on a proposal (ADR 0028). It is
+// information for the human only: nothing in Propose reads it back.
+type ExceptionContextResult struct {
+	Status  ExceptionContextStatus
+	Summary *ports.ExceptionSummary // set only when Status is ok
+}
+
 // ReleaseProposal is what Propose returns: the token plus everything the
-// human is being asked to confirm.
+// human is being asked to confirm. ExceptionContext is advisory and is
+// filled only after the decision and the token are final.
 type ReleaseProposal struct {
-	Token     string
-	ExpiresAt time.Time
-	Decision  policy.Decision
+	Token            string
+	ExpiresAt        time.Time
+	Decision         policy.Decision
+	ExceptionContext ExceptionContextResult
 }
 
 // ReleaseOutcome is what Approve returns on success.
@@ -70,13 +99,36 @@ type ReleaseWork struct {
 	logger   *slog.Logger
 	now      func() time.Time
 
+	// exceptions is the OPTIONAL advisory read port (ADR 0028); nil means
+	// disabled. It is consulted after the decision and the token are final
+	// and its result is never fed back into either.
+	exceptions       ports.ExceptionContext
+	exceptionTimeout time.Duration
+
 	mu   sync.Mutex
 	used map[string]time.Time // nonce -> token expiry (kept until then)
 }
 
+// ReleaseWorkOption configures optional collaborators of ReleaseWork.
+type ReleaseWorkOption func(*ReleaseWork)
+
+// WithExceptionContext enables the advisory exception lookup (ADR 0028).
+// timeout <= 0 means DefaultExceptionLookupTimeout. A nil port leaves the
+// lookup disabled.
+func WithExceptionContext(port ports.ExceptionContext, timeout time.Duration) ReleaseWorkOption {
+	return func(uc *ReleaseWork) {
+		uc.exceptions = port
+		if timeout <= 0 {
+			timeout = DefaultExceptionLookupTimeout
+		}
+		uc.exceptionTimeout = timeout
+	}
+}
+
 // NewReleaseWork builds the use case. Every collaborator is required: a
 // half-wired act slice must fail at construction, never at the first write.
-func NewReleaseWork(advisory FlowBalanceDecider, signer *approval.Signer, releaser ports.WorkReleaser, logger *slog.Logger, now func() time.Time) (*ReleaseWork, error) {
+// The exception lookup is the one optional collaborator.
+func NewReleaseWork(advisory FlowBalanceDecider, signer *approval.Signer, releaser ports.WorkReleaser, logger *slog.Logger, now func() time.Time, opts ...ReleaseWorkOption) (*ReleaseWork, error) {
 	if advisory == nil || signer == nil || releaser == nil {
 		return nil, errors.New("release work: advisory, signer and releaser are all required")
 	}
@@ -86,11 +138,18 @@ func NewReleaseWork(advisory FlowBalanceDecider, signer *approval.Signer, releas
 	if now == nil {
 		now = time.Now
 	}
-	return &ReleaseWork{advisory: advisory, signer: signer, releaser: releaser, logger: logger, now: now, used: map[string]time.Time{}}, nil
+	uc := &ReleaseWork{advisory: advisory, signer: signer, releaser: releaser, logger: logger, now: now, used: map[string]time.Time{}}
+	for _, opt := range opts {
+		opt(uc)
+	}
+	return uc, nil
 }
 
 // Propose evaluates the path and, only if the policy recommends
-// release_next_work on complete evidence, mints the confirmation token.
+// release_next_work on complete evidence, mints the confirmation token. Once
+// the token is minted it also attaches the advisory exception context; that
+// lookup runs strictly AFTER the decision and the token are final and can
+// neither refuse nor alter them (ADR 0028).
 func (uc *ReleaseWork) Propose(ctx context.Context, buildingId, shiftId, pathId string) (ReleaseProposal, error) {
 	d, err := uc.advisory.Execute(ctx, buildingId, shiftId, pathId)
 	if err != nil {
@@ -106,8 +165,26 @@ func (uc *ReleaseWork) Propose(ctx context.Context, buildingId, shiftId, pathId 
 	if err != nil {
 		return ReleaseProposal{}, err
 	}
-	uc.logger.InfoContext(ctx, "act: release_next_work proposed", "pathId", pathId, "source", d.Source, "nonce", p.Nonce, "expiresAt", p.ExpiresAt)
-	return ReleaseProposal{Token: token, ExpiresAt: p.ExpiresAt, Decision: d}, nil
+	ec := uc.exceptionContext(ctx, pathId)
+	uc.logger.InfoContext(ctx, "act: release_next_work proposed", "pathId", pathId, "source", d.Source, "nonce", p.Nonce, "expiresAt", p.ExpiresAt, "exceptionContext", ec.Status)
+	return ReleaseProposal{Token: token, ExpiresAt: p.ExpiresAt, Decision: d, ExceptionContext: ec}, nil
+}
+
+// exceptionContext runs the advisory lookup under its own short deadline.
+// It cannot fail: every error degrades to status unavailable, logged and
+// not returned, so the caller has nothing to branch on.
+func (uc *ReleaseWork) exceptionContext(ctx context.Context, pathId string) ExceptionContextResult {
+	if uc.exceptions == nil {
+		return ExceptionContextResult{Status: ExceptionContextDisabled}
+	}
+	lookupCtx, cancel := context.WithTimeout(ctx, uc.exceptionTimeout)
+	defer cancel()
+	summary, err := uc.exceptions.OpenExceptions(lookupCtx, ports.ExceptionContextQuery{})
+	if err != nil {
+		uc.logger.WarnContext(ctx, "act: exception context unavailable; the proposal is unaffected", "pathId", pathId, "error", err)
+		return ExceptionContextResult{Status: ExceptionContextUnavailable}
+	}
+	return ExceptionContextResult{Status: ExceptionContextOK, Summary: &summary}
 }
 
 // Approve redeems a confirmation token and executes the release. The token is
