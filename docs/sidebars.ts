@@ -119,6 +119,8 @@ const sidebars: SidebarsConfig = {
         'adr/0022-godog-bdd-acceptance-tests',
         'adr/0023-skip-mcp-clients-without-an-endpoint',
         'adr/0024-slot-plan-watch-promise-health-and-ppm-client-removal',
+        'adr/0025-network-fleet-mcp-clients',
+        'adr/0028-advisory-exception-context-on-release-proposals',
       ],
     },
   ],

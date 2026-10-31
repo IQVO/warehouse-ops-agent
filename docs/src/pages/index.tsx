@@ -22,7 +22,7 @@ function StudyDisclaimer() {
       ⚠️ <strong>Study project</strong> — an educational DDD exercise
       following real industry-standard MCP / agentic patterns. Not a
       production system. Not affiliated with, endorsed by, or
-      representative of Amazon, Blue Yonder, or any other company.
+      representative of large real-world Blue Yonder, or any other company.
     </div>
   );
 }

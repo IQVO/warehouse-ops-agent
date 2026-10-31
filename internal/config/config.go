@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -79,13 +80,14 @@ type Config struct {
 	// "skip this client". LaborPerformance has since graduated to consumed
 	// by FlowBalanceAdvisory's labor-utilization correlation overlay
 	// (ADR 0008 Phase 3); OrderManagement is consumed by the daily brief's
-	// promise-health section (ADR 0024). ProcessPathManagement was REMOVED
-	// (ADR 0024, gap A9): catalogue configuration is not an ops signal,
-	// and the client's PROCESS_PATH_MANAGEMENT_MCP_ENDPOINT is no longer
-	// read. The endpoint itself stays configured in warehouse-infra's
-	// terraform until the orchestrator removes it in a later infra change.
-	OrderManagement  UpstreamConfig
-	LaborPerformance UpstreamConfig
+	// promise-health section (ADR 0024). ProcessPathManagement was removed
+	// by ADR 0024 (gap A9) and RE-ADDED by ADR 0026, pinned to the
+	// current three-tool registry (its surface grew get_cpt_schedule, an
+	// actual ops signal): an empty endpoint means "not configured" and the
+	// agent boots fail-open exactly as before.
+	OrderManagement       UpstreamConfig
+	LaborPerformance      UpstreamConfig
+	ProcessPathManagement UpstreamConfig
 
 	// WarehousePlanning is the third-wave upstream (ADR 0013). An empty
 	// endpoint means "not configured": the composition root then builds no
@@ -138,6 +140,35 @@ type Config struct {
 	// configured": the composition root builds no client (fail-open); no
 	// use case consumes it yet.
 	ExceptionManagement UpstreamConfig
+
+	// The twelve ADR-0025 upstreams: the ten retail-network contexts
+	// (customer-ordering, delivery-promise, last-mile-delivery,
+	// linehaul-transportation, node-performance, node-topology,
+	// offer-availability, order-sourcing, shipping-and-tracking,
+	// vendor-connectivity) plus task-interleaving and
+	// pick-face-replenishment on the WMS side. Each is a read-only MCP
+	// server whose client is pinned to its published registry golden. An
+	// empty endpoint means "not configured": the composition root builds
+	// no client (fail-open, ADR 0023) and nothing else changes -- no use
+	// case consumes any of them yet.
+	CustomerOrdering       UpstreamConfig
+	DeliveryPromise        UpstreamConfig
+	LastMileDelivery       UpstreamConfig
+	LinehaulTransportation UpstreamConfig
+	NodePerformance        UpstreamConfig
+	NodeTopology           UpstreamConfig
+	OfferAvailability      UpstreamConfig
+	OrderSourcing          UpstreamConfig
+	ShippingAndTracking    UpstreamConfig
+	VendorConnectivity     UpstreamConfig
+
+	// SellerInbound is seller-inbound's read-only MCP server (its four
+	// read tools), SELLER_INBOUND_MCP_ENDPOINT. Wired but not consumed by
+	// any use case yet (ADR 0027); an empty endpoint means "not
+	// configured" and no client is built (fail-open, ADR 0023).
+	SellerInbound         UpstreamConfig
+	TaskInterleaving      UpstreamConfig
+	PickFaceReplenishment UpstreamConfig
 
 	// SlotPlanStaleAge is the approval age past which an Approved slot
 	// plan with unexecuted moves is flagged in the daily brief's
@@ -231,6 +262,33 @@ type Config struct {
 	// no API key is also a startup error, so a misconfigured cluster can
 	// never quietly run without the model it was told to use.
 	LLM LLMConfig
+
+	// Act is the ADR-0027 human-confirmed write slice (opt-in).
+	Act ActConfig
+
+	// ExceptionManagementA2AURL is EXCEPTION_MANAGEMENT_A2A_URL, the base
+	// URL of the exception-management A2A agent consulted, read-only and
+	// advisory, when a release is proposed (ADR 0028). Empty (the default)
+	// disables the lookup: proposals answer exceptionContext.status
+	// "disabled" and behave exactly as before. A malformed value is a
+	// startup error, never silently dropped.
+	ExceptionManagementA2AURL string
+}
+
+// ActConfig configures the act slice (ADR 0027): the one human-confirmed
+// write this agent can perform. It is opt-in — an empty WorkPlanningA2AURL
+// leaves the act routes answering 503 and no write adapter is built.
+type ActConfig struct {
+	// WorkPlanningA2AURL is WES_WORK_PLANNING_A2A_URL, the base URL of the
+	// wes-work-planning A2A agent (its card is discovered under it).
+	WorkPlanningA2AURL string
+	// SigningKey is APPROVAL_SIGNING_KEY, from a Kubernetes Secret. Never
+	// logged. Empty means "generate an ephemeral key at startup", which is
+	// only coherent with a single replica (the chart default). If set it
+	// must be at least 32 bytes; the signer rejects a weak one at wiring.
+	SigningKey string
+	// TokenTTL is APPROVAL_TTL, how long a confirmation token lives.
+	TokenTTL time.Duration
 }
 
 // LLMConfig configures the model-backed Reasoner (ADR 0004).
@@ -262,7 +320,7 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	return Config{
+	cfg := Config{
 		Addr: getenv("AGENT_ADDR", ":8095"),
 
 		WesWorkPlanning: UpstreamConfig{
@@ -285,6 +343,9 @@ func Load() (Config, error) {
 		},
 		LaborPerformance: UpstreamConfig{
 			Endpoint: getenv("LABOR_PERFORMANCE_MCP_ENDPOINT", ""),
+		},
+		ProcessPathManagement: UpstreamConfig{
+			Endpoint: getenv("PROCESS_PATH_MANAGEMENT_MCP_ENDPOINT", ""),
 		},
 		WarehousePlanning: UpstreamConfig{
 			Endpoint: getenv("WAREHOUSE_PLANNING_MCP_ENDPOINT", ""),
@@ -312,14 +373,6 @@ func Load() (Config, error) {
 		WesWorkPlanningRESTURL:      getenv("WES_WORK_PLANNING_REST_URL", "http://localhost:8083"),
 		FulfillmentExecutionRESTURL: getenv("FULFILLMENT_EXECUTION_REST_URL", "http://localhost:8084"),
 
-		FacilityLayoutReportsRESTURL:       getenv("FACILITY_LAYOUT_REPORTS_REST_URL", "http://localhost:8101"),
-		InventoryStorageReportsRESTURL:     getenv("INVENTORY_STORAGE_REPORTS_REST_URL", "http://localhost:8102"),
-		WesWorkPlanningReportsRESTURL:      getenv("WES_WORK_PLANNING_REPORTS_REST_URL", "http://localhost:8103"),
-		FulfillmentExecutionReportsRESTURL: getenv("FULFILLMENT_EXECUTION_REPORTS_REST_URL", "http://localhost:8104"),
-		WorkforceManagementReportsRESTURL:  getenv("WORKFORCE_MANAGEMENT_REPORTS_REST_URL", "http://localhost:8105"),
-		OrderManagementReportsRESTURL:      getenv("ORDER_MANAGEMENT_REPORTS_REST_URL", "http://localhost:8106"),
-		LaborPerformanceReportsRESTURL:     getenv("LABOR_PERFORMANCE_REPORTS_REST_URL", "http://localhost:8107"),
-
 		PrometheusURL: getenv("PROMETHEUS_URL", ""),
 		LokiURL:       getenv("LOKI_URL", ""),
 
@@ -336,7 +389,72 @@ func Load() (Config, error) {
 			Timeout:       loadDuration("LLM_TIMEOUT", 8*time.Second),
 			ToolAllowList: loadList("LLM_TOOL_ALLOWLIST", defaultLLMToolAllowList),
 		},
-	}, nil
+	}
+	loadNetworkFleetEndpoints(&cfg)
+	loadReportsURLs(&cfg)
+	if err = loadA2ASettings(&cfg); err != nil {
+		return Config{}, err
+	}
+	return cfg, nil
+}
+
+// loadA2ASettings reads the settings of the two outbound A2A features onto
+// cfg: the ADR-0027 act slice and the ADR-0028 advisory exception lookup.
+func loadA2ASettings(cfg *Config) (err error) {
+	if cfg.Act, err = loadAct(); err != nil {
+		return err
+	}
+	cfg.ExceptionManagementA2AURL, err = loadOptionalHTTPURL("EXCEPTION_MANAGEMENT_A2A_URL")
+	return err
+}
+
+// loadOptionalHTTPURL reads an optional absolute http(s) URL. Unset or empty
+// is fine (the feature is off); anything else must parse as an absolute
+// http or https URL with a host, or Load fails: a mistyped endpoint must
+// stop startup, not quietly turn a feature off.
+func loadOptionalHTTPURL(key string) (string, error) {
+	raw := os.Getenv(key)
+	if raw == "" {
+		return "", nil
+	}
+	u, err := url.Parse(raw)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return "", fmt.Errorf("config: %s %q must be an absolute http(s) URL (e.g. http://exception-management-a2a.ns.svc.cluster.local:8093/)", key, raw)
+	}
+	return raw, nil
+}
+
+// loadReportsURLs reads the console-bff analytics-reader base URLs (see
+// Config's own doc comment for the port-assignment history) onto cfg.
+func loadReportsURLs(cfg *Config) {
+	cfg.FacilityLayoutReportsRESTURL = getenv("FACILITY_LAYOUT_REPORTS_REST_URL", "http://localhost:8101")
+	cfg.InventoryStorageReportsRESTURL = getenv("INVENTORY_STORAGE_REPORTS_REST_URL", "http://localhost:8102")
+	cfg.WesWorkPlanningReportsRESTURL = getenv("WES_WORK_PLANNING_REPORTS_REST_URL", "http://localhost:8103")
+	cfg.FulfillmentExecutionReportsRESTURL = getenv("FULFILLMENT_EXECUTION_REPORTS_REST_URL", "http://localhost:8104")
+	cfg.WorkforceManagementReportsRESTURL = getenv("WORKFORCE_MANAGEMENT_REPORTS_REST_URL", "http://localhost:8105")
+	cfg.OrderManagementReportsRESTURL = getenv("ORDER_MANAGEMENT_REPORTS_REST_URL", "http://localhost:8106")
+	cfg.LaborPerformanceReportsRESTURL = getenv("LABOR_PERFORMANCE_REPORTS_REST_URL", "http://localhost:8107")
+}
+
+// loadNetworkFleetEndpoints reads the twelve ADR-0025 upstream endpoints
+// (the ten retail-network contexts plus task-interleaving and
+// pick-face-replenishment) onto cfg. Kept as one helper so Load's own
+// literal stays readable; every env name matches the chart's rendered
+// name exactly.
+func loadNetworkFleetEndpoints(cfg *Config) {
+	cfg.CustomerOrdering = UpstreamConfig{Endpoint: getenv("CUSTOMER_ORDERING_MCP_ENDPOINT", "")}
+	cfg.DeliveryPromise = UpstreamConfig{Endpoint: getenv("DELIVERY_PROMISE_MCP_ENDPOINT", "")}
+	cfg.LastMileDelivery = UpstreamConfig{Endpoint: getenv("LAST_MILE_DELIVERY_MCP_ENDPOINT", "")}
+	cfg.LinehaulTransportation = UpstreamConfig{Endpoint: getenv("LINEHAUL_TRANSPORTATION_MCP_ENDPOINT", "")}
+	cfg.NodePerformance = UpstreamConfig{Endpoint: getenv("NODE_PERFORMANCE_MCP_ENDPOINT", "")}
+	cfg.NodeTopology = UpstreamConfig{Endpoint: getenv("NODE_TOPOLOGY_MCP_ENDPOINT", "")}
+	cfg.OfferAvailability = UpstreamConfig{Endpoint: getenv("OFFER_AVAILABILITY_MCP_ENDPOINT", "")}
+	cfg.OrderSourcing = UpstreamConfig{Endpoint: getenv("ORDER_SOURCING_MCP_ENDPOINT", "")}
+	cfg.ShippingAndTracking = UpstreamConfig{Endpoint: getenv("SHIPPING_AND_TRACKING_MCP_ENDPOINT", "")}
+	cfg.VendorConnectivity = UpstreamConfig{Endpoint: getenv("VENDOR_CONNECTIVITY_MCP_ENDPOINT", "")}
+	cfg.SellerInbound = UpstreamConfig{Endpoint: getenv("SELLER_INBOUND_MCP_ENDPOINT", "")}
+	cfg.TaskInterleaving = UpstreamConfig{Endpoint: getenv("TASK_INTERLEAVING_MCP_ENDPOINT", "")}
+	cfg.PickFaceReplenishment = UpstreamConfig{Endpoint: getenv("PICK_FACE_REPLENISHMENT_MCP_ENDPOINT", "")}
 }
 
 // defaultCapacityOutlookHorizon is one shift: the capacity outlook looks
@@ -356,6 +474,30 @@ var defaultLLMToolAllowList = []string{
 	"workforce-management/get_staffing_gap",
 	"fulfillment-execution/get_queue_status",
 	"fulfillment-execution/diagnose_stuck_tasks",
+}
+
+// defaultApprovalTTL is how long a confirmation token lives when
+// APPROVAL_TTL is unset: long enough for a human to read the evidence,
+// short enough that a stale recommendation cannot be redeemed.
+const defaultApprovalTTL = 5 * time.Minute
+
+// loadAct reads the act-slice settings. Unlike loadDuration it REJECTS a
+// malformed or non-positive APPROVAL_TTL: a mistyped confirmation lifetime
+// must stop startup, not quietly become a different security parameter.
+func loadAct() (ActConfig, error) {
+	ttl := defaultApprovalTTL
+	if raw := os.Getenv("APPROVAL_TTL"); raw != "" {
+		d, err := time.ParseDuration(raw)
+		if err != nil || d <= 0 {
+			return ActConfig{}, fmt.Errorf("config: APPROVAL_TTL %q must be a positive Go duration (e.g. 5m)", raw)
+		}
+		ttl = d
+	}
+	return ActConfig{
+		WorkPlanningA2AURL: getenv("WES_WORK_PLANNING_A2A_URL", ""),
+		SigningKey:         os.Getenv("APPROVAL_SIGNING_KEY"),
+		TokenTTL:           ttl,
+	}, nil
 }
 
 func loadDuration(key string, fallback time.Duration) time.Duration {

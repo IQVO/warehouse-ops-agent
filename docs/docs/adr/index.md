@@ -43,6 +43,11 @@ accepted.
 | [0022](./0022-godog-bdd-acceptance-tests.md) | godog/Gherkin acceptance tests as executable specification | Accepted |
 | [0023](./0023-skip-mcp-clients-without-an-endpoint.md) | Build an upstream MCP client only when its endpoint is set | Accepted |
 | [0024](./0024-slot-plan-watch-promise-health-and-ppm-client-removal.md) | slotting-optimization client + slot-plan watch and order-management promise health in the daily brief (fail-open); process-path-management client removed | Accepted |
+| [0025](./0025-network-fleet-mcp-clients.md) | Twelve more outbound MCP clients: the retail-network fleet and two WMS contexts, wired per ADR 0023 and pinned to each upstream's published registry golden | Accepted |
+| [0026](./0026-network-outlook-and-process-path-client.md) | Network order/node outlooks composed over the ADR-0025 clients (per-section fail-open degradation); the thirteenth client process-path-management re-added, golden-pinned and chart-rendered | Accepted |
+| [0027](./0027-act-slice-human-confirmed-work-release.md) | The act slice: human-confirmed (propose → approve, HMAC confirmation token) release of the next work unit, delegated to the wes-work-planning A2A agent; REST-only, never MCP, never the LLM; the zero-write guarantee narrowed to exactly this slice and re-pinned by tests | Accepted |
+| [0027](./0027-seller-inbound-mcp-client.md) | The fourteenth read-only MCP client (seller-inbound, four tools) golden-pinned and chart-rendered; wired, not yet consumed | Accepted |
+| [0028](./0028-advisory-exception-context-on-release-proposals.md) | Advisory exception context on release proposals: a second, read-only A2A client asks exception-management what is open before a human approves; never gates, alters or persists anything; `EXCEPTION_MANAGEMENT_A2A_URL`, opt-in | Accepted |
 
 ## Proposing a new one
 

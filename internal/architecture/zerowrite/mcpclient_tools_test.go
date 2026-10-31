@@ -17,19 +17,22 @@ import (
 // broader than planning's own verbs so it also guards the other contexts'
 // write tools (assign_labor, revoke_reservation, ...). classify_ and record_
 // cover product-master's REST-only writes (classify a product, record a
-// measurement; ADR 0020) should they ever be published as tools. book_,
+// measurement; ADR 0020) should they ever be published as tools; retire_
+// covers its published retire_pack_level write (declare_pack_level is
+// caught by declare_). book_,
 // check_in_, open_, receive_ and close_ cover inbound-receiving's REST-only
 // write verbs (ADR 0021) on the same terms.
 var writeToolPrefixes = []string{
 	"create_", "publish_", "register_", "declare_", "assign_", "release_",
 	"revoke_", "update_", "delete_", "cancel_", "set_", "add_", "remove_",
 	"submit_", "reserve_", "activate_", "deactivate_", "classify_", "record_",
-	"book_", "check_in_", "open_", "receive_", "close_",
+	"book_", "check_in_", "open_", "receive_", "close_", "retire_",
 }
 
 // productMasterReadTools is the exact allow-list for the product-master
-// client (ADR 0020): the one of its four published read tools the
-// master-data-gaps use case consumes. A prefix scan alone would let a new
+// client (ADR 0020): the one of its six published read tools the
+// master-data-gaps use case consumes (it also publishes two pack-level
+// write tools, which are never callable from here). A prefix scan alone would let a new
 // non-prefixed verb through; this pins the whole set.
 var productMasterReadTools = []string{"list_products"}
 
@@ -155,6 +158,54 @@ func TestExceptionManagementClientCallsOnlyPinnedTools(t *testing.T) {
 	}
 }
 
+// --- the ADR-0025 clients (network fleet + two WMS ones) and the
+// ADR-0026 process-path-management client -------
+//
+// Each is the exact allow-list for one of the clients wired per
+// ADR 0025/0026: the whole of its upstream's published read surface (every
+// one of these upstreams is a read-only server).
+
+var networkFleetReadTools = map[string][]string{
+	"customer_ordering.go":       {"get_order", "get_order_tracking", "get_ship_to"},
+	"delivery_promise.go":        {"get_current_policy", "get_delivery_offer", "get_promise", "list_promise_books", "list_promises_by_order"},
+	"last_mile_delivery.go":      {"get_route", "get_wave_stops", "list_waves"},
+	"linehaul_transportation.go": {"get_departure", "list_departures"},
+	"node_performance.go":        {"get_scorecard", "list_scorecards_by_grade"},
+	"node_topology.go":           {"get_node", "get_region", "list_lanes", "list_nodes", "list_regions", "resolve_service_area"},
+	"offer_availability.go":      {"browse_catalog", "get_catalog_item", "get_inventory_feed", "list_listings"},
+	"order_sourcing.go":          {"get_assignment", "list_assignments"},
+	"shipping_and_tracking.go":   {"get_journey"},
+	"vendor_connectivity.go":     {"get_inbound_shipment", "get_node_scorecard", "get_purchase_order", "get_transaction", "get_vendor", "get_vendor_node", "list_vendor_nodes", "poll_inbound_shipments", "poll_purchase_orders"},
+	"task_interleaving.go":       {"get_hint", "get_site_policy", "get_station", "list_hints"},
+	"pick_face_replenishment.go": {"get_policy", "get_replenishment", "list_pick_faces", "list_policies", "list_replenishments"},
+	"process_path_management.go": {"get_cpt_schedule", "get_process_path", "list_process_paths"},
+}
+
+// TestNetworkFleetClientsCallOnlyPinnedTools scans each of the
+// ADR-0025/0026 client files and fails unless it names exactly its pinned
+// read tools, and only read-verb-free ones at that.
+func TestNetworkFleetClientsCallOnlyPinnedTools(t *testing.T) {
+	for file, want := range networkFleetReadTools {
+		path := "../../adapters/outbound/mcpclient/" + file
+		src, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read %s: %v", path, err)
+		}
+		names := calledToolNames(parseGoFile(t, path, src))
+		sort.Strings(names)
+		sortedWant := append([]string(nil), want...)
+		sort.Strings(sortedWant)
+		if strings.Join(names, ",") != strings.Join(sortedWant, ",") {
+			t.Errorf("%s calls %v; this client may call exactly %v (read-only, ADR 0025)", path, names, sortedWant)
+		}
+		for _, name := range names {
+			if prefix := writePrefixOf(name); prefix != "" {
+				t.Errorf("%s: tool %q starts with write verb %q", path, name, prefix)
+			}
+		}
+	}
+}
+
 // TestMCPClientsCallOnlyReadTools statically scans every non-test source
 // file in the mcpclient package for `callTool(ctx, "<tool>", ...)` calls
 // and fails when a tool-name literal starts with a write verb.
@@ -182,12 +233,12 @@ func TestMCPClientsCallOnlyReadTools(t *testing.T) {
 // TestWritePrefixDetector pins the detector itself, so the scan above
 // cannot silently stop recognising write tools.
 func TestWritePrefixDetector(t *testing.T) {
-	for _, name := range []string{"create_capacity_plan", "publish_capacity_plan", "register_process_path", "declare_station_standard", "assign_labor", "revoke_reservation", "classify_product", "record_measurement", "register_asn", "cancel_asn", "book_appointment", "check_in_appointment", "open_receipt", "receive_line", "close_receipt"} {
+	for _, name := range []string{"create_capacity_plan", "publish_capacity_plan", "register_process_path", "declare_station_standard", "assign_labor", "revoke_reservation", "classify_product", "record_measurement", "register_asn", "cancel_asn", "book_appointment", "check_in_appointment", "open_receipt", "receive_line", "close_receipt", "declare_pack_level", "retire_pack_level"} {
 		if writePrefixOf(name) == "" {
 			t.Errorf("%q must be flagged as a write tool", name)
 		}
 	}
-	for _, name := range []string{"get_process_path_capacity", "get_capacity_plan", "get_storage_capacity", "list_station_standards", "find_claimable_work", "diagnose_stuck_tasks", "get_product", "list_products", "get_product_classification", "get_physical_profile", "list_asns", "get_asn", "list_appointments", "get_appointment", "list_receipts", "get_receipt", "list_docks"} {
+	for _, name := range []string{"get_process_path_capacity", "get_capacity_plan", "get_storage_capacity", "list_station_standards", "find_claimable_work", "diagnose_stuck_tasks", "get_product", "list_products", "get_product_classification", "get_physical_profile", "get_pack_levels", "resolve_gtin", "list_asns", "get_asn", "list_appointments", "get_appointment", "list_receipts", "get_receipt", "list_docks"} {
 		if p := writePrefixOf(name); p != "" {
 			t.Errorf("%q is a read tool but was flagged by prefix %q", name, p)
 		}

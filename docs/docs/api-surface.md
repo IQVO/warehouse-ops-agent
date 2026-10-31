@@ -52,7 +52,15 @@ context's facts.
 All ten tools are annotated read-only
 (`mcp.ToolAnnotations{ReadOnlyHint: true}`). This agent has **zero write
 tools** — see the [Governance note](./mcp/governance-note.md) for why that
-is a v1 design choice, not an oversight.
+is a design choice, not an oversight. Its single write is **not a tool**: the
+human-confirmed `release_next_work` act slice
+([ADR 0027](./adr/0027-act-slice-human-confirmed-work-release.md)) exists only
+as two opt-in REST routes (`POST /act/release-next-work/proposals` and
+`/approvals`, see the [HTTP routes page](./api/http-routes.md)), deliberately
+unreachable from MCP and from the LLM. The propose response also carries an
+advisory, read-only `exceptionContext` asked of exception-management over A2A
+([ADR 0028](./adr/0028-advisory-exception-context-on-release-proposals.md));
+it never changes the minting decision and is not an MCP tool either.
 
 ## What is not yet exposed
 
@@ -78,10 +86,11 @@ Its MCP server is read+write; this agent calls read tools only.
 `product-master`'s outbound client
 ([ADR 0020](./adr/0020-product-master-mcp-client-and-master-data-gaps.md))
 is consumed only through `list_products` (the master-data gaps report);
-`get_product`, `get_product_classification` and `get_physical_profile` are
-deliberately not wired (Phase 5.4). The client's DTOs are still
-contract-tested against product-master's published registry.
-product-master's MCP server is read-only.
+`get_product`, `get_product_classification`, `get_physical_profile`,
+`get_pack_levels` and `resolve_gtin` are deliberately not wired, and its two
+pack-level write tools (`declare_pack_level`, `retire_pack_level`) are never
+called. The client's DTOs are still contract-tested against product-master's
+published registry (all eight tools pinned).
 
 `inbound-receiving`'s outbound client
 ([ADR 0021](./adr/0021-inbound-receiving-mcp-client-and-inbound-outlook.md))

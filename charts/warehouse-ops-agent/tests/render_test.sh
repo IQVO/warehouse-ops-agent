@@ -40,12 +40,70 @@ stale_set="$(helm template "$release" "$chart_dir" --set-string 'config.slotPlan
 grep -q 'SLOT_PLAN_STALE_AGE: "12h"' <<<"$stale_set" || fail "config.slotPlanStaleAge is not rendered into the ConfigMap as SLOT_PLAN_STALE_AGE"
 
 # SLOTTING_OPTIMIZATION_MCP_ENDPOINT is always rendered in the Deployment
-# (empty = client disabled, fail-open), and the removed
-# process-path-management client's env var never comes back (ADR 0024,
-# gap A9).
+# (empty = client disabled, fail-open). PROCESS_PATH_MANAGEMENT_MCP_ENDPOINT
+# is rendered in BOTH the Deployment and the ConfigMap from
+# upstreams.processPathManagement.endpoint (ADR 0026 re-added the client
+# after ADR 0024's removal; a set value reaches the Deployment verbatim).
 grep -q 'SLOTTING_OPTIMIZATION_MCP_ENDPOINT' <<<"$deployment" || fail "upstreams.slottingOptimization.endpoint is not rendered into the Deployment"
-if grep -q 'PROCESS_PATH_MANAGEMENT' <<<"$deployment"; then
-  fail "PROCESS_PATH_MANAGEMENT_MCP_ENDPOINT still rendered: the client was removed (ADR 0024)"
-fi
+grep -q 'PROCESS_PATH_MANAGEMENT_MCP_ENDPOINT' <<<"$deployment" || fail "upstreams.processPathManagement.endpoint is not rendered into the Deployment as PROCESS_PATH_MANAGEMENT_MCP_ENDPOINT"
+grep -q 'PROCESS_PATH_MANAGEMENT_MCP_ENDPOINT' <<<"$configmap_default" || fail "upstreams.processPathManagement.endpoint is not rendered into the ConfigMap as PROCESS_PATH_MANAGEMENT_MCP_ENDPOINT"
+set_ppm_endpoint="$(helm template "$release" "$chart_dir" --set-string 'upstreams.processPathManagement.endpoint=http://process-path-management.warehouse-systems.svc.cluster.local:8090/mcp' --show-only templates/deployment.yaml)"
+grep -q 'PROCESS_PATH_MANAGEMENT_MCP_ENDPOINT' <<<"$set_ppm_endpoint" || fail "upstreams.processPathManagement.endpoint is not rendered into the Deployment"
+grep -q 'value: "http://process-path-management.warehouse-systems.svc.cluster.local:8090/mcp"' <<<"$set_ppm_endpoint" ||
+  fail "upstreams.processPathManagement.endpoint does not reach the Deployment as PROCESS_PATH_MANAGEMENT_MCP_ENDPOINT verbatim"
 
+# Every one of the twelve ADR-0025 upstream endpoints is rendered into
+# BOTH the Deployment env and the ConfigMap (envFrom mounts it), from
+# its upstreams.<name>.endpoint value, with exactly the env name the
+# binary reads; and a set value reaches the Deployment verbatim.
+adr0025_envs="CUSTOMER_ORDERING_MCP_ENDPOINT DELIVERY_PROMISE_MCP_ENDPOINT LAST_MILE_DELIVERY_MCP_ENDPOINT LINEHAUL_TRANSPORTATION_MCP_ENDPOINT NODE_PERFORMANCE_MCP_ENDPOINT NODE_TOPOLOGY_MCP_ENDPOINT OFFER_AVAILABILITY_MCP_ENDPOINT ORDER_SOURCING_MCP_ENDPOINT SHIPPING_AND_TRACKING_MCP_ENDPOINT VENDOR_CONNECTIVITY_MCP_ENDPOINT TASK_INTERLEAVING_MCP_ENDPOINT PICK_FACE_REPLENISHMENT_MCP_ENDPOINT SELLER_INBOUND_MCP_ENDPOINT"
+for env_name in $adr0025_envs; do
+  grep -q "$env_name" <<<"$deployment" || fail "upstreams.<adr0025>.endpoint is not rendered into the Deployment as $env_name"
+  grep -q "$env_name" <<<"$configmap_default" || fail "upstreams.<adr0025>.endpoint is not rendered into the ConfigMap as $env_name"
+done
+set_vendor_endpoint="$(helm template "$release" "$chart_dir" --set-string 'upstreams.vendorConnectivity.endpoint=http://vendor-connectivity-mcp.warehouse-systems.svc.cluster.local:8090/mcp' --show-only templates/deployment.yaml)"
+grep -q 'VENDOR_CONNECTIVITY_MCP_ENDPOINT' <<<"$set_vendor_endpoint" || fail "upstreams.vendorConnectivity.endpoint is not rendered into the Deployment"
+grep -q 'value: "http://vendor-connectivity-mcp.warehouse-systems.svc.cluster.local:8090/mcp"' <<<"$set_vendor_endpoint" ||
+  fail "upstreams.vendorConnectivity.endpoint does not reach the Deployment as VENDOR_CONNECTIVITY_MCP_ENDPOINT verbatim"
+set_seller_endpoint="$(helm template "$release" "$chart_dir" --set-string 'upstreams.sellerInbound.endpoint=http://seller-inbound-mcp.warehouse-systems.svc.cluster.local:8090/mcp' --show-only templates/deployment.yaml)"
+grep -q 'SELLER_INBOUND_MCP_ENDPOINT' <<<"$set_seller_endpoint" || fail "upstreams.sellerInbound.endpoint is not rendered into the Deployment"
+grep -q 'value: "http://seller-inbound-mcp.warehouse-systems.svc.cluster.local:8090/mcp"' <<<"$set_seller_endpoint" ||
+  fail "upstreams.sellerInbound.endpoint does not reach the Deployment as SELLER_INBOUND_MCP_ENDPOINT verbatim"
+
+# The act slice (ADR 0027) is the only write route. Behind Kong it gets its OWN
+# route with a GET/OPTIONS-only cors plugin, so a browser's preflight for POST
+# is refused at the edge, while the main route's cors plugin (all methods)
+# stays for /mcp. Rendered only when the Gateway API route AND cors are on.
+edge_args=(--set gatewayApi.enabled=true --set kongPlugins.cors.enabled=true --set kongPlugins.prometheus.enabled=true
+  --set 'gatewayApi.hosts[0].path=/api/warehouse-ops-agent' --set gatewayApi.stripPath=true
+  --set 'gatewayApi.parentRefs[0].name=kong' --set 'gatewayApi.parentRefs[0].namespace=kong')
+act_route="$(helm template "$release" "$chart_dir" "${edge_args[@]}" --show-only templates/httproute-act.yaml)"
+grep -q 'value: /api/warehouse-ops-agent/act$' <<<"$act_route" || fail "the act route does not match <host path>/act"
+grep -q 'replacePrefixMatch: /act$' <<<"$act_route" || fail "the act route does not rewrite the stripped prefix back to /act"
+grep -q 'konghq.com/plugins: ".*-cors-readonly' <<<"$act_route" || fail "the act route is not attached to the read-only cors plugin"
+if grep -E 'konghq.com/plugins' <<<"$act_route" | grep -qE -- '-cors([",])'; then
+  fail "the act route is attached to the all-methods cors plugin"
+fi
+grep -q 'prometheus' <<<"$act_route" || fail "the act route lost the prometheus plugin"
+
+plugins="$(helm template "$release" "$chart_dir" "${edge_args[@]}" --show-only templates/kong-plugins.yaml)"
+# Bounded slices after each plugin's name line (each block is far shorter than
+# the gap to the next one), portable across awk implementations.
+readonly_cors="$(grep -A 20 'name: [^ ]*-cors-readonly$' <<<"$plugins" || true)"
+[ -n "$readonly_cors" ] || fail "the cors-readonly KongPlugin is not rendered"
+grep -q '^    - GET$' <<<"$readonly_cors" && grep -q '^    - OPTIONS$' <<<"$readonly_cors" || fail "cors-readonly does not allow GET and OPTIONS"
+for m in POST PUT PATCH DELETE; do
+  if grep -q "^    - $m\$" <<<"$readonly_cors"; then fail "cors-readonly allows $m — the whole point is that it must not"; fi
+done
+grep -q 'cors-readonly' <<<"$(helm template "$release" "$chart_dir" "${edge_args[@]}" --show-only templates/httproute.yaml)" &&
+  fail "the MAIN route got the read-only cors plugin — /mcp would lose POST from a browser MCP client"
+main_cors="$(grep -A 22 'name: [^ ]*-cors$' <<<"$plugins" || true)"
+grep -q '^    - POST$' <<<"$main_cors" || fail "the main cors plugin lost POST — browser MCP clients need it"
+
+# No cors plugin (or no Gateway API route) = no CORS at the edge to narrow = no act route.
+for off in "--set gatewayApi.enabled=true" "--set kongPlugins.cors.enabled=true"; do
+  # shellcheck disable=SC2086
+  out="$(helm template "$release" "$chart_dir" $off --show-only templates/httproute-act.yaml 2>&1 || true)"
+  grep -q 'kind: HTTPRoute' <<<"$out" && fail "the act route rendered with only: $off"
+done
 echo "warehouse-ops-agent chart render assertions passed"

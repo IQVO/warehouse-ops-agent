@@ -33,7 +33,7 @@ In the Helm chart one Deployment runs the binary behind a Service on port
 | `internal/ports` | ports | the interfaces the use cases depend on: one client interface per upstream context (`clients.go`, `clients_phase2.go`, `clients_planning.go`, `clients_product_master.go`, `clients_inbound_receiving.go`, `clients_nip.go`, `clients_slotting.go`, `clients_returns_processing.go`, `clients_exception_management.go`), the console REST clients (`order_lifecycle_clients.go`, `console_reports_clients.go`), `TelemetryReader`, `LogReader`, `Reasoner`, `ToolInvoker`, `ArbitrationMetrics`, and the sentinel errors `ErrNotFound`, `ErrUpstreamInvalidInput`, `ErrUpstreamNotFound` |
 | `internal/adapters/inbound/http` | driving adapter | chi router, middleware chain, handlers and JSON DTOs for the 13 `GET` routes; mounts `/mcp` |
 | `internal/adapters/inbound/mcp` | driving adapter | the agent's MCP server (`warehouse-ops-agent-mcp` 1.0.0) and its up to ten read-only tools |
-| `internal/adapters/outbound/mcpclient` | driven adapter | one typed client per upstream MCP server (fourteen), the shared `Session` (fresh Streamable HTTP session per call, 10 s timeout), the ADR 0018 tool-error slug classifier, and the `ToolInvoker` the LLM uses |
+| `internal/adapters/outbound/mcpclient` | driven adapter | one typed client per upstream MCP server (twenty-six), the shared `Session` (fresh Streamable HTTP session per call, 10 s timeout), the ADR 0018 tool-error slug classifier, and the `ToolInvoker` the LLM uses |
 | `internal/adapters/outbound/restclient` | driven adapter | plain REST clients for the four OLTP APIs and the seven `*-reports` readers (5 s timeout) |
 | `internal/adapters/outbound/telemetry` | driven adapter | the Prometheus reader (or a no-op stub), and the OTel `ArbitrationMetrics` and `CircuitBreakerMetrics` |
 | `internal/adapters/outbound/logs` | driven adapter | the Loki reader |
@@ -66,7 +66,7 @@ flowchart LR
     LLM["outbound/llm/anthropic"]
   end
 
-  CTX["fourteen sibling MCP servers"]
+  CTX["twenty-six sibling MCP servers"]
   OLTP["four OLTP REST APIs"]
   REP["seven *-reports readers"]
   PROM["Prometheus"]
