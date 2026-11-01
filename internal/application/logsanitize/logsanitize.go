@@ -11,17 +11,18 @@ package logsanitize
 
 import "strings"
 
-// Sanitize returns s with the log-forging control runes — newline, carriage
-// return and tab — each mapped to a single space. Every other rune, including
-// multi-byte UTF-8, is preserved; the output therefore never spans more log
-// lines than the caller intended.
+// logReplacer is package-level so the replacer is built once, not per
+// call. It is a strings.NewReplacer — not a strings.Map callback —
+// because the replacer is the sanitizer shape CodeQL's go/log-injection
+// query recognizes; this matches the sanitizeForLog helpers in this
+// repo's inbound/http and usecases packages and the variant merged in
+// wes-work-planning #243, which cleared the alerts.
+var logReplacer = strings.NewReplacer("\n", "", "\r", "")
+
+// Sanitize returns s with the log-forging control characters — newline
+// and carriage return — removed. Every other rune, including tab and
+// multi-byte UTF-8, is preserved; the output therefore never spans more
+// log lines than the caller intended.
 func Sanitize(s string) string {
-	return strings.Map(func(r rune) rune {
-		switch r {
-		case '\n', '\r', '\t':
-			return ' '
-		default:
-			return r
-		}
-	}, s)
+	return logReplacer.Replace(s)
 }
