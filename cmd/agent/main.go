@@ -48,7 +48,8 @@ func main() {
 
 // run is the composition root's body: logger + observability, env config,
 // every outbound client, every use case, both inbound adapters, then serve
-// until SIGINT/SIGTERM. The wiring itself lives in the newX helpers below,
+// until SIGINT/SIGTERM. The wiring itself lives in the newX helpers (in this
+// file, wire_clients.go and wire_decision_support.go),
 // one per adapter family.
 func run() error {
 	logger := newLogger(getenv("LOG_LEVEL", "info"))
