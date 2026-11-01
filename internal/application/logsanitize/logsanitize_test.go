@@ -14,29 +14,29 @@ func TestSanitize(t *testing.T) {
 			want: "path-14-north-conveyor",
 		},
 		{
-			name: "newline becomes a space",
+			name: "newline is stripped",
 			in:   "a\nb",
-			want: "a b",
+			want: "ab",
 		},
 		{
-			name: "carriage return becomes a space",
+			name: "carriage return is stripped",
 			in:   "a\rb",
-			want: "a b",
+			want: "ab",
 		},
 		{
-			name: "tab becomes a space",
+			name: "tab passes through (cannot forge a line)",
 			in:   "a\tb",
-			want: "a b",
+			want: "a\tb",
 		},
 		{
-			name: "CRLF line-forging attempt collapses to spaces",
+			name: "CRLF line-forging attempt collapses",
 			in:   "INFO released ok\r\nERROR forged entry",
-			want: "INFO released ok  ERROR forged entry",
+			want: "INFO released okERROR forged entry",
 		},
 		{
-			name: "mixed control runes are each mapped",
+			name: "mixed control runes: only CR/LF are stripped",
 			in:   "x\n\ry\tz",
-			want: "x  y z",
+			want: "xy\tz",
 		},
 		{
 			name: "empty string stays empty",
@@ -49,9 +49,9 @@ func TestSanitize(t *testing.T) {
 			want: "långrend-strøk-Øst",
 		},
 		{
-			name: "only control runes yields spaces",
-			in:   "\n\r\t",
-			want: "   ",
+			name: "only newlines yields the empty string",
+			in:   "\n\r",
+			want: "",
 		},
 	}
 
@@ -64,17 +64,17 @@ func TestSanitize(t *testing.T) {
 	}
 }
 
-// TestSanitizeNoControlRunesSurvive is the property the log-injection query
-// relies on: for any input built from the forge alphabet, the output contains
-// none of the line-splitting runes.
-func TestSanitizeNoControlRunesSurvive(t *testing.T) {
+// TestSanitizeNoLineSplittingRunesSurvive is the property the
+// log-injection query relies on: for any input built from the forge
+// alphabet, the output contains neither of the line-splitting runes.
+func TestSanitizeNoLineSplittingRunesSurvive(t *testing.T) {
 	pieces := []string{"", "ok", "\n", "\r", "\t", "\r\n", "unit-7", "\n\t\r"}
 	for _, a := range pieces {
 		for _, b := range pieces {
 			for _, c := range pieces {
 				out := Sanitize(a + b + c)
 				for _, r := range out {
-					if r == '\n' || r == '\r' || r == '\t' {
+					if r == '\n' || r == '\r' {
 						t.Fatalf("Sanitize(%q) = %q still contains %q", a+b+c, out, r)
 					}
 				}
