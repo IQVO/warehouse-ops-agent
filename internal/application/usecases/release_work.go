@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/claudioed/warehouse-ops-agent/internal/application/logsanitize"
 	"github.com/claudioed/warehouse-ops-agent/internal/domain/approval"
 	"github.com/claudioed/warehouse-ops-agent/internal/domain/policy"
 	"github.com/claudioed/warehouse-ops-agent/internal/ports"
@@ -166,7 +167,7 @@ func (uc *ReleaseWork) Propose(ctx context.Context, buildingId, shiftId, pathId 
 		return ReleaseProposal{}, err
 	}
 	ec := uc.exceptionContext(ctx, pathId)
-	uc.logger.InfoContext(ctx, "act: release_next_work proposed", "pathId", pathId, "source", d.Source, "nonce", p.Nonce, "expiresAt", p.ExpiresAt, "exceptionContext", ec.Status)
+	uc.logger.InfoContext(ctx, "act: release_next_work proposed", "pathId", logsanitize.Sanitize(pathId), "source", d.Source, "nonce", p.Nonce, "expiresAt", p.ExpiresAt, "exceptionContext", ec.Status)
 	return ReleaseProposal{Token: token, ExpiresAt: p.ExpiresAt, Decision: d, ExceptionContext: ec}, nil
 }
 
@@ -181,7 +182,7 @@ func (uc *ReleaseWork) exceptionContext(ctx context.Context, pathId string) Exce
 	defer cancel()
 	summary, err := uc.exceptions.OpenExceptions(lookupCtx, ports.ExceptionContextQuery{})
 	if err != nil {
-		uc.logger.WarnContext(ctx, "act: exception context unavailable; the proposal is unaffected", "pathId", pathId, "error", err)
+		uc.logger.WarnContext(ctx, "act: exception context unavailable; the proposal is unaffected", "pathId", logsanitize.Sanitize(pathId), "error", err)
 		return ExceptionContextResult{Status: ExceptionContextUnavailable}
 	}
 	return ExceptionContextResult{Status: ExceptionContextOK, Summary: &summary}
@@ -197,16 +198,16 @@ func (uc *ReleaseWork) Approve(ctx context.Context, token string) (ReleaseOutcom
 		return ReleaseOutcome{}, err
 	}
 	if !uc.consume(p) {
-		uc.logger.WarnContext(ctx, "act: confirmation token replay refused", "pathId", p.PathId, "nonce", p.Nonce)
+		uc.logger.WarnContext(ctx, "act: confirmation token replay refused", "pathId", logsanitize.Sanitize(p.PathId), "nonce", logsanitize.Sanitize(p.Nonce))
 		return ReleaseOutcome{}, ErrTokenAlreadyUsed
 	}
 	released, err := uc.releaser.ReleaseNextWork(ctx, p.PathId)
 	if err != nil {
-		uc.logger.WarnContext(ctx, "act: release_next_work delegation failed", "pathId", p.PathId, "nonce", p.Nonce, "error", err)
+		uc.logger.WarnContext(ctx, "act: release_next_work delegation failed", "pathId", logsanitize.Sanitize(p.PathId), "nonce", logsanitize.Sanitize(p.Nonce), "error", err)
 		return ReleaseOutcome{}, err
 	}
 	out := ReleaseOutcome{Released: released, PathId: p.PathId, ExecutedAt: uc.now().UTC()}
-	uc.logger.InfoContext(ctx, "act: release_next_work executed", "pathId", p.PathId, "workUnitId", released.WorkUnitId, "source", p.Source, "nonce", p.Nonce)
+	uc.logger.InfoContext(ctx, "act: release_next_work executed", "pathId", logsanitize.Sanitize(p.PathId), "workUnitId", released.WorkUnitId, "source", logsanitize.Sanitize(p.Source), "nonce", logsanitize.Sanitize(p.Nonce))
 	return out, nil
 }
 
