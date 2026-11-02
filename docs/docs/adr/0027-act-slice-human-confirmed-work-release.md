@@ -17,6 +17,12 @@ Accepted (2026-10-29). Narrows — does not remove — the v1 zero-write rule of
 and the wes-work-planning A2A agent
 ([wes-work-planning ADR 0046](https://iqvo.github.io/wes-work-planning/docs/adr/0046-a2a-inbound-adapter)).
 
+> **Amended by [ADR 0029](./0029-labor-reallocation-act-slice.md):** a second
+> act slice (`assign_labor`, delegated to workforce-management) now exists
+> beside this one, and the zero-write guarantee is re-pinned for exactly those
+> two slices. Where this ADR says `assign_labor` stays recommendation-only, it
+> describes the state at the time of writing.
+
 ## Context
 
 This agent recommends. For flow balance it can already say, with an evidence

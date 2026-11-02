@@ -49,7 +49,7 @@ context's facts.
 | `get_inbound_outlook` | Same outlook as `GET /inbound-outlook`, no arguments; registered only when `INBOUND_RECEIVING_MCP_ENDPOINT` is set, `ReadOnlyHint: true`. A tool error only when every section failed. It only reports: it never registers, books, receives or closes anything ([ADR 0021](./adr/0021-inbound-receiving-mcp-client-and-inbound-outlook.md)). |
 | `triage_stuck_transfers`, `get_transfer_status`, `explain_network_imbalance` | The transfer watch, same answers as `GET /transfer-watch/*`; registered only when `NETWORK_INVENTORY_PLANNING_MCP_ENDPOINT` is set (`internal/adapters/inbound/mcp/transfer_watch.go`, [ADR 0019](./adr/0019-network-inventory-planning-transfer-watch.md)). |
 
-All ten tools are annotated read-only
+Every tool is annotated read-only
 (`mcp.ToolAnnotations{ReadOnlyHint: true}`). This agent has **zero write
 tools** — see the [Governance note](./mcp/governance-note.md) for why that
 is a design choice, not an oversight. Its single write is **not a tool**: the
@@ -61,6 +61,16 @@ unreachable from MCP and from the LLM. The propose response also carries an
 advisory, read-only `exceptionContext` asked of exception-management over A2A
 ([ADR 0028](./adr/0028-advisory-exception-context-on-release-proposals.md));
 it never changes the minting decision and is not an MCP tool either.
+
+The agent's **second** human-gated write
+([ADR 0029](./adr/0029-labor-reallocation-act-slice.md)) follows the same
+rules: opt-in REST routes `POST /labor-reallocation/proposals` and
+`POST /labor-reallocation/proposals/{proposalId}/approve` (a ranked list of at
+most three moves, each with its own token; approving delegates ONE move to
+workforce-management's `assign_labor` A2A skill), deliberately unreachable from
+MCP and from the LLM. The read side **is** an MCP tool,
+`labor_reallocation_outlook` (authority L2): the same ranking with no token and
+no write path.
 
 ## What is not yet exposed
 

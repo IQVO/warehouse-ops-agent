@@ -191,6 +191,22 @@ value yet; warehouse-infra sets them through `extraEnv`.
 | `APPROVAL_TTL` | `5m` | no | Go duration: how long a confirmation token stays valid. Must be positive and at most `1h`. **A malformed or non-positive value aborts startup** (it is never defaulted: it is a security parameter). | `internal/config/config.go`, `internal/domain/approval/approval.go` | none (`extraEnv`) |
 | `APPROVAL_SIGNING_KEY` | empty, which generates an ephemeral per-process key | no | HMAC key for confirmation tokens, at least 32 bytes; a shorter value aborts startup. Never logged. Empty is only coherent with `replicaCount: 1`: a token minted by one process does not verify in another. | `internal/config/config.go` | none (a Secret via `extraEnv`) |
 
+### Labor reallocation act slice (ADR 0029)
+
+The second human-confirmed write: `assign_labor` at workforce-management.
+Opt-in: with `WORKFORCE_MANAGEMENT_A2A_URL` unset the act is off and both
+`POST /labor-reallocation/*` routes answer `503`; the read-only
+`labor_reallocation_outlook` MCP tool needs only
+`WORKFORCE_MANAGEMENT_MCP_ENDPOINT`. The token settings `APPROVAL_TTL` and
+`APPROVAL_SIGNING_KEY` above apply to this slice too (it keeps its own
+ephemeral key when none is pinned, so a release token never verifies here).
+Unlike the ADR 0027 variables, this one has a chart value, rendered into both
+the ConfigMap and the Deployment env (always rendered; empty = off).
+
+| Variable | Default | Required | Effect | Source | Helm value |
+|---|---|---|---|---|---|
+| `WORKFORCE_MANAGEMENT_A2A_URL` | empty (act off) | no | Base URL of the workforce-management A2A agent, e.g. `http://workforce-management-a2a.warehouse-systems.svc.cluster.local:8093/`. Its Agent Card is discovered under it on first use. Setting it builds the second write adapter in this agent. **A value that is not an absolute `http(s)` URL with a host aborts startup, and so does setting it while `WORKFORCE_MANAGEMENT_MCP_ENDPOINT` is unset** (a proposal needs its staffing reads). | `internal/config/config.go`, `cmd/agent/act.go` | `upstreams.workforceManagement.a2aEndpoint` |
+
 ### Advisory exception context (ADR 0028)
 
 Read-only, advisory: when the act slice proposes a release, the agent also asks

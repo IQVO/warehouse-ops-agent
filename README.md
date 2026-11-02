@@ -100,7 +100,10 @@ Sources under [`docs/docs/`](./docs/docs/):
   deliberate exception is the human-confirmed `release_next_work` slice
   ([ADR 0027](docs/docs/adr/0027-act-slice-human-confirmed-work-release.md)),
   pinned by `act_slice_test.go`: REST-only, opt-in, never an MCP tool, never
-  reachable by the LLM.
+  reachable by the LLM. A second, equally gated slice,
+  `assign_labor` at workforce-management
+  ([ADR 0029](docs/docs/adr/0029-labor-reallocation-act-slice.md)), is pinned
+  by the same test: the write surface is exactly those two.
 - **GitFlow.** `feature/*` branches → PR into `develop`; CI verified green
   before merge. Never commit directly to `main`.
 - **Untrusted model input.** Every tool argument this agent accepts (and
@@ -219,6 +222,17 @@ Plus:
   max `1h`; a malformed value aborts startup) is the confirmation token's
   life. `APPROVAL_SIGNING_KEY` (Secret, optional, ≥ 32 bytes) pins the token
   key; unset = an ephemeral per-process key, which needs `replicaCount: 1`.
+- **Labor reallocation act slice (opt-in, ADR 0029):**
+  `WORKFORCE_MANAGEMENT_A2A_URL` — base URL of the workforce-management A2A
+  agent (`http://workforce-management-a2a.<ns>.svc.cluster.local:8093/`; chart
+  value `upstreams.workforceManagement.a2aEndpoint`). Unset (the default) =
+  `POST /labor-reallocation/...` answers 503. Set (it also needs
+  `WORKFORCE_MANAGEMENT_MCP_ENDPOINT`, or startup aborts) =
+  `POST /labor-reallocation/proposals` ranks at most three moves and
+  `POST /labor-reallocation/proposals/{proposalId}/approve` delegates ONE
+  human-approved move. The read-only MCP tool `labor_reallocation_outlook`
+  (authority L2, no token) needs only the MCP endpoint. The same
+  `APPROVAL_TTL` / `APPROVAL_SIGNING_KEY` apply.
 - **Advisory exception context (opt-in, ADR 0028):**
   `EXCEPTION_MANAGEMENT_A2A_URL` — base URL of the exception-management A2A
   agent (`http://exception-management-a2a.<ns>.svc.cluster.local:8093/`).

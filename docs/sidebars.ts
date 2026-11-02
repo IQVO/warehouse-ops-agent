@@ -121,6 +121,7 @@ const sidebars: SidebarsConfig = {
         'adr/0024-slot-plan-watch-promise-health-and-ppm-client-removal',
         'adr/0025-network-fleet-mcp-clients',
         'adr/0028-advisory-exception-context-on-release-proposals',
+        'adr/0029-labor-reallocation-act-slice',
       ],
     },
   ],

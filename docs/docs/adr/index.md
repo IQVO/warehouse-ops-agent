@@ -48,6 +48,7 @@ accepted.
 | [0027](./0027-act-slice-human-confirmed-work-release.md) | The act slice: human-confirmed (propose → approve, HMAC confirmation token) release of the next work unit, delegated to the wes-work-planning A2A agent; REST-only, never MCP, never the LLM; the zero-write guarantee narrowed to exactly this slice and re-pinned by tests | Accepted |
 | [0027](./0027-seller-inbound-mcp-client.md) | The fourteenth read-only MCP client (seller-inbound, four tools) golden-pinned and chart-rendered; wired, not yet consumed | Accepted |
 | [0028](./0028-advisory-exception-context-on-release-proposals.md) | Advisory exception context on release proposals: a second, read-only A2A client asks exception-management what is open before a human approves; never gates, alters or persists anything; `EXCEPTION_MANAGEMENT_A2A_URL`, opt-in | Accepted |
+| [0029](./0029-labor-reallocation-act-slice.md) | Labor reallocation act slice (act slice #2): a pure policy ranks at most three moves from workforce-management's own readings; propose → approve (HMAC token bound to one move) delegates ONE move to the workforce-management `assign_labor` A2A skill with `proposalId`, `approvedBy`, `agentId`; REST-only, never MCP, never the LLM; token-less `labor_reallocation_outlook` (authority L2); zero-write guarantee re-pinned for exactly two slices | Accepted |
 
 ## Proposing a new one
 

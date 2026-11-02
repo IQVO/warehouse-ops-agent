@@ -208,7 +208,7 @@ func (s *Signer) sign(enc string) string {
 // wrong element type is an invalid token, never a defaulted field.
 const (
 	wireStrings = 5
-	wireFields  = wireStrings + 1
+	wireFields  = 6 // the strings plus the expiry
 )
 
 func encode(f [wireStrings]string, exp time.Time) ([]byte, error) {
