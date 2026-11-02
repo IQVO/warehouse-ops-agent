@@ -181,18 +181,22 @@ func decodeActBody(w nethttp.ResponseWriter, r *nethttp.Request, dst any) bool {
 func writeActError(w nethttp.ResponseWriter, err error) {
 	status := nethttp.StatusBadGateway
 	switch {
-	case errors.Is(err, usecases.ErrInvalidInput), errors.Is(err, approval.ErrInvalidToken), errors.Is(err, approval.ErrUnsupportedAction):
+	case errors.Is(err, usecases.ErrInvalidInput), errors.Is(err, approval.ErrInvalidToken), errors.Is(err, approval.ErrUnsupportedAction),
+		errors.Is(err, usecases.ErrProposalMismatch), errors.Is(err, ports.ErrAssignmentInvalid):
 		status = nethttp.StatusBadRequest
 	case errors.Is(err, approval.ErrExpired):
 		status = nethttp.StatusGone
 	case errors.Is(err, usecases.ErrNotRecommended),
 		errors.Is(err, usecases.ErrIncompleteEvidence),
 		errors.Is(err, usecases.ErrTokenAlreadyUsed),
-		errors.Is(err, ports.ErrNoPendingWork):
+		errors.Is(err, ports.ErrNoPendingWork),
+		errors.Is(err, usecases.ErrNotUnderstaffed),
+		errors.Is(err, usecases.ErrNoReallocationMove),
+		errors.Is(err, ports.ErrAssignmentRejected):
 		status = nethttp.StatusConflict
-	case errors.Is(err, ports.ErrUnknownWorkPlanningPath):
+	case errors.Is(err, ports.ErrUnknownWorkPlanningPath), errors.Is(err, ports.ErrAssignmentNotFound):
 		status = nethttp.StatusNotFound
-	case errors.Is(err, ports.ErrWorkPlanningUnreachable):
+	case errors.Is(err, ports.ErrWorkPlanningUnreachable), errors.Is(err, ports.ErrWorkforceAgentUnreachable):
 		status = nethttp.StatusBadGateway
 	}
 	msg := err.Error()

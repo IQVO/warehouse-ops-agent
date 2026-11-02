@@ -1,6 +1,6 @@
 // Package a2a is the outbound Agent2Agent adapter, built on the official
 // a2a-go/v2 SDK. It is the ONLY package in this agent allowed to import the
-// SDK (internal/architecture/zerowrite pins that) and it holds exactly TWO
+// SDK (internal/architecture/zerowrite pins that) and it holds exactly THREE
 // clients over one shared transport (peer.go: real Agent Card discovery,
 // the repo's otelhttp-instrumented http client, strict decoding of the
 // peer's in-band envelope and problems):
@@ -12,6 +12,10 @@
 //   - ExceptionClient (exceptions.go) implements the READ-ONLY port
 //     ExceptionContext: an advisory question to exception-management
 //     (ADR 0028). It implements no write verb and calls one read skill.
+//   - LaborClient (labor.go) implements the second WRITE port LaborAssigner:
+//     the labor-reallocation act slice's human-confirmed placement of one
+//     associate, delegated to workforce-management's assign_labor skill
+//     (ADR 0029). It is the single implementation of that port.
 //
 // The card is fetched from the well-known path and the protocol client is
 // built from it, so the wire contract is the one the peer advertises, not
