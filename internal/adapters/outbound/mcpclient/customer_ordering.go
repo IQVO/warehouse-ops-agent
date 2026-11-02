@@ -31,23 +31,20 @@ type CustomerOrdering struct {
 // NewCustomerOrdering builds a CustomerOrdering client for the given
 // connection config.
 func NewCustomerOrdering(cfg Config) *CustomerOrdering {
-	cfg.Name = "customer-ordering"
-	return &CustomerOrdering{session: New(cfg)}
+	return &CustomerOrdering{session: NewNamedSession("customer-ordering", cfg)}
 }
-
-var _ ports.CustomerOrderingClient = (*CustomerOrdering)(nil)
 
 // GetOrder calls get_order for one order id.
 func (c *CustomerOrdering) GetOrder(ctx context.Context, orderID string) (ports.CustomerOrder, error) {
 	var out ports.CustomerOrder
-	err := c.session.callTool(ctx, "get_order", map[string]any{"orderId": orderID}, &out)
+	err := c.session.callTool(ctx, "get_order", map[string]any{argOrderID: orderID}, &out)
 	return out, err
 }
 
 // GetOrderTracking calls get_order_tracking for one order id.
 func (c *CustomerOrdering) GetOrderTracking(ctx context.Context, orderID string) (ports.OrderTracking, error) {
 	var out ports.OrderTracking
-	err := c.session.callTool(ctx, "get_order_tracking", map[string]any{"orderId": orderID}, &out)
+	err := c.session.callTool(ctx, "get_order_tracking", map[string]any{argOrderID: orderID}, &out)
 	return out, err
 }
 
@@ -55,6 +52,6 @@ func (c *CustomerOrdering) GetOrderTracking(ctx context.Context, orderID string)
 // PII held only by customer-ordering and served only by this tool.
 func (c *CustomerOrdering) GetShipTo(ctx context.Context, orderID string) (ports.ShipToAddress, error) {
 	var out ports.ShipToAddress
-	err := c.session.callTool(ctx, "get_ship_to", map[string]any{"orderId": orderID}, &out)
+	err := c.session.callTool(ctx, "get_ship_to", map[string]any{argOrderID: orderID}, &out)
 	return out, err
 }

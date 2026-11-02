@@ -206,6 +206,15 @@ upstreams:
     endpoint: ""
   workforceManagement:
     endpoint: ""
+    # a2aEndpoint (ADR 0029, act slice #2): the base URL of the
+    # workforce-management A2A agent (its Agent Card is discovered under it),
+    # e.g. http://workforce-management-a2a.<ns>.svc.cluster.local:8093/.
+    # Rendered as WORKFORCE_MANAGEMENT_A2A_URL. Empty = the labor-reallocation
+    # act is OFF: POST /labor-reallocation/proposals and
+    # .../{proposalId}/approve answer 503 and no write adapter is built (the
+    # read-only labor_reallocation_outlook MCP tool still works from `endpoint`).
+    # Setting it requires `endpoint` too; the binary refuses to start otherwise.
+    a2aEndpoint: ""
   facilityLayout:
     endpoint: ""
   orderManagement:

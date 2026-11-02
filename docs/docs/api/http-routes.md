@@ -19,7 +19,7 @@ REST contract. If they disagree with the router, the router is correct.
 |---|---|
 | Listener | One `net/http` server on `AGENT_ADDR` (default `:8095`) serves every REST route and the MCP endpoint (`cmd/agent/main.go`, `serveAgent`). In the Helm chart the Service listens on port 80 and forwards to the container's `http` port 8095. |
 | Edge | warehouse-infra exposes the agent through Kong at `http://localhost:8000/api/warehouse-ops-agent`. Kong strips the prefix (`konghq.com/strip-path: "true"`, warehouse-infra `terraform/ops-agent.tf`), so `/api/warehouse-ops-agent/daily-brief` reaches the router as `/daily-brief`. |
-| Methods | Every REST route is `GET` except the two opt-in act-slice routes, which are `POST` ([ADR 0027](../adr/0027-act-slice-human-confirmed-work-release.md)). `/mcp` accepts every method (chi `Handle`), because Streamable HTTP uses `POST` for messages and `GET` for the event stream. |
+| Methods | Every REST route is `GET` except the four opt-in act-slice routes, which are `POST` (two pairs: [ADR 0027](../adr/0027-act-slice-human-confirmed-work-release.md) and [ADR 0029](../adr/0029-labor-reallocation-act-slice.md)). `/mcp` accepts every method (chi `Handle`), because Streamable HTTP uses `POST` for messages and `GET` for the event stream. |
 | Authentication | None. REST and MCP are unauthenticated fleet-wide ([ADR 0006](../adr/0006-fleet-wide-auth-removal.md)). |
 | CORS | `go-chi/cors`. Allowed origins come from `CORS_ALLOWED_ORIGINS` (comma-separated, default `http://localhost:5173`). Allowed methods `GET` and `OPTIONS` — deliberately *not* `POST`, so a browser fails the preflight for the act-slice routes. Behind Kong the gateway's own CORS plugin answers the preflight instead, so the chart gives `/act` a dedicated route with a `GET`/`OPTIONS`-only plugin (the rest of the agent, including `POST /mcp`, keeps the all-methods plugin). Allowed headers `Content-Type` and `Authorization`. No credentials, preflight cached for 300 s (`corsMiddleware`). |
 | Middleware order | `middleware.RequestID`, `otelchi.Middleware` (one server span per request, named after the chi route pattern), `otelchimetric.NewServerRequestDuration`, `otelchimetric.NewServerActiveRequests`, `RequestLogger`, `middleware.Recoverer`, CORS. `/mcp` goes through the same chain ([ADR 0010](../adr/0010-standard-metrics-convention.md)). |
@@ -294,6 +294,11 @@ timeout per call, `internal/adapters/outbound/restclient/clients.go`):
 | 2 | `GET /reservations?demandRef=<id>` | `INVENTORY_STORAGE_REST_URL` |
 | 3 | `GET /work-units?reference=<id>` | `WES_WORK_PLANNING_REST_URL` |
 | 4 | `GET /tasks?orderRef=<workUnitId>` once per work unit from step 3 | `FULFILLMENT_EXECUTION_REST_URL` |
+
+Steps 2-4 are paged collections: each request sends `limit=500`, reads the
+`items` array of the `{items, nextCursor}` envelope and follows `nextCursor`
+(filters repeated) until it is absent. More than 20 pages for one call is
+an error, never a silent truncation.
 
 **Response (`200`):** `orderId` plus four stages. A stage is `null` when
 its context did not answer:
@@ -599,6 +604,81 @@ and delegates the release to the wes-work-planning agent:
 The release itself is a delegation, not a data write: planning keeps every
 release decision, and the authoritative fact still comes back as the
 `WorkReleased` CloudEvent on Kafka.
+
+## Labor reallocation — `POST /labor-reallocation/*`
+
+The second and last write this agent performs ([ADR 0029](../adr/0029-labor-reallocation-act-slice.md)),
+again only after an explicit two-call human confirmation. **Opt-in:** both
+routes answer `503` until `WORKFORCE_MANAGEMENT_A2A_URL` is set (and
+`WORKFORCE_MANAGEMENT_MCP_ENDPOINT`, for the staffing reads). REST only — the
+read side is the separate, token-less MCP tool `labor_reallocation_outlook`.
+Both routes share the act-slice transport rules: `Content-Type:
+application/json` (else `415`), an 8 KiB body at most (`413`), unknown fields
+and trailing data rejected (`400`), GET/OPTIONS-only CORS.
+
+### `POST /labor-reallocation/proposals`
+
+Body `{"siteCode": "WH1", "shiftId": "S1", "toPathId": "pack", "candidates":
+[{"associateId": "a1", "fromPathId": "pick"}]}`. `siteCode`, `shiftId`,
+`toPathId` and one to twenty `candidates` are required (`fromPathId` is
+optional: omit it when the associate's current path is unknown). The candidates
+are caller-supplied because workforce-management publishes no associate list.
+Reads `get_staffing_gap` for the target and each distinct origin path and
+returns `200` only if the target is understaffed and at least one candidate can
+move:
+
+```json
+{
+  "siteCode": "WH1", "shiftId": "S1",
+  "target": { "pathId": "pack", "plannedHeads": 10, "activeHeads": 7, "understaffed": true },
+  "proposals": [{
+    "proposalId": "lrp-6f1c...", "rank": 1, "token": "<opaque, single-use, bound to this move>",
+    "expiresAt": "2026-11-02T12:05:00Z",
+    "associateId": "a1", "fromPathId": "pick", "toPathId": "pack",
+    "reasonCodes": ["target_path_understaffed", "origin_path_above_plan"],
+    "evidence": [{ "tool": "workforce-management get_staffing_gap", "summary": "path pack: plannedHeads=10 activeHeads=7 understaffed=true" },
+                 { "tool": "workforce-management get_staffing_gap", "summary": "path pick: plannedHeads=5 activeHeads=8 understaffed=false" }],
+    "nextCheck": "Read-only: call workforce-management get_staffing_gap (siteCode=WH1, shiftId=S1) for pathId=pack and confirm it is still understaffed, and for pathId=pick and confirm it is still above its plannedHeads"
+  }],
+  "skipped": [{ "associateId": "a2", "reason": "already_on_target_path" }]
+}
+```
+
+At most three proposals, ranked; never more than the path is short of
+`plannedHeads`. `reasonCodes`: `target_path_understaffed`,
+`origin_path_above_plan`, `no_current_path_stated`. `skipped[].reason`:
+`duplicate_associate`, `already_on_target_path`, `origin_status_unavailable`,
+`origin_path_understaffed`, `origin_path_not_above_plan`,
+`origin_surplus_already_used`, `move_limit_reached`. Refusals never carry a
+token: `400` invalid input (blank or over-long ids, no or more than 20
+candidates); `409` the target is not understaffed, or no offered associate can
+move; `502` the target reading failed (an unknown path surfaces here).
+
+### `POST /labor-reallocation/proposals/{proposalId}/approve`
+
+Body `{"token": "...", "approvedBy": "supervisor-1"}`. `approvedBy` is required
+(non-blank, no control characters, at most 128 characters). Verifies the token,
+checks it belongs to the `proposalId` in the path, consumes it (**at most
+once**) and delegates ONE move to workforce-management's `assign_labor` skill
+with `{associateId, pathId, proposalId, approvedBy, agentId:
+"warehouse-ops-agent"}`:
+
+```json
+{ "proposalId": "lrp-6f1c...", "associateId": "a1", "pathId": "pack",
+  "assignmentId": "a1@pack", "approvedBy": "supervisor-1", "executedAt": "2026-11-02T12:00:03Z" }
+```
+
+| Status | Meaning |
+|---|---|
+| `400` | token missing, malformed, forged or of another kind; the token belongs to another proposal; `approvedBy` missing or invalid; or workforce-management refused the arguments |
+| `404` | workforce-management does not know the associate or the path |
+| `409` | token already used; or workforce-management refused on a domain rule (certification, break, shift ended, ...) |
+| `410` | token expired (`APPROVAL_TTL`, default 5 min) — propose again |
+| `502` | the workforce-management agent is unreachable or answered off-contract. The outcome is unknown and the token is spent: check workforce-management, then propose again |
+
+Nothing is persisted here. The authoritative fact is the `LaborAssigned`
+CloudEvent workforce-management publishes, carrying `initiated_by`
+(`via: "a2a"`, `proposal_id`, `approved_by`, `agent_id`).
 
 ## MCP endpoint — `/mcp`
 

@@ -32,8 +32,6 @@ import (
 	inboundhttp "github.com/claudioed/warehouse-ops-agent/internal/adapters/inbound/http"
 	inboundmcp "github.com/claudioed/warehouse-ops-agent/internal/adapters/inbound/mcp"
 	"github.com/claudioed/warehouse-ops-agent/internal/adapters/outbound/logs"
-	"github.com/claudioed/warehouse-ops-agent/internal/adapters/outbound/mcpclient"
-	"github.com/claudioed/warehouse-ops-agent/internal/adapters/outbound/restclient"
 	"github.com/claudioed/warehouse-ops-agent/internal/adapters/outbound/telemetry"
 	"github.com/claudioed/warehouse-ops-agent/internal/application/usecases"
 	"github.com/claudioed/warehouse-ops-agent/internal/config"
@@ -50,7 +48,8 @@ func main() {
 
 // run is the composition root's body: logger + observability, env config,
 // every outbound client, every use case, both inbound adapters, then serve
-// until SIGINT/SIGTERM. The wiring itself lives in the newX helpers below,
+// until SIGINT/SIGTERM. The wiring itself lives in the newX helpers (in this
+// file, wire_clients.go and wire_decision_support.go),
 // one per adapter family.
 func run() error {
 	logger := newLogger(getenv("LOG_LEVEL", "info"))
@@ -90,6 +89,11 @@ func run() error {
 		return err
 	}
 
+	laborOutlook, laborReallocation, err := newLaborReallocation(cfg, logger, clients.wfmSite)
+	if err != nil {
+		return err
+	}
+
 	mcpDeps := inboundmcp.Deps{
 		DailyBrief:          decision.dailyBrief,
 		FlowBalanceAdvisory: decision.flowBalance,
@@ -100,6 +104,9 @@ func run() error {
 		TransferWatch:       decision.transferWatch,
 		NetworkOrderOutlook: decision.networkOrderOutlook,
 		NetworkNodeOutlook:  decision.networkNodeOutlook,
+		// Only the token-less outlook: the act half (laborReallocation) is
+		// REST-only and is NOT here, by design.
+		LaborReallocationOutlook: laborOutlook,
 	}
 	mcpHandler := inboundmcp.Handler(inboundmcp.NewServer(mcpDeps))
 
@@ -116,6 +123,8 @@ func run() error {
 		// ReleaseWork is the ADR-0027 act slice, REST-only: it is NOT in
 		// mcpDeps above, by design.
 		ReleaseWork: releaseWork,
+		// LaborReallocation is the ADR-0029 act slice #2, REST-only as well.
+		LaborReallocation: laborReallocation,
 		// MCPHandler mounts /mcp on the SAME chi router as every REST
 		// route (ADR-0010): otelchi trace, otelchimetric RED duration,
 		// and RequestLogger all apply to MCP traffic too, not just REST.
@@ -124,448 +133,6 @@ func run() error {
 	}
 
 	return serveAgent(cfg, logger, serviceName, handlers)
-}
-
-// outboundClients bundles every outbound adapter the use cases consume,
-// built from env config. Each MCP client satisfies its internal/ports
-// interface at compile time (see the var _ assertions in
-// internal/adapters/outbound/mcpclient/*.go) and is a genuinely nil
-// interface when its endpoint is unset (newMCPClient), so a nil check on
-// any of them means "not configured".
-type outboundClients struct {
-	// om backs the daily brief's promise-health section (ADR 0024).
-	om       ports.OrderManagementMCPClient
-	wes      ports.WesWorkPlanningClient
-	fe       ports.FulfillmentExecutionClient
-	wfm      ports.WorkforceManagementClient
-	facility ports.FacilityLayoutClient
-	inv      ports.InventoryStorageClient
-	lp       ports.LaborPerformanceClient
-	// planning is nil when WAREHOUSE_PLANNING_MCP_ENDPOINT is unset: the
-	// capacity outlook is then not wired at all (ADR 0013).
-	planning ports.WarehousePlanningClient
-	// productMaster is nil when PRODUCT_MASTER_MCP_ENDPOINT is unset: the
-	// master-data-gaps use case is then not wired (ADR 0020).
-	productMaster ports.ProductMasterClient
-	// inboundReceiving is nil when INBOUND_RECEIVING_MCP_ENDPOINT is unset:
-	// the inbound outlook is then not wired (ADR 0021).
-	inboundReceiving ports.InboundReceivingClient
-	// nip is nil when NETWORK_INVENTORY_PLANNING_MCP_ENDPOINT is unset:
-	// the transfer watch is then not wired at all (ADR 0019).
-	nip ports.NetworkInventoryPlanningClient
-	// slotting is nil when SLOTTING_OPTIMIZATION_MCP_ENDPOINT is unset:
-	// the daily brief's slot-plan watch is then not wired (ADR 0024).
-	slotting ports.SlottingOptimizationClient
-	// returnsProcessing is nil when RETURNS_PROCESSING_MCP_ENDPOINT is
-	// unset (fail-open). No use case consumes it yet: it exists so the
-	// returns/exceptions read surface is reachable the moment one does.
-	returnsProcessing ports.ReturnsProcessingClient
-	// exceptionManagement is nil when EXCEPTION_MANAGEMENT_MCP_ENDPOINT is
-	// unset (fail-open). No use case consumes it yet: it exists so the
-	// returns/exceptions read surface is reachable the moment one does.
-	exceptionManagement ports.ExceptionManagementClient
-	// The twelve ADR-0025 upstreams (the ten retail-network contexts plus
-	// task-interleaving and pick-face-replenishment). Each is nil when
-	// its *_MCP_ENDPOINT is unset (fail-open, ADR 0023). No use case
-	// consumes any of them yet: they exist so each upstream's read
-	// surface is reachable the moment one does.
-	customerOrdering       ports.CustomerOrderingClient
-	deliveryPromise        ports.DeliveryPromiseClient
-	lastMileDelivery       ports.LastMileDeliveryClient
-	linehaulTransportation ports.LinehaulTransportationClient
-	nodePerformance        ports.NodePerformanceClient
-	nodeTopology           ports.NodeTopologyClient
-	offerAvailability      ports.OfferAvailabilityClient
-	orderSourcing          ports.OrderSourcingClient
-	shippingAndTracking    ports.ShippingAndTrackingClient
-	vendorConnectivity     ports.VendorConnectivityClient
-	// sellerInbound is nil when SELLER_INBOUND_MCP_ENDPOINT is unset
-	// (fail-open, ADR 0023). No use case consumes it yet: it exists so
-	// the partner-inbound read surface is reachable the moment one does
-	// (ADR 0027).
-	sellerInbound         ports.SellerInboundClient
-	taskInterleaving      ports.TaskInterleavingClient
-	pickFaceReplenishment ports.PickFaceReplenishmentClient
-	// processPathManagement is the thirteenth ADR-0026 client (re-added
-	// after ADR 0024's gap-A9 deletion, now pinned to the current
-	// three-tool registry). It is nil when
-	// PROCESS_PATH_MANAGEMENT_MCP_ENDPOINT is unset (fail-open); no use
-	// case consumes it yet.
-	processPathManagement ports.ProcessPathManagementClient
-	telemetry             ports.TelemetryReader
-	logs                  ports.LogReader
-}
-
-// newMCPClient builds one upstream's MCP client, or returns the zero
-// value of the port interface P (a genuinely nil interface, never a
-// non-nil interface around a nil pointer) when endpoint is empty. No
-// client is ever built for an empty endpoint, so boot never depends on an
-// upstream and no call is ever dialled to "".
-func newMCPClient[P any](name, endpoint string, build func(mcpclient.Config) P) P {
-	var none P
-	if endpoint == "" {
-		return none
-	}
-	return build(mcpclient.Config{Name: name, Endpoint: endpoint})
-}
-
-// newProductMasterClient builds the product-master MCP client (its four
-// read tools only), or nil when no endpoint is configured (fail-open).
-func newProductMasterClient(cfg config.Config) ports.ProductMasterClient {
-	return newMCPClient("product-master", cfg.ProductMaster.Endpoint, func(c mcpclient.Config) ports.ProductMasterClient {
-		return mcpclient.NewProductMaster(c)
-	})
-}
-
-// newInboundReceivingClient builds the inbound-receiving MCP client (its
-// seven read tools only), or nil when no endpoint is configured
-// (fail-open).
-func newInboundReceivingClient(cfg config.Config) ports.InboundReceivingClient {
-	return newMCPClient("inbound-receiving", cfg.InboundReceiving.Endpoint, func(c mcpclient.Config) ports.InboundReceivingClient {
-		return mcpclient.NewInboundReceiving(c)
-	})
-}
-
-// newNIPClient builds the network-inventory-planning MCP client (read
-// tools only), or nil when no endpoint is configured.
-func newNIPClient(cfg config.Config) ports.NetworkInventoryPlanningClient {
-	return newMCPClient("network-inventory-planning", cfg.NetworkInventoryPlanning.Endpoint, func(c mcpclient.Config) ports.NetworkInventoryPlanningClient {
-		return mcpclient.NewNetworkInventoryPlanning(c)
-	})
-}
-
-// newSlottingClient builds the slotting-optimization MCP client (its two
-// slot-plan read tools only, ADR 0024), or nil when no endpoint is
-// configured (fail-open).
-func newSlottingClient(cfg config.Config) ports.SlottingOptimizationClient {
-	return newMCPClient("slotting-optimization", cfg.SlottingOptimization.Endpoint, func(c mcpclient.Config) ports.SlottingOptimizationClient {
-		return mcpclient.NewSlottingOptimization(c)
-	})
-}
-
-// newReturnsProcessingClient builds the returns-processing MCP client (its
-// three read tools only), or nil when no endpoint is configured
-// (fail-open). No use case consumes the client yet.
-func newReturnsProcessingClient(cfg config.Config) ports.ReturnsProcessingClient {
-	return newMCPClient("returns-processing", cfg.ReturnsProcessing.Endpoint, func(c mcpclient.Config) ports.ReturnsProcessingClient {
-		return mcpclient.NewReturnsProcessing(c)
-	})
-}
-
-// newExceptionManagementClient builds the exception-management MCP client
-// (its four read tools only), or nil when no endpoint is configured
-// (fail-open). No use case consumes the client yet.
-func newExceptionManagementClient(cfg config.Config) ports.ExceptionManagementClient {
-	return newMCPClient("exception-management", cfg.ExceptionManagement.Endpoint, func(c mcpclient.Config) ports.ExceptionManagementClient {
-		return mcpclient.NewExceptionManagement(c)
-	})
-}
-
-// newPlanningClient builds the warehouse-planning MCP client (read tools
-// only), or nil when no endpoint is configured, so the capacity outlook
-// degrades to "absent".
-func newPlanningClient(cfg config.Config) ports.WarehousePlanningClient {
-	return newMCPClient("warehouse-planning", cfg.WarehousePlanning.Endpoint, func(c mcpclient.Config) ports.WarehousePlanningClient {
-		return mcpclient.NewWarehousePlanning(c)
-	})
-}
-
-// newProcessPathManagementClient builds the process-path-management MCP
-// client (its three read tools only, ADR 0026), or nil when no endpoint is
-// configured (fail-open). No use case consumes the client yet.
-func newProcessPathManagementClient(cfg config.Config) ports.ProcessPathManagementClient {
-	return newMCPClient("process-path-management", cfg.ProcessPathManagement.Endpoint, func(c mcpclient.Config) ports.ProcessPathManagementClient {
-		return mcpclient.NewProcessPathManagement(c)
-	})
-}
-
-// newOutboundClients builds every outbound MCP client (one per upstream
-// bounded context, each only when its endpoint is set) plus the telemetry
-// and log readers.
-func newOutboundClients(cfg config.Config) outboundClients {
-	return outboundClients{
-		om: newMCPClient("order-management", cfg.OrderManagement.Endpoint, func(c mcpclient.Config) ports.OrderManagementMCPClient {
-			return mcpclient.NewOrderManagement(c)
-		}),
-		wes: newMCPClient("wes-work-planning", cfg.WesWorkPlanning.Endpoint, func(c mcpclient.Config) ports.WesWorkPlanningClient {
-			return mcpclient.NewWesWorkPlanning(c)
-		}),
-		fe: newMCPClient("fulfillment-execution", cfg.FulfillmentExecution.Endpoint, func(c mcpclient.Config) ports.FulfillmentExecutionClient {
-			return mcpclient.NewFulfillmentExecution(c)
-		}),
-		wfm: newMCPClient("workforce-management", cfg.WorkforceManagement.Endpoint, func(c mcpclient.Config) ports.WorkforceManagementClient {
-			return mcpclient.NewWorkforceManagement(c)
-		}),
-		facility: newMCPClient("facility-layout", cfg.FacilityLayout.Endpoint, func(c mcpclient.Config) ports.FacilityLayoutClient {
-			return mcpclient.NewFacilityLayout(c)
-		}),
-		inv: newMCPClient("inventory-storage", cfg.InventoryStorage.Endpoint, func(c mcpclient.Config) ports.InventoryStorageClient {
-			return mcpclient.NewInventoryStorage(c)
-		}),
-		lp: newMCPClient("labor-performance", cfg.LaborPerformance.Endpoint, func(c mcpclient.Config) ports.LaborPerformanceClient {
-			return mcpclient.NewLaborPerformance(c)
-		}),
-		telemetry:           newTelemetryReader(cfg.PrometheusURL),
-		logs:                newLogReader(cfg.LokiURL),
-		planning:            newPlanningClient(cfg),
-		productMaster:       newProductMasterClient(cfg),
-		inboundReceiving:    newInboundReceivingClient(cfg),
-		nip:                 newNIPClient(cfg),
-		slotting:            newSlottingClient(cfg),
-		returnsProcessing:   newReturnsProcessingClient(cfg),
-		exceptionManagement: newExceptionManagementClient(cfg),
-		customerOrdering: newMCPClient("customer-ordering", cfg.CustomerOrdering.Endpoint, func(c mcpclient.Config) ports.CustomerOrderingClient {
-			return mcpclient.NewCustomerOrdering(c)
-		}),
-		deliveryPromise: newMCPClient("delivery-promise", cfg.DeliveryPromise.Endpoint, func(c mcpclient.Config) ports.DeliveryPromiseClient {
-			return mcpclient.NewDeliveryPromise(c)
-		}),
-		lastMileDelivery: newMCPClient("last-mile-delivery", cfg.LastMileDelivery.Endpoint, func(c mcpclient.Config) ports.LastMileDeliveryClient {
-			return mcpclient.NewLastMileDelivery(c)
-		}),
-		linehaulTransportation: newMCPClient("linehaul-transportation", cfg.LinehaulTransportation.Endpoint, func(c mcpclient.Config) ports.LinehaulTransportationClient {
-			return mcpclient.NewLinehaulTransportation(c)
-		}),
-		nodePerformance: newMCPClient("node-performance", cfg.NodePerformance.Endpoint, func(c mcpclient.Config) ports.NodePerformanceClient {
-			return mcpclient.NewNodePerformance(c)
-		}),
-		nodeTopology: newMCPClient("node-topology", cfg.NodeTopology.Endpoint, func(c mcpclient.Config) ports.NodeTopologyClient {
-			return mcpclient.NewNodeTopology(c)
-		}),
-		offerAvailability: newMCPClient("offer-availability", cfg.OfferAvailability.Endpoint, func(c mcpclient.Config) ports.OfferAvailabilityClient {
-			return mcpclient.NewOfferAvailability(c)
-		}),
-		orderSourcing: newMCPClient("order-sourcing", cfg.OrderSourcing.Endpoint, func(c mcpclient.Config) ports.OrderSourcingClient {
-			return mcpclient.NewOrderSourcing(c)
-		}),
-		shippingAndTracking: newMCPClient("shipping-and-tracking", cfg.ShippingAndTracking.Endpoint, func(c mcpclient.Config) ports.ShippingAndTrackingClient {
-			return mcpclient.NewShippingAndTracking(c)
-		}),
-		vendorConnectivity: newMCPClient("vendor-connectivity", cfg.VendorConnectivity.Endpoint, func(c mcpclient.Config) ports.VendorConnectivityClient {
-			return mcpclient.NewVendorConnectivity(c)
-		}),
-		sellerInbound: newMCPClient("seller-inbound", cfg.SellerInbound.Endpoint, func(c mcpclient.Config) ports.SellerInboundClient {
-			return mcpclient.NewSellerInbound(c)
-		}),
-		taskInterleaving: newMCPClient("task-interleaving", cfg.TaskInterleaving.Endpoint, func(c mcpclient.Config) ports.TaskInterleavingClient {
-			return mcpclient.NewTaskInterleaving(c)
-		}),
-		pickFaceReplenishment: newMCPClient("pick-face-replenishment", cfg.PickFaceReplenishment.Endpoint, func(c mcpclient.Config) ports.PickFaceReplenishmentClient {
-			return mcpclient.NewPickFaceReplenishment(c)
-		}),
-		processPathManagement: newProcessPathManagementClient(cfg),
-	}
-}
-
-// decisionSupport bundles the MCP-Customer / decision-support use case
-// family: the daily brief (E3), the flow-balance advisory (E1) with its
-// ADR-0008 utilization overlay, explain-travel-factor (ADR 0009), the
-// E2 stranded-reservation correlation and the ADR 0020 master-data gaps
-// (nil when product-master is not configured).
-type decisionSupport struct {
-	dailyBrief          *usecases.DailyBrief
-	flowBalance         *usecases.FlowBalanceAdvisory
-	explainTravelFactor *usecases.ExplainTravelFactor
-	strandedReservation *usecases.DetectStrandedReservation
-	masterDataGaps      *usecases.MasterDataGaps
-	// inboundOutlook is nil when inbound-receiving is not configured
-	// (ADR 0021).
-	inboundOutlook *usecases.InboundOutlook
-	// transferWatch is nil when network-inventory-planning is not
-	// configured (ADR 0019).
-	transferWatch *usecases.TransferWatch
-	// networkOrderOutlook is nil when customer-ordering is not configured
-	// (ADR 0026): get_network_order_outlook is then not registered.
-	networkOrderOutlook *usecases.NetworkOrderOutlook
-	// networkNodeOutlook is nil when node-topology is not configured
-	// (ADR 0026): get_network_node_outlook is then not registered.
-	networkNodeOutlook *usecases.NetworkNodeOutlook
-}
-
-// newDecisionSupport wires the decision-support use cases over the
-// outbound MCP clients.
-func newDecisionSupport(cfg config.Config, clients outboundClients) decisionSupport {
-	flowBalance := &usecases.FlowBalanceAdvisory{
-		Wes:           clients.wes,
-		WFM:           clients.wfm,
-		FE:            clients.fe,
-		LP:            clients.lp,
-		PathTaskTypes: toPathTaskTypes(cfg.PathTargets),
-	}
-	dailyBrief := &usecases.DailyBrief{
-		Facility: clients.facility,
-		Wes:      clients.wes,
-		Fe:       clients.fe,
-		Wfm:      clients.wfm,
-		Targets:  toUseCaseTargets(cfg.PathTargets),
-	}
-	// Capacity outlook (ADR 0013): only wired when warehouse-planning is
-	// configured. A nil Outlook leaves the daily brief byte-for-byte as it
-	// was; a configured one is fail-open per path.
-	if clients.planning != nil {
-		dailyBrief.Outlook = &usecases.CapacityOutlook{
-			Planning: clients.planning,
-			Horizon:  cfg.CapacityOutlookHorizon,
-		}
-	}
-
-	// Slot-plan watch (ADR 0024): only wired when slotting-optimization is
-	// configured. A nil watch leaves the daily brief byte-for-byte as it
-	// was; a configured one is fail-open per plan.
-	if clients.slotting != nil {
-		dailyBrief.SlotPlanWatch = &usecases.SlotPlanWatch{
-			Slotting:   clients.slotting,
-			StaleAfter: cfg.SlotPlanStaleAge,
-		}
-	}
-
-	// Promise health (ADR 0024): only wired when order-management is
-	// configured. A nil section use case leaves the daily brief
-	// byte-for-byte as it was; a configured one is fail-open.
-	if clients.om != nil {
-		dailyBrief.PromiseHealth = &usecases.PromiseHealth{OrderMgmt: clients.om}
-	}
-
-	// StrandedReservation is the E2 correlation use case: read-only,
-	// consuming the already-wired fulfillment-execution and
-	// inventory-storage clients above. It only ever recommends a
-	// revoke_reservation; it never calls one.
-	strandedReservation := &usecases.DetectStrandedReservation{
-		FulfillmentExecution: clients.fe,
-		InventoryStorage:     clients.inv,
-	}
-
-	// Master-data gaps (ADR 0020): only wired when product-master is
-	// configured; otherwise GET /master-data-gaps answers 503 and
-	// find_master_data_gaps is not registered.
-	var masterDataGaps *usecases.MasterDataGaps
-	if clients.productMaster != nil {
-		masterDataGaps = &usecases.MasterDataGaps{ProductMaster: clients.productMaster}
-	}
-
-	return decisionSupport{
-		dailyBrief:          dailyBrief,
-		flowBalance:         flowBalance,
-		explainTravelFactor: newExplainTravelFactor(clients),
-		strandedReservation: strandedReservation,
-		masterDataGaps:      masterDataGaps,
-		inboundOutlook:      newInboundOutlook(cfg, clients),
-		transferWatch:       newTransferWatch(clients),
-		networkOrderOutlook: newNetworkOrderOutlook(clients),
-		networkNodeOutlook:  newNetworkNodeOutlook(clients),
-	}
-}
-
-// newNetworkOrderOutlook wires the ADR-0026 order outlook over the
-// ADR-0025 clients, or returns nil when the anchor client customer-
-// ordering is not configured. The nil must be a real nil
-// *NetworkOrderOutlook so the inbound adapter's "not configured" check is
-// genuine; every non-anchor section degrades per section at run time.
-func newNetworkOrderOutlook(clients outboundClients) *usecases.NetworkOrderOutlook {
-	if clients.customerOrdering == nil {
-		return nil
-	}
-	return &usecases.NetworkOrderOutlook{
-		Orders:   clients.customerOrdering,
-		Promises: clients.deliveryPromise,
-		Sourcing: clients.orderSourcing,
-		Journeys: clients.shippingAndTracking,
-	}
-}
-
-// newNetworkNodeOutlook wires the ADR-0026 node outlook over the
-// ADR-0025 clients, or returns nil when the anchor client node-topology
-// is not configured. Same genuine-nil rule as newNetworkOrderOutlook.
-func newNetworkNodeOutlook(clients outboundClients) *usecases.NetworkNodeOutlook {
-	if clients.nodeTopology == nil {
-		return nil
-	}
-	return &usecases.NetworkNodeOutlook{
-		Topology:    clients.nodeTopology,
-		Performance: clients.nodePerformance,
-		Listings:    clients.offerAvailability,
-		Vendor:      clients.vendorConnectivity,
-		Departures:  clients.linehaulTransportation,
-		Waves:       clients.lastMileDelivery,
-	}
-}
-
-// newExplainTravelFactor wires the ADR-0009 use case, or returns nil when
-// facility-layout is not configured: GET /explain-travel-factor then
-// answers 503 "not configured" and explain_travel_factor is not
-// registered, the same as every other upstream-specific feature.
-func newExplainTravelFactor(clients outboundClients) *usecases.ExplainTravelFactor {
-	if clients.facility == nil {
-		return nil
-	}
-	return &usecases.ExplainTravelFactor{Facility: clients.facility}
-}
-
-// newInboundOutlook wires the ADR-0021 read-only inbound outlook, or returns
-// nil when inbound-receiving is not configured. The nil must be a real nil
-// *InboundOutlook (never a non-nil struct around a nil port) so the inbound
-// adapters' "not configured" checks are genuine.
-func newInboundOutlook(cfg config.Config, clients outboundClients) *usecases.InboundOutlook {
-	if clients.inboundReceiving == nil {
-		return nil
-	}
-	return &usecases.InboundOutlook{
-		Inbound:         clients.inboundReceiving,
-		StaleReceiptAge: cfg.InboundStaleReceiptAge,
-	}
-}
-
-// newTransferWatch wires the ADR-0019 read-only transfer watch, or returns
-// nil when network-inventory-planning is not configured. The nil must be a
-// real nil *TransferWatch (never a non-nil struct around a nil port) so the
-// inbound adapters' "not configured" checks are genuine.
-func newTransferWatch(clients outboundClients) *usecases.TransferWatch {
-	if clients.nip == nil {
-		return nil
-	}
-	return &usecases.TransferWatch{NIP: clients.nip}
-}
-
-// newOrderLifecycle wires the console-bff order-lifecycle use case. Its
-// REST clients are separate from the MCP clients above (see
-// internal/ports/order_lifecycle_clients.go's doc comment for why these
-// are a deliberately distinct port shape).
-func newOrderLifecycle(cfg config.Config) *usecases.OrderLifecycle {
-	var orderMgmtClient ports.OrderManagementClient = restclient.NewOrderManagement(cfg.OrderManagementRESTURL, 5*time.Second)
-	return &usecases.OrderLifecycle{
-		OrderManagement: &orderMgmtClient,
-		Inventory:       restclient.NewInventoryReservations(cfg.InventoryStorageRESTURL, 5*time.Second),
-		WorkUnits:       restclient.NewWorkUnits(cfg.WesWorkPlanningRESTURL, 5*time.Second),
-		Tasks:           restclient.NewTasksByOrder(cfg.FulfillmentExecutionRESTURL, 5*time.Second),
-	}
-}
-
-// newConsoleReports wires the console-bff WMS/WES dashboards: a THIRD set
-// of clients, pointed at each context's *-reports READER binary rather
-// than its OLTP API (different process, different analytical database,
-// different base URL) -- see internal/ports/console_reports_clients.go.
-func newConsoleReports(cfg config.Config) *usecases.ConsoleReports {
-	return &usecases.ConsoleReports{
-		OrderFunnel:           restclient.NewOrderFunnelReports(cfg.OrderManagementReportsRESTURL, 5*time.Second),
-		InventoryFlowAccuracy: restclient.NewFlowAccuracyReports(cfg.InventoryStorageReportsRESTURL, 5*time.Second),
-		CatalogGrowth:         restclient.NewCatalogGrowthReports(cfg.FacilityLayoutReportsRESTURL, 5*time.Second),
-		PlanningThroughput:    restclient.NewPlanningThroughputReports(cfg.WesWorkPlanningReportsRESTURL, 5*time.Second),
-		FulfillmentThroughput: restclient.NewFulfillmentThroughputReports(cfg.FulfillmentExecutionReportsRESTURL, 5*time.Second),
-		Labor:                 restclient.NewLaborReports(cfg.WorkforceManagementReportsRESTURL, 5*time.Second),
-		LaborPerformance:      restclient.NewLaborPerformanceReports(cfg.LaborPerformanceReportsRESTURL, 5*time.Second),
-	}
-}
-
-// newRuntimeSignals wires the runtime-signals report over the telemetry
-// (Prometheus) and log (Loki) readers, with a 10-minute rolling window.
-func newRuntimeSignals(cfg config.Config, telemetryReader ports.TelemetryReader, logReader ports.LogReader) *usecases.RuntimeSignals {
-	return &usecases.RuntimeSignals{
-		Telemetry:     telemetryReader,
-		Logs:          logReader,
-		Services:      cfg.RuntimeSignalsServices,
-		Namespace:     cfg.RuntimeSignalsNamespace,
-		WindowMinutes: 10,
-	}
 }
 
 // serveAgent serves the REST router (which also carries this agent's own
@@ -586,6 +153,7 @@ func serveAgent(cfg config.Config, logger *slog.Logger, serviceName string, hand
 			"fulfillment_execution_endpoint_configured", cfg.FulfillmentExecution.Endpoint != "",
 			"inventory_storage_endpoint_configured", cfg.InventoryStorage.Endpoint != "",
 			"workforce_management_endpoint_configured", cfg.WorkforceManagement.Endpoint != "",
+			"workforce_management_a2a_configured", cfg.WorkforceManagementA2AURL != "",
 			"facility_layout_endpoint_configured", cfg.FacilityLayout.Endpoint != "",
 			"warehouse_planning_endpoint_configured", cfg.WarehousePlanning.Endpoint != "",
 			"product_master_endpoint_configured", cfg.ProductMaster.Endpoint != "",

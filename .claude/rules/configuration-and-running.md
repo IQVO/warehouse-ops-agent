@@ -21,7 +21,7 @@ One Streamable-HTTP endpoint per upstream MCP context:
 | wes-work-planning | `WES_WORK_PLANNING_MCP_ENDPOINT` |
 | fulfillment-execution | `FULFILLMENT_EXECUTION_MCP_ENDPOINT` |
 | inventory-storage | `INVENTORY_STORAGE_MCP_ENDPOINT` |
-| workforce-management | `WORKFORCE_MANAGEMENT_MCP_ENDPOINT` |
+| workforce-management | `WORKFORCE_MANAGEMENT_MCP_ENDPOINT`; `WORKFORCE_MANAGEMENT_A2A_URL` enables the labor-reallocation act slice (ADR 0029, needs the MCP endpoint too; chart `upstreams.workforceManagement.a2aEndpoint`) |
 | facility-layout | `FACILITY_LAYOUT_MCP_ENDPOINT` |
 | labor-performance | `LABOR_PERFORMANCE_MCP_ENDPOINT` |
 | order-management | `ORDER_MANAGEMENT_MCP_ENDPOINT` |

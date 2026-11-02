@@ -16,9 +16,17 @@ import (
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/claudioed/warehouse-ops-agent/internal/adapters/outbound/httpclient"
+	"github.com/claudioed/warehouse-ops-agent/internal/domain/authority"
 )
+
+// tracerName is the OTel instrumentation scope of the upstream-call spans.
+const tracerName = "github.com/claudioed/warehouse-ops-agent/internal/adapters/outbound/mcpclient"
 
 // Config is the connection info for one upstream context's MCP server: its
 // Streamable-HTTP endpoint.
@@ -51,6 +59,15 @@ func New(cfg Config) *Session {
 		cfg.Timeout = 10 * time.Second
 	}
 	return &Session{cfg: cfg}
+}
+
+// NewNamedSession builds a Session for the named upstream: every typed
+// client's constructor in this package sets Config.Name to its upstream's
+// service name and delegates the rest to this shared helper, so the
+// per-client constructors stay one line each (fleet dupl rule, 2026-11-02).
+func NewNamedSession(name string, cfg Config) *Session {
+	cfg.Name = name
+	return New(cfg)
 }
 
 // connect opens a fresh Streamable-HTTP session. A fresh session per call
@@ -88,8 +105,31 @@ func (s *Session) connect(ctx context.Context) (*mcp.ClientSession, error) {
 }
 
 // callTool calls the named tool over a fresh session and unmarshals its
-// structured content into out (nil out discards the result).
+// structured content into out (nil out discards the result). Every call runs
+// inside an "mcp.client <tool>" span carrying the agentic-standard attributes
+// (contracts G9): execute_tool, this agent's name and authority L1 -- the
+// zero-write fitness tests pin every upstream call to a read tool.
 func (s *Session) callTool(ctx context.Context, tool string, args any, out any) error {
+	ctx, span := otel.Tracer(tracerName).Start(ctx, "mcp.client "+tool,
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			attribute.String("mcp.tool.name", tool),
+			attribute.String("mcp.upstream", s.cfg.Name),
+			attribute.String(authority.AttrOperationName, authority.OpExecuteTool),
+			attribute.String(authority.AttrAgentName, authority.AgentName),
+			attribute.String(authority.AttrAuthority, authority.L1),
+		),
+	)
+	defer span.End()
+	err := s.doCallTool(ctx, tool, args, out)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+	}
+	return err
+}
+
+// doCallTool is callTool without the span.
+func (s *Session) doCallTool(ctx context.Context, tool string, args any, out any) error {
 	ctx, cancel := context.WithTimeout(ctx, s.cfg.Timeout)
 	defer cancel()
 

@@ -23,25 +23,16 @@
 package anthropic
 
 import (
-	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"strings"
 	"time"
 
-	"github.com/cenkalti/backoff/v4"
 	gobreaker "github.com/sony/gobreaker/v2"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
-	"go.opentelemetry.io/otel/trace"
 
 	"github.com/claudioed/warehouse-ops-agent/internal/adapters/outbound/httpclient"
 	"github.com/claudioed/warehouse-ops-agent/internal/ports"
@@ -180,6 +171,14 @@ func New(cfg Config, invoker ports.ToolInvoker) (*Reasoner, error) {
 
 // --- wire types (only what this adapter uses) ---
 
+// Wire literals shared across this adapter's Messages API payloads and the
+// JSON Schemas it builds for its tools (goconst, 2026-11-02).
+const (
+	roleUser          = "user"
+	contentToolResult = "tool_result"
+	schemaKeyType     = "type"
+)
+
 type apiTool struct {
 	Name        string         `json:"name"`
 	Description string         `json:"description"`
@@ -233,7 +232,7 @@ func (r *Reasoner) Reason(ctx context.Context, brief ports.Brief) (ports.Plan, e
 	defer cancel()
 
 	tools, lookup := r.tools(brief)
-	messages := []apiMessage{{Role: "user", Content: []apiContent{{Type: "text", Text: userPrompt(brief)}}}}
+	messages := []apiMessage{{Role: roleUser, Content: []apiContent{{Type: "text", Text: userPrompt(brief)}}}}
 	plan := ports.Plan{Model: r.cfg.Model}
 
 	for turn := 0; turn < r.cfg.MaxTurns; turn++ {
@@ -263,10 +262,10 @@ func (r *Reasoner) Reason(ctx context.Context, brief ports.Brief) (ports.Plan, e
 			// The model answered in prose instead of submitting a plan.
 			// One nudge with tool_choice forced to submit_plan; if it still
 			// does not comply the loop bound ends it.
-			messages = append(messages, apiMessage{Role: "user", Content: []apiContent{{Type: "text", Text: "Submit your plan now by calling submit_plan."}}})
+			messages = append(messages, apiMessage{Role: roleUser, Content: []apiContent{{Type: "text", Text: "Submit your plan now by calling submit_plan."}}})
 			continue
 		}
-		messages = append(messages, apiMessage{Role: "user", Content: results})
+		messages = append(messages, apiMessage{Role: roleUser, Content: results})
 	}
 	return plan, fmt.Errorf("anthropic: no plan submitted within %d turns", r.cfg.MaxTurns)
 }
@@ -291,7 +290,7 @@ func (r *Reasoner) processAssistantTurn(ctx context.Context, resp *apiResponse, 
 		spec, ok := lookup[c.Name]
 		if !ok {
 			// A tool we never offered: refuse, tell the model, keep going.
-			results = append(results, apiContent{Type: "tool_result", ToolUseID: c.ID, Content: "unknown tool", IsError: true})
+			results = append(results, apiContent{Type: contentToolResult, ToolUseID: c.ID, Content: "unknown tool", IsError: true})
 			plan.ToolCalls = append(plan.ToolCalls, ports.ToolCall{Tool: c.Name, Outcome: "refused: unknown tool"})
 			continue
 		}
@@ -313,249 +312,6 @@ func applySubmitPlan(input json.RawMessage, plan *ports.Plan) error {
 	plan.ProposedHeads = in.ProposedHeads
 	plan.Rationale = in.Rationale
 	return nil
-}
-
-// executeToolCall invokes one offered read tool on the model's behalf and
-// returns both the tool_result block to echo back and the audit-trail
-// entry. Arguments that are not a JSON object are refused without an
-// invocation; so are arguments that fail schema validation or the
-// targeted enum re-check (ADR-0004 tool-call safety) — in every refusal
-// case the upstream is never called. The call itself is wrapped in an
-// OTel span (llm.tool_call) and the audit log carries a sha256 hash of
-// the canonical (sorted-key) JSON-encoded arguments, never the raw
-// arguments themselves.
-func (r *Reasoner) executeToolCall(ctx context.Context, c apiContent, spec ports.ToolSpec) (apiContent, ports.ToolCall) {
-	ctx, span := otel.Tracer(tracerName).Start(ctx, "llm.tool_call", trace.WithAttributes(
-		attribute.String("llm.tool_call.upstream", spec.Upstream),
-		attribute.String("llm.tool_call.tool", spec.Name),
-	))
-	defer span.End()
-
-	var args map[string]any
-	if len(c.Input) > 0 {
-		if err := json.Unmarshal(c.Input, &args); err != nil {
-			return r.refuseToolCall(ctx, span, c, spec, nil, "refused: bad arguments", "arguments are not a JSON object")
-		}
-	}
-	if err := validateToolArgs(spec.InputSchema, args); err != nil {
-		return r.refuseToolCall(ctx, span, c, spec, args, "refused: schema validation failed", err.Error())
-	}
-	if err := recheckEnums(spec.InputSchema, args); err != nil {
-		return r.refuseToolCall(ctx, span, c, spec, args, "refused: enum re-check failed", err.Error())
-	}
-
-	started := time.Now()
-	out, err := r.invoker.Invoke(ctx, spec.Upstream, spec.Name, args)
-	call := ports.ToolCall{Upstream: spec.Upstream, Tool: spec.Name, Args: args, Outcome: "ok"}
-	if err != nil {
-		call.Outcome = err.Error()
-	}
-	r.logToolCall(ctx, spec, args, call.Outcome, time.Since(started))
-	if err != nil {
-		span.SetStatus(codes.Error, call.Outcome)
-	}
-
-	result := apiContent{Type: "tool_result", ToolUseID: c.ID, Content: out}
-	if err != nil {
-		result.Content, result.IsError = err.Error(), true
-	}
-	return result, call
-}
-
-// refuseToolCall is the shared path for every pre-invocation refusal
-// (bad JSON, failed schema validation, failed enum re-check): the
-// upstream is never called, the span records the refusal, and the audit
-// log still carries only the args hash, never raw args.
-func (r *Reasoner) refuseToolCall(ctx context.Context, span trace.Span, c apiContent, spec ports.ToolSpec, args map[string]any, outcome, detail string) (apiContent, ports.ToolCall) {
-	span.SetStatus(codes.Error, outcome)
-	r.logToolCall(ctx, spec, args, outcome, 0)
-	return apiContent{Type: "tool_result", ToolUseID: c.ID, Content: detail, IsError: true},
-		ports.ToolCall{Upstream: spec.Upstream, Tool: spec.Name, Outcome: outcome}
-}
-
-// logToolCall emits the llm.tool_call audit log entry. It NEVER logs raw
-// args — only a sha256 hash of their canonical (sorted-key, via
-// encoding/json's own deterministic map-key ordering) JSON encoding, so
-// an operator can correlate repeated/identical calls without the log
-// carrying potentially sensitive tool-argument content.
-func (r *Reasoner) logToolCall(ctx context.Context, spec ports.ToolSpec, args map[string]any, outcome string, latency time.Duration) {
-	r.cfg.Logger.InfoContext(ctx, "llm.tool_call",
-		"upstream", spec.Upstream, "tool", spec.Name, "outcome", outcome,
-		"args_sha256", argsHash(args), "latency_ms", latency.Milliseconds())
-}
-
-// argsHash returns the hex-encoded sha256 of args' canonical JSON
-// encoding ("canonical" meaning encoding/json's own deterministic
-// sorted-map-key form — the same form every call in this process
-// produces for equal args, so equal args always hash equal).
-func argsHash(args map[string]any) string {
-	raw, err := json.Marshal(args)
-	if err != nil {
-		return ""
-	}
-	sum := sha256.Sum256(raw)
-	return hex.EncodeToString(sum[:])
-}
-
-func (r *Reasoner) tools(brief ports.Brief) ([]apiTool, map[string]ports.ToolSpec) {
-	lookup := make(map[string]ports.ToolSpec, len(brief.Tools))
-	tools := make([]apiTool, 0, len(brief.Tools)+1)
-	for _, t := range brief.Tools {
-		name := t.Upstream + "__" + t.Name
-		lookup[name] = t
-		schema := t.InputSchema
-		if schema == nil {
-			schema = map[string]any{"type": "object", "properties": map[string]any{}}
-		}
-		tools = append(tools, apiTool{Name: name, Description: t.Description, InputSchema: schema})
-	}
-	tools = append(tools, apiTool{
-		Name:        submitPlanTool,
-		Description: "Submit your final recommendation. This is the ONLY way to answer.",
-		InputSchema: map[string]any{
-			"type": "object",
-			"properties": map[string]any{
-				"recommendedAction": map[string]any{"type": "string", "enum": brief.AllowedActions},
-				"proposedHeads":     map[string]any{"type": "integer", "minimum": 0, "maximum": 50, "description": "Only for assign_labor (at least 1, at most 50); 0 otherwise."},
-				"rationale":         map[string]any{"type": "string", "description": "One or two sentences citing the facts you relied on."},
-			},
-			"required":             []string{"recommendedAction", "proposedHeads", "rationale"},
-			"additionalProperties": false,
-		},
-	})
-	return tools, lookup
-}
-
-// call executes one Anthropic Messages API request behind a per-
-// dependency circuit breaker, a context-deadline-derived timeout, and a
-// bounded jittered retry (ADR-0011) — the resilience wrapper sits around
-// the ACTUAL outbound HTTP call, not the whole Reason tool-use loop: each
-// turn of that loop invokes this once, so a several-turn conversation
-// still only ever contributes one success/failure per turn toward the
-// breaker's trip condition, never N (a retry storm inside one turn is
-// bounded and counts as a single logical attempt).
-//
-// A breaker-OPEN (or half-open-and-saturated) rejection is returned as an
-// ordinary error, exactly like a transport failure or an exhausted retry
-// budget — Reason propagates it unchanged, and the EXISTING fallback
-// mechanism (usecases.FlowBalanceAdvisory.arbitrate -> policy.Arbitrate
-// treating any Reasoner error as planErr) is what routes LLMOn mode back
-// to the deterministic Decision. No second fallback path is added here.
-func (r *Reasoner) call(ctx context.Context, req apiRequest) (*apiResponse, error) {
-	callCtx, cancel := resilience.CallTimeout(ctx, maxCallTimeout)
-	defer cancel()
-
-	resp, err := r.breaker.Execute(func() (*apiResponse, error) {
-		return r.retryingRequest(callCtx, req)
-	})
-	if err != nil {
-		if isBreakerRejection(err) {
-			return nil, fmt.Errorf("anthropic: circuit breaker open for %s: %w", circuitBreakerDependencyName, err)
-		}
-		return nil, err
-	}
-	return resp, nil
-}
-
-// retryingRequest retries doRequest with jittered exponential backoff,
-// bounded to maxRetryAttempts total attempts and to callCtx's own
-// deadline (whichever is tighter). Only a transient error (a transport-
-// level failure, or a 5xx apiStatusError) is retried; a 4xx
-// apiStatusError (bad API key, malformed request) or a response-decode
-// error is permanent and returns on the first attempt — retrying a
-// paid LLM call that can never succeed wastes both money and the call's
-// timeout budget.
-func (r *Reasoner) retryingRequest(callCtx context.Context, req apiRequest) (*apiResponse, error) {
-	policy := backoff.NewExponentialBackOff(
-		backoff.WithInitialInterval(retryInitialInterval),
-		backoff.WithMaxInterval(retryMaxInterval),
-	)
-	bounded := backoff.WithContext(backoff.WithMaxRetries(policy, maxRetryAttempts-1), callCtx)
-
-	return backoff.RetryNotifyWithData(func() (*apiResponse, error) {
-		resp, err := r.doRequest(callCtx, req)
-		if err != nil && !isTransientError(err) {
-			return nil, backoff.Permanent(err)
-		}
-		return resp, err
-	}, bounded, nil)
-}
-
-// transientError marks a failure worth retrying: a transport-level
-// problem (dial failure, timeout, connection reset) or a response-body
-// read failure, as opposed to a well-formed response the server itself
-// rejected.
-type transientError struct{ err error }
-
-func (e *transientError) Error() string { return e.err.Error() }
-func (e *transientError) Unwrap() error { return e.err }
-
-// apiStatusError carries the Anthropic API's own HTTP status so the
-// retry policy can tell a transient server problem (5xx — retry) from a
-// permanent client problem (4xx: bad API key, malformed request —
-// retrying can never fix it).
-type apiStatusError struct {
-	Status int
-	Err    error
-}
-
-func (e *apiStatusError) Error() string { return e.Err.Error() }
-func (e *apiStatusError) Unwrap() error { return e.Err }
-
-// isTransientError reports whether err is worth retrying: any
-// transientError, or a 5xx apiStatusError. A 4xx apiStatusError and a
-// response-decode error (malformed JSON body) are permanent.
-func isTransientError(err error) bool {
-	var status *apiStatusError
-	if errors.As(err, &status) {
-		return status.Status >= 500
-	}
-	var transient *transientError
-	return errors.As(err, &transient)
-}
-
-// isBreakerRejection reports whether err is gobreaker refusing to even
-// attempt the call (open, or half-open and already at its probe limit)
-// — the only case where the caller should treat this exactly like any
-// other Reasoner failure and let the existing deterministic fallback
-// take over.
-func isBreakerRejection(err error) bool {
-	return errors.Is(err, gobreaker.ErrOpenState) || errors.Is(err, gobreaker.ErrTooManyRequests)
-}
-
-func (r *Reasoner) doRequest(ctx context.Context, req apiRequest) (*apiResponse, error) {
-	body, err := json.Marshal(req)
-	if err != nil {
-		return nil, fmt.Errorf("anthropic: encode: %w", err)
-	}
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(r.cfg.BaseURL, "/")+"/v1/messages", bytes.NewReader(body))
-	if err != nil {
-		return nil, err
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("x-api-key", r.cfg.APIKey)
-	httpReq.Header.Set("anthropic-version", apiVersion)
-	resp, err := r.cfg.HTTPClient.Do(httpReq)
-	if err != nil {
-		return nil, &transientError{fmt.Errorf("anthropic: messages: %w", err)}
-	}
-	defer func() { _ = resp.Body.Close() }()
-	raw, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-	if err != nil {
-		return nil, &transientError{fmt.Errorf("anthropic: read: %w", err)}
-	}
-	var out apiResponse
-	if err := json.Unmarshal(raw, &out); err != nil {
-		return nil, fmt.Errorf("anthropic: decode (status %d): %w", resp.StatusCode, err)
-	}
-	if resp.StatusCode/100 != 2 {
-		msg := "unexpected status"
-		if out.Error != nil {
-			msg = out.Error.Type + ": " + out.Error.Message
-		}
-		return nil, &apiStatusError{Status: resp.StatusCode, Err: fmt.Errorf("anthropic: status %d: %s", resp.StatusCode, msg)}
-	}
-	return &out, nil
 }
 
 func systemPrompt(b ports.Brief) string {

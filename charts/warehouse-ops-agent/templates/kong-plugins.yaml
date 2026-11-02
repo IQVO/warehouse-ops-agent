@@ -91,7 +91,7 @@ config:
 {{- end }}
 {{- if and .Values.gatewayApi.enabled .Values.kongPlugins.cors.enabled }}
 {{- /* Read-only twin of the cors plugin, attached ONLY to the act slice's own
-route (httproute-act.yaml, ADR 0027): GET/OPTIONS, so a browser's preflight for
+routes (httproute-act.yaml, ADR 0027 and ADR 0029): GET/OPTIONS, so a browser's preflight for
 the write routes' POST is refused at the edge. Same exact origin, never "*". */}}
 apiVersion: configuration.konghq.com/v1
 kind: KongPlugin

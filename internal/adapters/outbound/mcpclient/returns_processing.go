@@ -35,8 +35,6 @@ func NewReturnsProcessing(cfg Config) *ReturnsProcessing {
 	return &ReturnsProcessing{session: New(cfg)}
 }
 
-var _ ports.ReturnsProcessingClient = (*ReturnsProcessing)(nil)
-
 // GetReturn calls get_return for one return authorization id.
 func (c *ReturnsProcessing) GetReturn(ctx context.Context, rmaID string) (ports.ReturnAuthorization, error) {
 	var out ports.ReturnAuthorization

@@ -38,26 +38,24 @@ func NewVendorConnectivity(cfg Config) *VendorConnectivity {
 	return &VendorConnectivity{session: New(cfg)}
 }
 
-var _ ports.VendorConnectivityClient = (*VendorConnectivity)(nil)
-
 // GetVendor calls get_vendor for one vendor account.
 func (c *VendorConnectivity) GetVendor(ctx context.Context, vendorID string) (ports.VendorAccount, error) {
 	var out ports.VendorAccount
-	err := c.session.callTool(ctx, "get_vendor", map[string]any{"vendorId": vendorID}, &out)
+	err := c.session.callTool(ctx, "get_vendor", map[string]any{argVendorID: vendorID}, &out)
 	return out, err
 }
 
 // GetVendorNode calls get_vendor_node for one node of one vendor.
 func (c *VendorConnectivity) GetVendorNode(ctx context.Context, vendorID, nodeID string) (ports.VendorNode, error) {
 	var out ports.VendorNode
-	err := c.session.callTool(ctx, "get_vendor_node", map[string]any{"vendorId": vendorID, "nodeId": nodeID}, &out)
+	err := c.session.callTool(ctx, "get_vendor_node", map[string]any{argVendorID: vendorID, argNodeID: nodeID}, &out)
 	return out, err
 }
 
 // ListVendorNodes calls list_vendor_nodes for one vendor.
 func (c *VendorConnectivity) ListVendorNodes(ctx context.Context, vendorID string) (ports.VendorNodeList, error) {
 	var out ports.VendorNodeList
-	err := c.session.callTool(ctx, "list_vendor_nodes", map[string]any{"vendorId": vendorID}, &out)
+	err := c.session.callTool(ctx, "list_vendor_nodes", map[string]any{argVendorID: vendorID}, &out)
 	return out, err
 }
 
@@ -65,7 +63,7 @@ func (c *VendorConnectivity) ListVendorNodes(ctx context.Context, vendorID strin
 // the vendor sees it.
 func (c *VendorConnectivity) GetPurchaseOrder(ctx context.Context, vendorID, poNumber string) (ports.VendorPurchaseOrder, error) {
 	var out ports.VendorPurchaseOrder
-	err := c.session.callTool(ctx, "get_purchase_order", map[string]any{"vendorId": vendorID, "poNumber": poNumber}, &out)
+	err := c.session.callTool(ctx, "get_purchase_order", map[string]any{argVendorID: vendorID, "poNumber": poNumber}, &out)
 	return out, err
 }
 
@@ -84,7 +82,7 @@ func (c *VendorConnectivity) PollPurchaseOrders(ctx context.Context, query ports
 // shipment of one vendor.
 func (c *VendorConnectivity) GetInboundShipment(ctx context.Context, vendorID, shipmentID string) (ports.VendorInboundShipment, error) {
 	var out ports.VendorInboundShipment
-	err := c.session.callTool(ctx, "get_inbound_shipment", map[string]any{"vendorId": vendorID, "shipmentId": shipmentID}, &out)
+	err := c.session.callTool(ctx, "get_inbound_shipment", map[string]any{argVendorID: vendorID, argShipmentID: shipmentID}, &out)
 	return out, err
 }
 
@@ -102,7 +100,7 @@ func (c *VendorConnectivity) PollInboundShipments(ctx context.Context, query por
 // write by the transactionId its 202 answer returned.
 func (c *VendorConnectivity) GetTransaction(ctx context.Context, vendorID, transactionID string) (ports.VendorTransaction, error) {
 	var out ports.VendorTransaction
-	err := c.session.callTool(ctx, "get_transaction", map[string]any{"vendorId": vendorID, "transactionId": transactionID}, &out)
+	err := c.session.callTool(ctx, "get_transaction", map[string]any{argVendorID: vendorID, "transactionId": transactionID}, &out)
 	return out, err
 }
 
@@ -110,7 +108,7 @@ func (c *VendorConnectivity) GetTransaction(ctx context.Context, vendorID, trans
 // rolling scorecards node-performance computes, relayed live.
 func (c *VendorConnectivity) GetNodeScorecard(ctx context.Context, vendorID, nodeID string) (ports.VendorNodeScorecards, error) {
 	var out ports.VendorNodeScorecards
-	err := c.session.callTool(ctx, "get_node_scorecard", map[string]any{"vendorId": vendorID, "nodeId": nodeID}, &out)
+	err := c.session.callTool(ctx, "get_node_scorecard", map[string]any{argVendorID: vendorID, argNodeID: nodeID}, &out)
 	return out, err
 }
 
@@ -118,7 +116,7 @@ func (c *VendorConnectivity) GetNodeScorecard(ctx context.Context, vendorID, nod
 // plus whichever optional filters are set, so vendor-connectivity
 // applies its own defaults for the rest.
 func vendorPollArgs(query ports.VendorPollQuery) map[string]any {
-	args := map[string]any{"vendorId": query.VendorID}
+	args := map[string]any{argVendorID: query.VendorID}
 	if query.Limit != 0 {
 		args["limit"] = query.Limit
 	}

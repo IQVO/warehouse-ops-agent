@@ -226,7 +226,7 @@ func (uc *NetworkOrderOutlook) promisesPerGroup(ctx context.Context, groupIDs []
 	if len(groupIDs) == 0 {
 		return sectionResult[ports.DeliveryPromise]{section: section, attempted: true, err: listErr}
 	}
-	return sectionResult[ports.DeliveryPromise]{section: section, attempted: true, err: fmt.Errorf("list_promises_by_order and get_promise both failed: %w; get_promise: %v", listErr, firstErr)}
+	return sectionResult[ports.DeliveryPromise]{section: section, attempted: true, err: fmt.Errorf("list_promises_by_order and get_promise both failed: %w; get_promise: %w", listErr, firstErr)}
 }
 
 // sourcingSection reads the assignments sourcing the order. list_assignments

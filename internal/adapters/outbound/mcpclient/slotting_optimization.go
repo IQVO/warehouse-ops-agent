@@ -36,8 +36,6 @@ func NewSlottingOptimization(cfg Config) *SlottingOptimization {
 	return &SlottingOptimization{session: New(cfg)}
 }
 
-var _ ports.SlottingOptimizationClient = (*SlottingOptimization)(nil)
-
 // ListSlotPlans calls list_slot_plans. Zero query fields are omitted so
 // slotting-optimization applies its own defaults.
 func (c *SlottingOptimization) ListSlotPlans(ctx context.Context, query ports.SlotPlanListQuery) (ports.SlotPlanPage, error) {

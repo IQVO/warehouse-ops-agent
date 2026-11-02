@@ -36,8 +36,6 @@ func NewExceptionManagement(cfg Config) *ExceptionManagement {
 	return &ExceptionManagement{session: New(cfg)}
 }
 
-var _ ports.ExceptionManagementClient = (*ExceptionManagement)(nil)
-
 // ListOpenExceptions calls list_open_exceptions. Zero query fields are
 // omitted so exception-management applies its own defaults (every status,
 // queue, site and source type alike).

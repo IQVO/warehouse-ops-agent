@@ -83,14 +83,14 @@ func toValidateInstance(args map[string]any) any {
 	return args
 }
 
-// enumViolation is returned by recheckEnums naming the offending property.
-type enumViolation struct {
+// enumViolationError is returned by recheckEnums naming the offending property.
+type enumViolationError struct {
 	Property string
 	Value    any
 	Allowed  []any
 }
 
-func (e *enumViolation) Error() string {
+func (e *enumViolationError) Error() string {
 	return fmt.Sprintf("argument %q = %#v is not one of the tool's allowed enum values %#v", e.Property, e.Value, e.Allowed)
 }
 
@@ -121,7 +121,7 @@ func recheckEnums(schema map[string]any, args map[string]any) error {
 			continue
 		}
 		if !enumContains(allowed, val) {
-			return &enumViolation{Property: name, Value: val, Allowed: allowed}
+			return &enumViolationError{Property: name, Value: val, Allowed: allowed}
 		}
 	}
 	return nil

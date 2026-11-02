@@ -36,12 +36,10 @@ func NewNodeTopology(cfg Config) *NodeTopology {
 	return &NodeTopology{session: New(cfg)}
 }
 
-var _ ports.NodeTopologyClient = (*NodeTopology)(nil)
-
 // GetNode calls get_node for one node id.
 func (c *NodeTopology) GetNode(ctx context.Context, nodeID string) (ports.NetworkNode, error) {
 	var out ports.NetworkNode
-	err := c.session.callTool(ctx, "get_node", map[string]any{"nodeId": nodeID}, &out)
+	err := c.session.callTool(ctx, "get_node", map[string]any{argNodeID: nodeID}, &out)
 	return out, err
 }
 

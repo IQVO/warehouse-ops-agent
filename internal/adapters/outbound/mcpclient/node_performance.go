@@ -36,13 +36,11 @@ func NewNodePerformance(cfg Config) *NodePerformance {
 	return &NodePerformance{session: New(cfg)}
 }
 
-var _ ports.NodePerformanceClient = (*NodePerformance)(nil)
-
 // GetScorecard calls get_scorecard for one node: both its 7-day and its
 // 30-day scorecard.
 func (c *NodePerformance) GetScorecard(ctx context.Context, nodeID string) (ports.NodeScorecards, error) {
 	var out ports.NodeScorecards
-	err := c.session.callTool(ctx, "get_scorecard", map[string]any{"nodeId": nodeID}, &out)
+	err := c.session.callTool(ctx, "get_scorecard", map[string]any{argNodeID: nodeID}, &out)
 	return out, err
 }
 

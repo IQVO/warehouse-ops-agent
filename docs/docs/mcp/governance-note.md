@@ -73,8 +73,24 @@ still governs every other surface; the "v1 scope" section above is now true
   evidence.
 - **Not an MCP tool, not reachable by the LLM.** Approving is a human act;
   both are asserted statically in `internal/architecture/zerowrite/act_slice_test.go`.
-- `assign_labor`, `revoke_reservation` and `complete_task` remain
-  recommendation-only: the same test fails if any of them is declared.
+- `revoke_reservation` and `complete_task` remain recommendation-only: the
+  same test fails if either is declared. (`assign_labor` became the second
+  act slice in [ADR 0029](../adr/0029-labor-reallocation-act-slice.md) — see
+  below.)
+
+### The second act slice: labor reallocation (ADR 0029)
+
+[ADR 0029](../adr/0029-labor-reallocation-act-slice.md) adds a second,
+equally gated write: a pure policy ranks at most three moves that cover an
+understaffed path from workforce-management's own readings, and
+`POST /labor-reallocation/proposals` / `.../{proposalId}/approve` delegate ONE
+human-approved move to workforce-management's `assign_labor` A2A skill with
+`proposalId`, `approvedBy` and `agentId`. The guardrails are the same: a token
+bound to the exact move, REST-only, never an MCP tool, never reachable by the
+LLM. The MCP server holds only the token-less `labor_reallocation_outlook`
+(authority L2). The write surface is now exactly two route pairs and two
+verbs (`ReleaseNextWork`, `AssignLabor`); `act_slice_test.go` pins both and
+fails when a third appears.
 
 ### Advisory exception context (ADR 0028)
 

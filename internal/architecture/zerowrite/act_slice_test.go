@@ -1,17 +1,21 @@
 package zerowrite
 
-// The act slice (ADR 0027) is the ONE deliberate relaxation of the v1
-// zero-write guarantee, and this file is its executable boundary. The three
+// The act slices are the ONLY deliberate relaxation of the v1 zero-write
+// guarantee, and this file is their executable boundary. There are exactly
+// TWO: ADR 0027 (release_next_work, delegated to wes-work-planning) and ADR
+// 0029 (assign_labor, delegated to workforce-management). A third needs its
+// own ADR and an edit to these assertions in a reviewed change. The three
 // guardrails the governance note demands before any write exists —
 // an authorization/confirmation gate, a human in the loop, and a write that
 // can only go through a published tool — are pinned here as static facts, so
 // "the slice grew" cannot happen by accident, only by editing these
 // assertions in a reviewed change:
 //
-//  1. exactly ONE write route pair exists, and it is the propose/approve pair;
+//  1. exactly TWO write route pairs exist, and they are the propose/approve
+//     pairs of the two act slices;
 //  2. the A2A SDK (the only write transport) lives in exactly one adapter;
-//  3. the write port has one implementation and no sibling write verbs exist;
-//  4. the use case behind the writes is reachable from the REST adapter and
+//  3. each write port has one implementation and no other write verbs exist;
+//  4. the use cases behind the writes are reachable from the REST adapter and
 //     the composition root ONLY — never from the MCP server (an MCP caller is
 //     typically a model approving its own recommendation) and never from the
 //     LLM reasoner (its only actuators are allow-listed read tools).
@@ -41,15 +45,26 @@ const (
 var scanRoots = []string{"../..", "../../../cmd"}
 
 // allowedWriteRoutes is the complete set of non-GET routes this agent may
-// register. Anything else registering a Post/Put/Patch/Delete route fails.
+// register: the two act slices' propose/approve pairs. Anything else
+// registering a Post/Put/Patch/Delete route fails.
 var allowedWriteRoutes = []string{
 	"/act/release-next-work/approvals",
 	"/act/release-next-work/proposals",
+	"/labor-reallocation/proposals",
+	"/labor-reallocation/proposals/{proposalId}/approve",
+}
+
+// actSliceVerbs maps each act-enabled write verb to the ports file that
+// declares it. Each is declared exactly twice: by that port and by its one
+// A2A adapter implementation.
+var actSliceVerbs = map[string]string{
+	"ReleaseNextWork": "work_release.go",
+	"AssignLabor":     "labor_assignment.go",
 }
 
 // siblingWriteVerbs are the other levers named in the governance note. They
 // stay recommendation-only: no declaration of them may exist anywhere.
-var siblingWriteVerbs = []string{"AssignLabor", "RevokeReservation", "CompleteTask"}
+var siblingWriteVerbs = []string{"RevokeReservation", "CompleteTask"}
 
 // nonTestGoFiles walks the scan roots for non-test, non-generated .go files.
 func nonTestGoFiles(t *testing.T) []string {
@@ -131,11 +146,11 @@ func writeRoutePattern(n ast.Node) (string, bool) {
 	return v, err == nil
 }
 
-// (1) Only the propose/approve route pair may register a write route.
-func TestOnlyTheActRoutesRegisterWriteMethods(t *testing.T) {
+// writeRoutesIn lists the non-GET route patterns registered in files, sorted.
+func writeRoutesIn(files ...*ast.File) []string {
 	var found []string
-	for _, path := range goFilesIn(t, httpAdapterDir) {
-		ast.Inspect(parsed(t, path), func(n ast.Node) bool {
+	for _, f := range files {
+		ast.Inspect(f, func(n ast.Node) bool {
 			if v, ok := writeRoutePattern(n); ok {
 				found = append(found, v)
 			}
@@ -143,8 +158,54 @@ func TestOnlyTheActRoutesRegisterWriteMethods(t *testing.T) {
 		})
 	}
 	sort.Strings(found)
-	if strings.Join(found, ",") != strings.Join(allowedWriteRoutes, ",") {
-		t.Fatalf("write routes registered = %v, want exactly %v (ADR 0027): a new write route needs its own governance decision, not a quiet addition", found, allowedWriteRoutes)
+	return found
+}
+
+// sameStrings reports whether two sorted-or-not string sets are equal.
+func sameStrings(a, b []string) bool {
+	return strings.Join(sortedCopy(a), ",") == strings.Join(sortedCopy(b), ",")
+}
+
+// (1) Only the two act slices' propose/approve route pairs may register a
+// write route.
+func TestOnlyTheActRoutesRegisterWriteMethods(t *testing.T) {
+	var files []*ast.File
+	for _, path := range goFilesIn(t, httpAdapterDir) {
+		files = append(files, parsed(t, path))
+	}
+	found := writeRoutesIn(files...)
+	if !sameStrings(found, allowedWriteRoutes) {
+		t.Fatalf("write routes registered = %v, want exactly %v (ADR 0027, ADR 0029): a new write route needs its own governance decision, not a quiet addition", found, allowedWriteRoutes)
+	}
+}
+
+// The scanner above must go RED when a third write appears. This proves it
+// on synthetic sources, so the guard cannot rot into a vacuous pass.
+func TestFitnessGoesRedWhenAThirdWriteAppears(t *testing.T) {
+	const thirdRoute = `package http
+func routes(r Router) {
+	r.Post("/act/release-next-work/proposals", h)
+	r.Post("/act/third-slice/approve", h)
+}`
+	const strayDelete = `package http
+func routes(r Router) { r.Delete("/labor-reallocation/proposals", h) }`
+	const methodFunc = `package http
+func routes(r Router) { r.MethodFunc("PUT", "/anything", h) }`
+	for name, src := range map[string]string{"a third POST route": thirdRoute, "a stray DELETE": strayDelete, "MethodFunc PUT": methodFunc} {
+		found := writeRoutesIn(parseGoFile(t, name+".go", []byte(src)))
+		if sameStrings(found, allowedWriteRoutes) {
+			t.Errorf("%s: the route check stayed green for %v — it would not catch a third write", name, found)
+		}
+	}
+	// Positive control: exactly the allowed routes pass.
+	var all strings.Builder
+	all.WriteString("package http\nfunc routes(r Router) {\n")
+	for _, route := range allowedWriteRoutes {
+		all.WriteString("\tr.Post(" + strconv.Quote(route) + ", h)\n")
+	}
+	all.WriteString("}\n")
+	if found := writeRoutesIn(parseGoFile(t, "allowed.go", []byte(all.String()))); !sameStrings(found, allowedWriteRoutes) {
+		t.Errorf("the allowed routes alone must pass, got %v", found)
 	}
 }
 
@@ -185,7 +246,10 @@ func TestA2ASDKIsConfinedToTheActAdapter(t *testing.T) {
 // writeVerbsDeclaredBy returns the write-verb names a node declares, as a
 // function or as an interface method.
 func writeVerbsDeclaredBy(n ast.Node) []string {
-	verbs := map[string]bool{"ReleaseNextWork": true}
+	verbs := map[string]bool{}
+	for v := range actSliceVerbs {
+		verbs[v] = true
+	}
 	for _, v := range siblingWriteVerbs {
 		verbs[v] = true
 	}
@@ -221,22 +285,60 @@ func declaredWriteVerbs(t *testing.T) map[string][]string {
 	return declared
 }
 
-// (3) One write port, one implementation, no sibling write verbs.
-func TestWriteVerbsAreLimitedToTheReleasePort(t *testing.T) {
+// (3) Two write ports, one implementation each, no sibling write verbs.
+func TestWriteVerbsAreLimitedToTheTwoActSlicePorts(t *testing.T) {
 	declared := declaredWriteVerbs(t)
 	for _, v := range siblingWriteVerbs {
 		if files := declared[v]; len(files) > 0 {
 			t.Errorf("%s is declared in %v — it must stay recommendation-only (governance note)", v, files)
 		}
 	}
-	for _, f := range declared["ReleaseNextWork"] {
-		okPort := filepath.Base(f) == "work_release.go" && within(f, "../../ports")
-		if !okPort && !within(f, a2aAdapterDir) {
-			t.Errorf("ReleaseNextWork declared in %s — only the port (ports/work_release.go) and the a2a adapter may", f)
+	if len(actSliceVerbs) != 2 {
+		t.Fatalf("act-slice verbs = %v, want exactly the two slices' verbs", actSliceVerbs)
+	}
+	for verb, portFile := range actSliceVerbs {
+		for _, f := range declared[verb] {
+			okPort := filepath.Base(f) == portFile && within(f, "../../ports")
+			if !okPort && !within(f, a2aAdapterDir) {
+				t.Errorf("%s declared in %s — only the port (ports/%s) and the a2a adapter may", verb, f, portFile)
+			}
+		}
+		if len(declared[verb]) != 2 {
+			t.Errorf("%s declarations = %v, want exactly the port and its one adapter", verb, declared[verb])
 		}
 	}
-	if len(declared["ReleaseNextWork"]) != 2 {
-		t.Errorf("ReleaseNextWork declarations = %v, want exactly the port and its one adapter", declared["ReleaseNextWork"])
+	for verb := range declared {
+		if _, isAct := actSliceVerbs[verb]; !isAct && !contains(siblingWriteVerbs, verb) {
+			t.Errorf("unexpected write verb %s declared in %v", verb, declared[verb])
+		}
+	}
+}
+
+func contains(list []string, v string) bool {
+	for _, x := range list {
+		if x == v {
+			return true
+		}
+	}
+	return false
+}
+
+// The verb scanner must go RED when a third write verb appears or a known
+// one gains a second implementation.
+func TestFitnessGoesRedWhenAThirdWriteVerbAppears(t *testing.T) {
+	for name, src := range map[string]string{
+		"a sibling verb func":      "package x\nfunc RevokeReservation() {}",
+		"a sibling interface verb": "package x\ntype P interface{ CompleteTask() }",
+		"a second assign impl":     "package x\nfunc (c *Other) AssignLabor() {}",
+	} {
+		var hits []string
+		ast.Inspect(parseGoFile(t, name+".go", []byte(src)), func(n ast.Node) bool {
+			hits = append(hits, writeVerbsDeclaredBy(n)...)
+			return true
+		})
+		if len(hits) == 0 {
+			t.Errorf("%s: the verb scan found nothing — it would not catch a third write", name)
+		}
 	}
 }
 
@@ -280,6 +382,11 @@ func identName(n ast.Node) string {
 func assertUnreachableFromActSlice(t *testing.T, path string) {
 	t.Helper()
 	forbiddenIdents := map[string]bool{"ReleaseWork": true, "NewReleaseWork": true, "WorkReleaser": true, "ReleaseNextWork": true, "ReleaseProposal": true, "ReleaseOutcome": true}
+	// ADR 0029: the labor-reallocation act slice. The token-less
+	// LaborReallocationOutlook is the one name the MCP server may use.
+	for _, name := range laborReallocationIdents {
+		forbiddenIdents[name] = true
+	}
 	// ADR 0028: the advisory exception lookup is attached to proposals for a
 	// human; it is not a tool and the model never drives it.
 	for _, name := range exceptionLookupIdents {
@@ -331,6 +438,17 @@ var exceptionLookupIdents = []string{
 	"ExceptionClient", "NewExceptionClient", "WithExceptionContext", "ErrExceptionContextUnavailable",
 }
 
+// laborReallocationIdents are the ADR-0029 names that must stay out of the
+// MCP server and the LLM reasoner (and out of everything but REST, the use
+// case and the composition root). LaborReallocationOutlook,
+// LaborReallocationInput and ReallocationOutlook are deliberately absent:
+// the outlook is the read-only, token-less view the MCP tool serves.
+var laborReallocationIdents = []string{
+	"LaborReallocation", "NewLaborReallocation", "LaborAssigner", "AssignLabor", "AssignLaborRequest",
+	"ReallocationProposal", "ReallocationProposals", "ReallocationOutcome", "ErrProposalMismatch",
+	"MintReallocation", "VerifyReallocation", "LaborClient", "NewLaborClient",
+}
+
 // usesReleaseWork reports the selector name when n is usecases.ReleaseWork or
 // usecases.NewReleaseWork.
 func usesReleaseWork(n ast.Node) (string, bool) {
@@ -343,7 +461,8 @@ func usesReleaseWork(n ast.Node) (string, bool) {
 		return "", false
 	}
 	switch sel.Sel.Name {
-	case "ReleaseWork", "NewReleaseWork", "WithExceptionContext", "ExceptionContextResult", "ReleaseWorkOption":
+	case "ReleaseWork", "NewReleaseWork", "WithExceptionContext", "ExceptionContextResult", "ReleaseWorkOption",
+		"LaborReallocation", "NewLaborReallocation", "ReallocationProposal", "ReallocationProposals", "ReallocationOutcome", "ErrProposalMismatch":
 		return sel.Sel.Name, true
 	}
 	return sel.Sel.Name, false

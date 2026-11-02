@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 	"time"
 
 	"github.com/claudioed/warehouse-ops-agent/internal/adapters/outbound/httpclient"
@@ -59,4 +60,47 @@ func newHTTPClient(timeout time.Duration) *http.Client {
 		timeout = 5 * time.Second
 	}
 	return httpclient.New(timeout)
+}
+
+const (
+	// listPageLimit is the REST guideline's maximum page size (limit 1-500).
+	listPageLimit = 500
+	// listMaxPages bounds a single list read: listPageLimit*listMaxPages rows
+	// per call. A provider still returning a nextCursor beyond it is an error,
+	// never a silent truncation.
+	listMaxPages = 20
+)
+
+// pagedList is the fleet's paged collection envelope (REST guideline §3.3).
+type pagedList[T any] struct {
+	Items      []T    `json:"items"`
+	NextCursor string `json:"nextCursor"`
+}
+
+// listAll reads every page of a collection GET: it reads `items`, follows
+// `nextCursor` (repeating the filters on each request) and fails once
+// listMaxPages is exceeded.
+func listAll[T any](ctx context.Context, client *http.Client, baseURL, path string, filters url.Values) ([]T, error) {
+	var all []T
+	cursor := ""
+	for page := 0; page < listMaxPages; page++ {
+		q := url.Values{}
+		for k, v := range filters {
+			q[k] = v
+		}
+		q.Set("limit", strconv.Itoa(listPageLimit))
+		if cursor != "" {
+			q.Set("cursor", cursor)
+		}
+		var out pagedList[T]
+		if err := httpGetJSON(ctx, client, baseURL, path, q, &out); err != nil {
+			return nil, err
+		}
+		all = append(all, out.Items...)
+		if out.NextCursor == "" {
+			return all, nil
+		}
+		cursor = out.NextCursor
+	}
+	return nil, fmt.Errorf("restclient: %s: more than %d pages, refusing to truncate", path, listMaxPages)
 }

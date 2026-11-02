@@ -101,6 +101,14 @@ type world struct {
 	inbound       *fakeInbound
 	staleAge      time.Duration
 
+	// Labor reallocation (ADR 0029): site-scoped staffing reads, the
+	// stand-in for workforce-management's assign_labor skill, and the first
+	// proposal the scenario made.
+	laborStaffing   *fakeLaborStaffing
+	laborPeer       *fakeLaborPeer
+	firstProposalId string
+	firstToken      string
+
 	targets  []usecases.PathTarget
 	bindings map[string]string
 	unwired  map[string]bool
@@ -126,6 +134,8 @@ func newWorld() *world {
 		productMaster: &fakeProductMaster{},
 		nip:           &fakeNIP{details: map[string]ports.TransferDetail{}},
 		inbound:       &fakeInbound{},
+		laborStaffing: newFakeLaborStaffing(),
+		laborPeer:     &fakeLaborPeer{},
 		bindings:      map[string]string{},
 		unwired:       map[string]bool{},
 	}
@@ -170,6 +180,13 @@ func (w *world) start() error {
 	}
 	if !w.unwired["transfer-watch"] {
 		h.TransferWatch = &usecases.TransferWatch{NIP: w.nip}
+	}
+	if !w.unwired["labor-reallocation"] {
+		lr, err := w.laborReallocation()
+		if err != nil {
+			return err
+		}
+		h.LaborReallocation = lr
 	}
 	w.server = httptest.NewServer(inboundhttp.NewRouter(h, "warehouse-ops-agent"))
 	return nil
@@ -379,7 +396,7 @@ func (w *world) theClockIsFixedAt(instant string) error {
 var capabilityKeys = map[string]bool{
 	"flow-balance": true, "explain-travel-factor": true, "order-lifecycle": true,
 	"console-reports": true, "runtime-signals": true, "master-data-gaps": true,
-	"inbound-outlook": true, "transfer-watch": true,
+	"inbound-outlook": true, "transfer-watch": true, "labor-reallocation": true,
 }
 
 func (w *world) capabilityIsNotConfigured(key string) error {
@@ -452,7 +469,7 @@ func (w *world) theResponseHeaderIsAbsent(name string) error {
 }
 
 func (w *world) theResponseErrorMentions(fragment string) error {
-	return w.theJSONFieldContains("error", fragment)
+	return w.theJSONFieldContains("detail", fragment)
 }
 
 func (w *world) theJSONFieldEquals(path, expected string) error {
@@ -569,6 +586,7 @@ func InitializeScenario(sc *godog.ScenarioContext) {
 	registerReasonerSteps(sc, w)
 	registerConsoleSteps(sc, w)
 	registerOptionalContextSteps(sc, w)
+	registerLaborReallocationSteps(sc, w)
 }
 
 func registerCommonSteps(sc *godog.ScenarioContext, w *world) {

@@ -139,7 +139,7 @@ const config: Config = {
           ],
         },
       ],
-      copyright: `warehouse-systems \u00b7 warehouse-ops-agent \u2014 read-side decision-support, Customer of five Open Host Services. Built ${new Date().getFullYear()}.`,
+      copyright: `warehouse-systems \u00b7 warehouse-ops-agent \u2014 read-side decision-support, Customer of five Open Host Services. Built ${new Date().getFullYear()}. This project is a domain-driven design study. It is not associated with, endorsed by or affiliated with any company, and it uses no company's code, data, logos or trademarks. All names, figures and examples are illustrative or synthetic.`,
     },
     prism: {
       theme: prismThemes.github,
