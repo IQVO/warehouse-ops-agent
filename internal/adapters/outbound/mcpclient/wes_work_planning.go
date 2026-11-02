@@ -16,20 +16,17 @@ type WesWorkPlanning struct {
 // NewWesWorkPlanning builds a WesWorkPlanning client for the given
 // connection config.
 func NewWesWorkPlanning(cfg Config) *WesWorkPlanning {
-	cfg.Name = "wes-work-planning"
-	return &WesWorkPlanning{session: New(cfg)}
+	return &WesWorkPlanning{session: NewNamedSession("wes-work-planning", cfg)}
 }
-
-var _ ports.WesWorkPlanningClient = (*WesWorkPlanning)(nil)
 
 func (c *WesWorkPlanning) GetBacklogTelemetry(ctx context.Context, pathId string) (ports.BacklogTelemetry, error) {
 	var out ports.BacklogTelemetry
-	err := c.session.callTool(ctx, "get_backlog_telemetry", map[string]any{"pathId": pathId}, &out)
+	err := c.session.callTool(ctx, "get_backlog_telemetry", map[string]any{argPathID: pathId}, &out)
 	return out, err
 }
 
 func (c *WesWorkPlanning) GetRebalanceRecommendation(ctx context.Context, pathId string) (ports.RebalanceRecommendation, error) {
 	var out ports.RebalanceRecommendation
-	err := c.session.callTool(ctx, "get_rebalance_recommendation", map[string]any{"pathId": pathId}, &out)
+	err := c.session.callTool(ctx, "get_rebalance_recommendation", map[string]any{argPathID: pathId}, &out)
 	return out, err
 }

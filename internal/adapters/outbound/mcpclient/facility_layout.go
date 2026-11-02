@@ -20,8 +20,6 @@ func NewFacilityLayout(cfg Config) *FacilityLayout {
 	return &FacilityLayout{session: New(cfg)}
 }
 
-var _ ports.FacilityLayoutClient = (*FacilityLayout)(nil)
-
 func (c *FacilityLayout) ListSites(ctx context.Context) (ports.SitesResult, error) {
 	var out ports.SitesResult
 	err := c.session.callTool(ctx, "list_sites", map[string]any{}, &out)

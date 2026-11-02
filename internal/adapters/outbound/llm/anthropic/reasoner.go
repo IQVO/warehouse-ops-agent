@@ -171,6 +171,14 @@ func New(cfg Config, invoker ports.ToolInvoker) (*Reasoner, error) {
 
 // --- wire types (only what this adapter uses) ---
 
+// Wire literals shared across this adapter's Messages API payloads and the
+// JSON Schemas it builds for its tools (goconst, 2026-11-02).
+const (
+	roleUser          = "user"
+	contentToolResult = "tool_result"
+	schemaKeyType     = "type"
+)
+
 type apiTool struct {
 	Name        string         `json:"name"`
 	Description string         `json:"description"`
@@ -224,7 +232,7 @@ func (r *Reasoner) Reason(ctx context.Context, brief ports.Brief) (ports.Plan, e
 	defer cancel()
 
 	tools, lookup := r.tools(brief)
-	messages := []apiMessage{{Role: "user", Content: []apiContent{{Type: "text", Text: userPrompt(brief)}}}}
+	messages := []apiMessage{{Role: roleUser, Content: []apiContent{{Type: "text", Text: userPrompt(brief)}}}}
 	plan := ports.Plan{Model: r.cfg.Model}
 
 	for turn := 0; turn < r.cfg.MaxTurns; turn++ {
@@ -254,10 +262,10 @@ func (r *Reasoner) Reason(ctx context.Context, brief ports.Brief) (ports.Plan, e
 			// The model answered in prose instead of submitting a plan.
 			// One nudge with tool_choice forced to submit_plan; if it still
 			// does not comply the loop bound ends it.
-			messages = append(messages, apiMessage{Role: "user", Content: []apiContent{{Type: "text", Text: "Submit your plan now by calling submit_plan."}}})
+			messages = append(messages, apiMessage{Role: roleUser, Content: []apiContent{{Type: "text", Text: "Submit your plan now by calling submit_plan."}}})
 			continue
 		}
-		messages = append(messages, apiMessage{Role: "user", Content: results})
+		messages = append(messages, apiMessage{Role: roleUser, Content: results})
 	}
 	return plan, fmt.Errorf("anthropic: no plan submitted within %d turns", r.cfg.MaxTurns)
 }
@@ -282,7 +290,7 @@ func (r *Reasoner) processAssistantTurn(ctx context.Context, resp *apiResponse, 
 		spec, ok := lookup[c.Name]
 		if !ok {
 			// A tool we never offered: refuse, tell the model, keep going.
-			results = append(results, apiContent{Type: "tool_result", ToolUseID: c.ID, Content: "unknown tool", IsError: true})
+			results = append(results, apiContent{Type: contentToolResult, ToolUseID: c.ID, Content: "unknown tool", IsError: true})
 			plan.ToolCalls = append(plan.ToolCalls, ports.ToolCall{Tool: c.Name, Outcome: "refused: unknown tool"})
 			continue
 		}

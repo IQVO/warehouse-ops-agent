@@ -19,8 +19,6 @@ func NewLaborPerformance(cfg Config) *LaborPerformance {
 	return &LaborPerformance{session: New(cfg)}
 }
 
-var _ ports.LaborPerformanceClient = (*LaborPerformance)(nil)
-
 // GetTaskTypeUtilization calls get_task_type_utilization. windowSeconds is
 // forwarded as-is: the tool itself treats a non-positive or omitted value
 // as "apply its own default" (1h), so this client never substitutes a

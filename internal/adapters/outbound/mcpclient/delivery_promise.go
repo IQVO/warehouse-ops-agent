@@ -37,8 +37,6 @@ func NewDeliveryPromise(cfg Config) *DeliveryPromise {
 	return &DeliveryPromise{session: New(cfg)}
 }
 
-var _ ports.DeliveryPromiseClient = (*DeliveryPromise)(nil)
-
 // GetCurrentPolicy calls get_current_policy. It takes no arguments;
 // delivery-promise answers the policy in force.
 func (c *DeliveryPromise) GetCurrentPolicy(ctx context.Context) (ports.PromisePolicy, error) {
@@ -66,7 +64,7 @@ func (c *DeliveryPromise) GetPromise(ctx context.Context, promiseID string) (por
 // zone).
 func (c *DeliveryPromise) ListPromiseBooks(ctx context.Context, nodeID, date string) (ports.PromiseBooks, error) {
 	var out ports.PromiseBooks
-	err := c.session.callTool(ctx, "list_promise_books", map[string]any{"nodeId": nodeID, "date": date}, &out)
+	err := c.session.callTool(ctx, "list_promise_books", map[string]any{argNodeID: nodeID, "date": date}, &out)
 	return out, err
 }
 
@@ -74,6 +72,6 @@ func (c *DeliveryPromise) ListPromiseBooks(ctx context.Context, nodeID, date str
 // order.
 func (c *DeliveryPromise) ListPromisesByOrder(ctx context.Context, orderID string) (ports.PromisesByOrder, error) {
 	var out ports.PromisesByOrder
-	err := c.session.callTool(ctx, "list_promises_by_order", map[string]any{"orderId": orderID}, &out)
+	err := c.session.callTool(ctx, "list_promises_by_order", map[string]any{argOrderID: orderID}, &out)
 	return out, err
 }

@@ -33,16 +33,13 @@ type ProcessPathManagement struct {
 // NewProcessPathManagement builds a ProcessPathManagement client for the
 // given connection config.
 func NewProcessPathManagement(cfg Config) *ProcessPathManagement {
-	cfg.Name = "process-path-management"
-	return &ProcessPathManagement{session: New(cfg)}
+	return &ProcessPathManagement{session: NewNamedSession("process-path-management", cfg)}
 }
-
-var _ ports.ProcessPathManagementClient = (*ProcessPathManagement)(nil)
 
 // GetProcessPath calls get_process_path for one canonical path id.
 func (c *ProcessPathManagement) GetProcessPath(ctx context.Context, pathID string) (ports.ProcessPathEntry, error) {
 	var out ports.ProcessPathEntry
-	err := c.session.callTool(ctx, "get_process_path", map[string]any{"pathId": pathID}, &out)
+	err := c.session.callTool(ctx, "get_process_path", map[string]any{argPathID: pathID}, &out)
 	return out, err
 }
 

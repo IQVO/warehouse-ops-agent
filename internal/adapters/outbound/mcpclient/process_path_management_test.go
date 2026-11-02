@@ -2,6 +2,7 @@ package mcpclient
 
 import (
 	"context"
+	"errors"
 	"reflect"
 	"testing"
 
@@ -159,9 +160,12 @@ func TestProcessPathManagement_NotFoundIsAnOrdinaryError(t *testing.T) {
 	up := newProcessPathManagementTestUpstream(t)
 	c := NewProcessPathManagement(Config{Endpoint: up.URL})
 
-	if _, err := c.GetProcessPath(context.Background(), "NOPE"); err == nil {
+	_, err := c.GetProcessPath(context.Background(), "NOPE")
+	if err == nil {
 		t.Fatal("an unknown path id must surface as an error")
-	} else if _, ok := err.(*ToolError); !ok {
+	}
+	var toolErr *ToolError
+	if !errors.As(err, &toolErr) {
 		t.Fatalf("a tool error result must surface as *ToolError, got %T", err)
 	}
 }

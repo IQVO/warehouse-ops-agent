@@ -3,6 +3,7 @@ package restclient
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -37,7 +38,7 @@ func TestOrderManagement_GetOrder_NotFound(t *testing.T) {
 
 	client := NewOrderManagement(srv.URL, 0)
 	_, err := client.GetOrder(context.Background(), "missing")
-	if err != ports.ErrNotFound {
+	if !errors.Is(err, ports.ErrNotFound) {
 		t.Fatalf("expected ErrNotFound, got %v", err)
 	}
 }

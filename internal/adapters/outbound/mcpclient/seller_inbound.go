@@ -37,8 +37,6 @@ func NewSellerInbound(cfg Config) *SellerInbound {
 	return &SellerInbound{session: New(cfg)}
 }
 
-var _ ports.SellerInboundClient = (*SellerInbound)(nil)
-
 // GetSellerScorecard calls get_seller_scorecard. An empty window is
 // omitted so seller-inbound applies its own default (30d).
 func (c *SellerInbound) GetSellerScorecard(ctx context.Context, sellerID, window string) (ports.SellerScorecard, error) {
@@ -59,13 +57,13 @@ func (c *SellerInbound) GetInboundPlan(ctx context.Context, planID string) (port
 // GetShipmentLabels calls get_shipment_labels for one labelled shipment.
 func (c *SellerInbound) GetShipmentLabels(ctx context.Context, shipmentID string) (ports.ShipmentLabels, error) {
 	var out ports.ShipmentLabels
-	err := c.session.callTool(ctx, "get_shipment_labels", map[string]any{"shipmentId": shipmentID}, &out)
+	err := c.session.callTool(ctx, "get_shipment_labels", map[string]any{argShipmentID: shipmentID}, &out)
 	return out, err
 }
 
 // GetInboundShipment calls get_inbound_shipment for one shipment id.
 func (c *SellerInbound) GetInboundShipment(ctx context.Context, shipmentID string) (ports.InboundShipment, error) {
 	var out ports.InboundShipment
-	err := c.session.callTool(ctx, "get_inbound_shipment", map[string]any{"shipmentId": shipmentID}, &out)
+	err := c.session.callTool(ctx, "get_inbound_shipment", map[string]any{argShipmentID: shipmentID}, &out)
 	return out, err
 }

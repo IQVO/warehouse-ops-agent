@@ -99,7 +99,7 @@ func (uc *MasterDataGaps) scan(ctx context.Context, cursor string, unclassifiedO
 		result, err := uc.ProductMaster.ListProducts(ctx, query)
 		if err != nil {
 			if errors.Is(err, ports.ErrUpstreamInvalidInput) {
-				return nil, "", fmt.Errorf("%w: product-master rejected the scan (cursor %q): %v", ErrInvalidInput, query.Cursor, err)
+				return nil, "", fmt.Errorf("%w: product-master rejected the scan (cursor %q): %w", ErrInvalidInput, query.Cursor, err)
 			}
 			return nil, "", fmt.Errorf("product-master list_products: %w", err)
 		}

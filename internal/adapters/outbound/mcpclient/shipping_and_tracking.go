@@ -36,8 +36,6 @@ func NewShippingAndTracking(cfg Config) *ShippingAndTracking {
 	return &ShippingAndTracking{session: New(cfg)}
 }
 
-var _ ports.ShippingAndTrackingClient = (*ShippingAndTracking)(nil)
-
 // GetJourney calls get_journey for one tracking number.
 func (c *ShippingAndTracking) GetJourney(ctx context.Context, trackingNumber string) (ports.PackageJourney, error) {
 	var out ports.PackageJourney

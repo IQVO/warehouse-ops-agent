@@ -31,8 +31,6 @@ func NewWarehousePlanning(cfg Config) *WarehousePlanning {
 	return &WarehousePlanning{session: New(cfg)}
 }
 
-var _ ports.WarehousePlanningClient = (*WarehousePlanning)(nil)
-
 // GetProcessPathCapacity calls get_process_path_capacity. The optional
 // conversion factors are sent only when non-nil.
 func (c *WarehousePlanning) GetProcessPathCapacity(ctx context.Context, req ports.ProcessPathCapacityRequest) (ports.ProcessPathCapacity, error) {

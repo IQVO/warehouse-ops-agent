@@ -55,7 +55,7 @@ func (r *Reasoner) executeToolCall(ctx context.Context, c apiContent, spec ports
 		span.SetStatus(codes.Error, call.Outcome)
 	}
 
-	result := apiContent{Type: "tool_result", ToolUseID: c.ID, Content: out}
+	result := apiContent{Type: contentToolResult, ToolUseID: c.ID, Content: out}
 	if err != nil {
 		result.Content, result.IsError = err.Error(), true
 	}
@@ -69,7 +69,7 @@ func (r *Reasoner) executeToolCall(ctx context.Context, c apiContent, spec ports
 func (r *Reasoner) refuseToolCall(ctx context.Context, span trace.Span, c apiContent, spec ports.ToolSpec, args map[string]any, outcome, detail string) (apiContent, ports.ToolCall) {
 	span.SetStatus(codes.Error, outcome)
 	r.logToolCall(ctx, spec, args, outcome, 0)
-	return apiContent{Type: "tool_result", ToolUseID: c.ID, Content: detail, IsError: true},
+	return apiContent{Type: contentToolResult, ToolUseID: c.ID, Content: detail, IsError: true},
 		ports.ToolCall{Upstream: spec.Upstream, Tool: spec.Name, Outcome: outcome}
 }
 
@@ -105,7 +105,7 @@ func (r *Reasoner) tools(brief ports.Brief) ([]apiTool, map[string]ports.ToolSpe
 		lookup[name] = t
 		schema := t.InputSchema
 		if schema == nil {
-			schema = map[string]any{"type": "object", "properties": map[string]any{}}
+			schema = map[string]any{schemaKeyType: "object", "properties": map[string]any{}}
 		}
 		tools = append(tools, apiTool{Name: name, Description: t.Description, InputSchema: schema})
 	}
@@ -113,11 +113,11 @@ func (r *Reasoner) tools(brief ports.Brief) ([]apiTool, map[string]ports.ToolSpe
 		Name:        submitPlanTool,
 		Description: "Submit your final recommendation. This is the ONLY way to answer.",
 		InputSchema: map[string]any{
-			"type": "object",
+			schemaKeyType: "object",
 			"properties": map[string]any{
-				"recommendedAction": map[string]any{"type": "string", "enum": brief.AllowedActions},
-				"proposedHeads":     map[string]any{"type": "integer", "minimum": 0, "maximum": 50, "description": "Only for assign_labor (at least 1, at most 50); 0 otherwise."},
-				"rationale":         map[string]any{"type": "string", "description": "One or two sentences citing the facts you relied on."},
+				"recommendedAction": map[string]any{schemaKeyType: "string", "enum": brief.AllowedActions},
+				"proposedHeads":     map[string]any{schemaKeyType: "integer", "minimum": 0, "maximum": 50, "description": "Only for assign_labor (at least 1, at most 50); 0 otherwise."},
+				"rationale":         map[string]any{schemaKeyType: "string", "description": "One or two sentences citing the facts you relied on."},
 			},
 			"required":             []string{"recommendedAction", "proposedHeads", "rationale"},
 			"additionalProperties": false,

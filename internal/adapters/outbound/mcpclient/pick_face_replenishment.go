@@ -37,8 +37,6 @@ func NewPickFaceReplenishment(cfg Config) *PickFaceReplenishment {
 	return &PickFaceReplenishment{session: New(cfg)}
 }
 
-var _ ports.PickFaceReplenishmentClient = (*PickFaceReplenishment)(nil)
-
 // GetPolicy calls get_policy for one site and SKU.
 func (c *PickFaceReplenishment) GetPolicy(ctx context.Context, siteID, sku string) (ports.ReplenishmentPolicy, error) {
 	var out ports.ReplenishmentPolicy

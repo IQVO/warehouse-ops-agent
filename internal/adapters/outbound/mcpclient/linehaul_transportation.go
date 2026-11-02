@@ -36,8 +36,6 @@ func NewLinehaulTransportation(cfg Config) *LinehaulTransportation {
 	return &LinehaulTransportation{session: New(cfg)}
 }
 
-var _ ports.LinehaulTransportationClient = (*LinehaulTransportation)(nil)
-
 // GetDeparture calls get_departure for one departure id.
 func (c *LinehaulTransportation) GetDeparture(ctx context.Context, departureID string) (ports.LinehaulDeparture, error) {
 	var out ports.LinehaulDeparture

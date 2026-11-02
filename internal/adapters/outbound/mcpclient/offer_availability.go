@@ -36,8 +36,6 @@ func NewOfferAvailability(cfg Config) *OfferAvailability {
 	return &OfferAvailability{session: New(cfg)}
 }
 
-var _ ports.OfferAvailabilityClient = (*OfferAvailability)(nil)
-
 // BrowseCatalog calls browse_catalog. Zero query fields are omitted so
 // offer-availability answers the first page at its default page size.
 func (c *OfferAvailability) BrowseCatalog(ctx context.Context, query ports.CatalogPageQuery) (ports.CatalogPage, error) {
