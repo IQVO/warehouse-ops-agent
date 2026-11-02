@@ -137,3 +137,7 @@ why that degrade-to-hold discipline is the whole point of the design.
 - [Governance note](../mcp/governance-note.md) — the read-only v1 posture
   and what a future write-capable slice would require.
 - [Architecture Decision Records](../adr/index.md) — the decisions, and why.
+
+:::note[Disclaimer]
+This project is a domain-driven design study. It is not associated with, endorsed by or affiliated with any company, and it uses no company's code, data, logos or trademarks. All names, figures and examples are illustrative or synthetic.
+:::
