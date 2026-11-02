@@ -36,8 +36,6 @@ func NewTaskInterleaving(cfg Config) *TaskInterleaving {
 	return &TaskInterleaving{session: New(cfg)}
 }
 
-var _ ports.TaskInterleavingClient = (*TaskInterleaving)(nil)
-
 // GetHint calls get_hint for one hint id.
 func (c *TaskInterleaving) GetHint(ctx context.Context, hintID string) (ports.InterleavingHint, error) {
 	var out ports.InterleavingHint

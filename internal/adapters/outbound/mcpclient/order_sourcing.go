@@ -36,8 +36,6 @@ func NewOrderSourcing(cfg Config) *OrderSourcing {
 	return &OrderSourcing{session: New(cfg)}
 }
 
-var _ ports.OrderSourcingClient = (*OrderSourcing)(nil)
-
 // GetAssignment calls get_assignment for one fulfillment assignment id.
 func (c *OrderSourcing) GetAssignment(ctx context.Context, assignmentID string) (ports.FulfillmentAssignment, error) {
 	var out ports.FulfillmentAssignment

@@ -16,11 +16,8 @@ type InventoryStorage struct {
 // NewInventoryStorage builds an InventoryStorage client for the given
 // connection config.
 func NewInventoryStorage(cfg Config) *InventoryStorage {
-	cfg.Name = "inventory-storage"
-	return &InventoryStorage{session: New(cfg)}
+	return &InventoryStorage{session: NewNamedSession("inventory-storage", cfg)}
 }
-
-var _ ports.InventoryStorageClient = (*InventoryStorage)(nil)
 
 func (c *InventoryStorage) CheckAvailability(ctx context.Context, sku string) (ports.Availability, error) {
 	var out ports.Availability

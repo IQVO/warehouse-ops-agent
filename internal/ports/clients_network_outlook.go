@@ -15,14 +15,13 @@ import (
 
 // --- the network ORDER outlook (ADR 0026) ------------------------------------
 
-// PlacedOrderReader is the customer-ordering slice the order outlook
+// PlacedOrderReader names the customer-ordering slice the order outlook
 // reads: the order itself, its per-group tracking view and its ship-to
-// address. Satisfied by the full CustomerOrderingClient.
-type PlacedOrderReader interface {
-	GetOrder(ctx context.Context, orderID string) (CustomerOrder, error)
-	GetOrderTracking(ctx context.Context, orderID string) (OrderTracking, error)
-	GetShipTo(ctx context.Context, orderID string) (ShipToAddress, error)
-}
+// address. Its method set is exactly the full CustomerOrderingClient (the
+// outlook consumes every tool the client pins), so it is an alias rather
+// than a re-declared interface (fleet iface rule, 2026-11-02): the
+// mcpclient adapter satisfies it by satisfying the full client.
+type PlacedOrderReader = CustomerOrderingClient
 
 // OrderPromiseReader is the delivery-promise slice the order outlook
 // reads: the order's promises per shipment group, plus one promise by id
@@ -42,12 +41,12 @@ type OrderAssignmentReader interface {
 	ListAssignments(ctx context.Context, query AssignmentListQuery) (AssignmentPage, error)
 }
 
-// PackageJourneyReader is the shipping-and-tracking slice the order
+// PackageJourneyReader names the shipping-and-tracking slice the order
 // outlook reads: the customer-visible journey of one package by tracking
-// number. Satisfied by the full ShippingAndTrackingClient.
-type PackageJourneyReader interface {
-	GetJourney(ctx context.Context, trackingNumber string) (PackageJourney, error)
-}
+// number. Its method set is exactly the full ShippingAndTrackingClient
+// (the outlook consumes the client's only tool), so it is an alias rather
+// than a re-declared interface (fleet iface rule, 2026-11-02).
+type PackageJourneyReader = ShippingAndTrackingClient
 
 // --- the network NODE outlook (ADR 0026) -------------------------------------
 

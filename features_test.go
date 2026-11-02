@@ -452,7 +452,7 @@ func (w *world) theResponseHeaderIsAbsent(name string) error {
 }
 
 func (w *world) theResponseErrorMentions(fragment string) error {
-	return w.theJSONFieldContains("error", fragment)
+	return w.theJSONFieldContains("detail", fragment)
 }
 
 func (w *world) theJSONFieldEquals(path, expected string) error {

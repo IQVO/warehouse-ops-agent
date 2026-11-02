@@ -16,11 +16,8 @@ type FulfillmentExecution struct {
 // NewFulfillmentExecution builds a FulfillmentExecution client for the given
 // connection config.
 func NewFulfillmentExecution(cfg Config) *FulfillmentExecution {
-	cfg.Name = "fulfillment-execution"
-	return &FulfillmentExecution{session: New(cfg)}
+	return &FulfillmentExecution{session: NewNamedSession("fulfillment-execution", cfg)}
 }
-
-var _ ports.FulfillmentExecutionClient = (*FulfillmentExecution)(nil)
 
 func (c *FulfillmentExecution) GetQueueStatus(ctx context.Context, processPath string) (ports.QueueStatus, error) {
 	var out ports.QueueStatus

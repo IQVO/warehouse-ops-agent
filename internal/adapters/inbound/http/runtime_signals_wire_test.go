@@ -74,7 +74,7 @@ func assertGolden(t *testing.T, name, got string) {
 			t.Fatalf("write golden: %v", err)
 		}
 	}
-	want, err := os.ReadFile(path) //nolint:gosec // fixed testdata path
+	want, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("read golden %s (run with -update to create): %v", path, err)
 	}

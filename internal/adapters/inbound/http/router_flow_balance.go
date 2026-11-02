@@ -1,7 +1,10 @@
 package http
 
 import (
-	"github.com/claudioed/warehouse-ops-agent/internal/application/usecases"
+	"net/http"
+
+	"github.com/go-chi/chi/v5"
+
 	"github.com/claudioed/warehouse-ops-agent/internal/domain/policy"
 )
 
@@ -54,26 +57,28 @@ func toFlowBalanceExceptionDTO(d policy.Decision) flowBalanceExceptionDTO {
 	return dto
 }
 
-// travelFactorDTO is the GET /explain-travel-factor response body.
-// Kind/Rationale are omitted entirely (never a zero-valued/empty string
-// masquerading as an outcome) when facility-layout was unreachable and
-// no correlation could be produced.
-type travelFactorDTO struct {
-	MetresM   float64 `json:"metresM"`
-	Estimated bool    `json:"estimated"`
-	Kind      string  `json:"kind,omitempty"`
-	Rationale string  `json:"rationale,omitempty"`
-}
+// getFlowBalanceException handles GET /flow-balance/{pathId}?buildingId=&shiftId=.
+// buildingId and shiftId are required query params (the workforce-management
+// staffing-gap lookup needs them); a missing FlowBalanceAdvisory (not wired
+// by the composition root) responds 503 rather than a nil-pointer panic.
+func (h *Handlers) getFlowBalanceException(w http.ResponseWriter, r *http.Request) {
+	if h.FlowBalanceAdvisory == nil {
+		writeProblem(w, r, http.StatusServiceUnavailable, "flow balance advisory not configured")
+		return
+	}
+	pathId := chi.URLParam(r, "pathId")
+	buildingId := r.URL.Query().Get("buildingId")
+	shiftId := r.URL.Query().Get("shiftId")
 
-func toTravelFactorDTO(r usecases.TravelFactorResult) travelFactorDTO {
-	dto := travelFactorDTO{}
-	if r.Reading != nil {
-		dto.MetresM = r.Reading.MetresM
-		dto.Estimated = r.Reading.Estimated
+	decision, err := h.FlowBalanceAdvisory.Execute(r.Context(), buildingId, shiftId, pathId)
+	if err != nil {
+		// Execute only ever returns this agent's own authored errors
+		// (missing params, an unrecognized rebalance action): upstream
+		// failures degrade to a partial decision instead of escaping, so
+		// the detail is callerDetail's authored text (or its slug-only
+		// form should a wrapped tool error ever surface here).
+		writeProblem(w, r, http.StatusBadRequest, callerDetail(err))
+		return
 	}
-	if r.Correlation != nil {
-		dto.Kind = string(r.Correlation.Kind)
-		dto.Rationale = r.Correlation.Rationale
-	}
-	return dto
+	writeJSON(w, toFlowBalanceExceptionDTO(decision))
 }

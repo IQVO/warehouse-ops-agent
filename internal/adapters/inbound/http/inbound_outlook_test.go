@@ -176,7 +176,7 @@ func TestGetInboundOutlook_StatusMapping(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			code, body := getOutlook(t, tc.uc)
-			if msg, _ := body["error"].(string); code != tc.want || strings.TrimSpace(msg) == "" {
+			if msg, _ := body["detail"].(string); code != tc.want || strings.TrimSpace(msg) == "" {
 				t.Fatalf("status = %d (%v), want %d with an error body", code, body, tc.want)
 			}
 		})

@@ -36,8 +36,6 @@ func NewLastMileDelivery(cfg Config) *LastMileDelivery {
 	return &LastMileDelivery{session: New(cfg)}
 }
 
-var _ ports.LastMileDeliveryClient = (*LastMileDelivery)(nil)
-
 // ListWaves calls list_waves for one station's waves of one service
 // date (YYYY-MM-DD, the station's local date).
 func (c *LastMileDelivery) ListWaves(ctx context.Context, stationNodeID, serviceDate string) (ports.DeliveryWaves, error) {

@@ -16,7 +16,7 @@ import (
 // unset) is a 503 -- same convention as every optional route here.
 func (h *Handlers) getMasterDataGaps(w http.ResponseWriter, r *http.Request) {
 	if h.MasterDataGaps == nil {
-		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "product-master not configured"})
+		writeProblem(w, r, http.StatusServiceUnavailable, "product-master not configured")
 		return
 	}
 	res, err := h.MasterDataGaps.Execute(r.Context(), usecases.MasterDataGapsRequest{
@@ -24,17 +24,17 @@ func (h *Handlers) getMasterDataGaps(w http.ResponseWriter, r *http.Request) {
 		Cursor: r.URL.Query().Get("cursor"),
 	})
 	if err != nil {
-		status := http.StatusBadGateway
 		switch {
 		case errors.Is(err, usecases.ErrInvalidInput):
-			status = http.StatusBadRequest
+			writeProblem(w, r, http.StatusBadRequest, callerDetail(err))
 		case errors.Is(err, usecases.ErrProductMasterNotConfigured):
-			status = http.StatusServiceUnavailable
+			writeProblem(w, r, http.StatusServiceUnavailable, "product-master not configured")
+		default:
+			writeProblem(w, r, http.StatusBadGateway, upstreamDetail("product-master", err))
 		}
-		writeJSON(w, status, map[string]string{"error": err.Error()})
 		return
 	}
-	writeJSON(w, http.StatusOK, toMasterDataGapsDTO(res))
+	writeJSON(w, toMasterDataGapsDTO(res))
 }
 
 // masterDataGapsDTO is the GET /master-data-gaps body. Complete is false

@@ -159,59 +159,74 @@ func transferWatchStatus(err error) int {
 	}
 }
 
+// transferWatchDetail sanitizes a transfer-watch error for the response
+// body: caller-input errors keep their authored sentence, an unknown id
+// becomes a fixed not-found detail, everything else is an upstream
+// failure named by service, never by the upstream's own prose.
+func transferWatchDetail(err error) string {
+	switch {
+	case errors.Is(err, usecases.ErrInvalidInput):
+		return callerDetail(err)
+	case errors.Is(err, usecases.ErrTransferNotFound):
+		return "transfer not found"
+	default:
+		return upstreamDetail("network-inventory-planning", err)
+	}
+}
+
 // getStuckTransfers handles GET /transfer-watch/stuck?olderThanMinutes=N
 // [&state=S][&limit=L]. olderThanMinutes is required and must be positive: the
 // agent never picks a staleness threshold on the operator's behalf.
 func (h *Handlers) getStuckTransfers(w nethttp.ResponseWriter, r *nethttp.Request) {
 	if h.TransferWatch == nil {
-		writeJSON(w, nethttp.StatusServiceUnavailable, map[string]string{"error": transferWatchNotConfigured})
+		writeProblem(w, r, nethttp.StatusServiceUnavailable, transferWatchNotConfigured)
 		return
 	}
 	q := r.URL.Query()
 	minutes, err := strconv.Atoi(q.Get("olderThanMinutes"))
 	if err != nil {
-		writeJSON(w, nethttp.StatusBadRequest, map[string]string{"error": "olderThanMinutes is required and must be an integer"})
+		writeProblem(w, r, nethttp.StatusBadRequest, "olderThanMinutes is required and must be an integer")
 		return
 	}
 	limit := 0
 	if raw := q.Get("limit"); raw != "" {
 		if limit, err = strconv.Atoi(raw); err != nil {
-			writeJSON(w, nethttp.StatusBadRequest, map[string]string{"error": "limit must be an integer"})
+			writeProblem(w, r, nethttp.StatusBadRequest, "limit must be an integer")
 			return
 		}
 	}
 	result, err := h.TransferWatch.StuckTransfers(r.Context(), minutes, q.Get("state"), limit)
 	if err != nil {
-		writeJSON(w, transferWatchStatus(err), map[string]string{"error": err.Error()})
+		writeProblem(w, r, transferWatchStatus(err), transferWatchDetail(err))
 		return
 	}
-	writeJSON(w, nethttp.StatusOK, toStuckTransfersDTO(result))
+	writeJSON(w, toStuckTransfersDTO(result))
 }
 
 // getTransferStatus handles GET /transfer-watch/transfers/{id}.
 func (h *Handlers) getTransferStatus(w nethttp.ResponseWriter, r *nethttp.Request) {
 	if h.TransferWatch == nil {
-		writeJSON(w, nethttp.StatusServiceUnavailable, map[string]string{"error": transferWatchNotConfigured})
+		writeProblem(w, r, nethttp.StatusServiceUnavailable, transferWatchNotConfigured)
 		return
 	}
 	result, err := h.TransferWatch.TransferStatus(r.Context(), chi.URLParam(r, "id"))
 	if err != nil {
-		writeJSON(w, transferWatchStatus(err), map[string]string{"error": err.Error()})
+		writeProblem(w, r, transferWatchStatus(err), transferWatchDetail(err))
 		return
 	}
-	writeJSON(w, nethttp.StatusOK, toTransferStatusDTO(result))
+	writeJSON(w, toTransferStatusDTO(result))
 }
 
 // getNetworkImbalance handles GET /transfer-watch/imbalance.
 func (h *Handlers) getNetworkImbalance(w nethttp.ResponseWriter, r *nethttp.Request) {
 	if h.TransferWatch == nil {
-		writeJSON(w, nethttp.StatusServiceUnavailable, map[string]string{"error": transferWatchNotConfigured})
+		writeProblem(w, r, nethttp.StatusServiceUnavailable, transferWatchNotConfigured)
 		return
 	}
 	result, err := h.TransferWatch.NetworkImbalance(r.Context())
 	if err != nil {
-		writeJSON(w, transferWatchStatus(err), map[string]string{"error": err.Error()})
+		writeProblem(w, r, transferWatchStatus(err), transferWatchDetail(err))
 		return
 	}
-	writeJSON(w, nethttp.StatusOK, toNetworkImbalanceDTO(result))
+	writeJSON(w, toNetworkImbalanceDTO(result))
 }

@@ -11,11 +11,11 @@ import (
 // every other optional use case in this router.
 func (h *Handlers) getRuntimeSignals(w http.ResponseWriter, r *http.Request) {
 	if h.RuntimeSignals == nil {
-		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "runtime signals not configured"})
+		writeProblem(w, r, http.StatusServiceUnavailable, "runtime signals not configured")
 		return
 	}
 	report := h.RuntimeSignals.Execute(r.Context())
-	writeJSON(w, http.StatusOK, toRuntimeSignalsDTO(report))
+	writeJSON(w, toRuntimeSignalsDTO(report))
 }
 
 type runtimeSignalsDTO struct {

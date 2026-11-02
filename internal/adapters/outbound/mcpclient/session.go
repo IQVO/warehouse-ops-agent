@@ -53,6 +53,15 @@ func New(cfg Config) *Session {
 	return &Session{cfg: cfg}
 }
 
+// NewNamedSession builds a Session for the named upstream: every typed
+// client's constructor in this package sets Config.Name to its upstream's
+// service name and delegates the rest to this shared helper, so the
+// per-client constructors stay one line each (fleet dupl rule, 2026-11-02).
+func NewNamedSession(name string, cfg Config) *Session {
+	cfg.Name = name
+	return New(cfg)
+}
+
 // connect opens a fresh Streamable-HTTP session. A fresh session per call
 // keeps this adapter stateless and simple; the SDK's Streamable HTTP client
 // is a lightweight logical connection, not a costly TCP handshake, so this
