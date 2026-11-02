@@ -350,3 +350,44 @@ func TestLoad_ExceptionManagementA2AURL_MalformedIsAStartupError(t *testing.T) {
 		}
 	}
 }
+
+func TestLoad_WorkforceManagementA2AURL_UnsetMeansOff(t *testing.T) {
+	t.Setenv("WORKFORCE_MANAGEMENT_A2A_URL", "")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.WorkforceManagementA2AURL != "" {
+		t.Fatalf("WorkforceManagementA2AURL = %q, want empty (labor reallocation off)", cfg.WorkforceManagementA2AURL)
+	}
+}
+
+func TestLoad_WorkforceManagementA2AURL_ReadsAValidURL(t *testing.T) {
+	for _, want := range []string{
+		"http://workforce-management-a2a.warehouse-systems.svc.cluster.local:8093/",
+		"https://warehouse.example.com/api/a2a/workforce-management",
+	} {
+		t.Setenv("WORKFORCE_MANAGEMENT_A2A_URL", want)
+		cfg, err := Load()
+		if err != nil {
+			t.Fatalf("%q: Load: %v", want, err)
+		}
+		if cfg.WorkforceManagementA2AURL != want {
+			t.Errorf("WorkforceManagementA2AURL = %q, want %q", cfg.WorkforceManagementA2AURL, want)
+		}
+	}
+}
+
+func TestLoad_WorkforceManagementA2AURL_MalformedIsAStartupError(t *testing.T) {
+	for _, bad := range []string{"workforce-management-a2a:8093", "/api/a2a/workforce-management", "ftp://workforce-management/", "http://", "not a url"} {
+		t.Setenv("WORKFORCE_MANAGEMENT_A2A_URL", bad)
+		_, err := Load()
+		if err == nil {
+			t.Errorf("WORKFORCE_MANAGEMENT_A2A_URL=%q: Load succeeded, want a startup error (never silently disabled)", bad)
+			continue
+		}
+		if !strings.Contains(err.Error(), "WORKFORCE_MANAGEMENT_A2A_URL") {
+			t.Errorf("%q: error %q does not name the variable", bad, err)
+		}
+	}
+}

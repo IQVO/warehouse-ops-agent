@@ -7,9 +7,12 @@
 // /transfer-watch/imbalance) plus the optional /mcp mount, and
 // DTOs. Domain/application structs never leak across this boundary.
 //
-// The only POST routes are the two act-slice routes (ADR 0027,
-// act_release_work.go): POST /act/release-next-work/proposals and
-// /approvals — the human-confirmed release of the next work unit.
+// The only POST routes are the two act slices' route pairs: ADR 0027
+// (act_release_work.go) POST /act/release-next-work/proposals and
+// /approvals — the human-confirmed release of the next work unit — and ADR
+// 0029 (act_labor_reallocation.go) POST /labor-reallocation/proposals and
+// /labor-reallocation/proposals/{proposalId}/approve — the human-confirmed
+// placement of one associate on an understaffed path.
 package http
 
 import (
@@ -80,6 +83,13 @@ type Handlers struct {
 	// wired here and NOWHERE else — never into the MCP server or the LLM
 	// reasoner (asserted in internal/architecture/zerowrite).
 	ReleaseWork *usecases.ReleaseWork
+
+	// LaborReallocation is the ADR-0029 act slice #2: the human-gated
+	// propose -> approve -> execute placement of one associate on an
+	// understaffed path. Nil (no WORKFORCE_MANAGEMENT_A2A_URL) answers 503 on
+	// both /labor-reallocation routes. Like ReleaseWork it is wired here and
+	// NOWHERE else; the MCP server holds only the token-less outlook.
+	LaborReallocation *usecases.LaborReallocation
 	// MCPHandler is this agent's own inbound MCP server
 	// (internal/adapters/inbound/mcp), mounted at /mcp on this SAME chi
 	// router (ADR-0010) so MCP traffic gets the identical otelchi trace,
@@ -130,9 +140,12 @@ func NewRouter(h *Handlers, serviceName string) *chi.Mux {
 	r.Get("/transfer-watch/transfers/{id}", h.getTransferStatus)
 	r.Get("/transfer-watch/imbalance", h.getNetworkImbalance)
 
-	// The act slice (ADR 0027): the only POST routes on this agent.
+	// The act slices (ADR 0027, ADR 0029): the only POST routes on this agent.
 	r.Post("/act/release-next-work/proposals", h.postReleaseProposal)
 	r.Post("/act/release-next-work/approvals", h.postReleaseApproval)
+	// The labor-reallocation act slice (ADR 0029): the second pair.
+	r.Post("/labor-reallocation/proposals", h.postReallocationProposal)
+	r.Post("/labor-reallocation/proposals/{proposalId}/approve", h.postReallocationApproval)
 
 	// /mcp: same router, same middleware chain as every REST route above
 	// (ADR-0010) — NOT a second handler mounted outside it on a raw

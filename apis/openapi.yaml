@@ -301,7 +301,8 @@ paths:
       description: >
         The human-gated act slice: returns a confirmation token the
         operator must present to /approvals. This route — and its sibling
-        approval route — is the only write surface of this agent.
+        approval route — is one of the two write surfaces of this agent
+        (the other is /labor-reallocation, ADR 0029).
       requestBody:
         required: true
         content:
@@ -347,6 +348,81 @@ paths:
               schema:
                 $ref: "#/components/schemas/GenericJSON"
         "400": { $ref: "#/components/responses/BadRequest" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "410": { $ref: "#/components/responses/Gone" }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "415": { $ref: "#/components/responses/UnsupportedMediaType" }
+        "502": { $ref: "#/components/responses/UpstreamUnavailable" }
+        "503": { $ref: "#/components/responses/NotConfigured" }
+  /labor-reallocation/proposals:
+    post:
+      tags: [act]
+      summary: Propose labor reallocation moves (ADR 0029).
+      description: >
+        Second human-gated act slice. Ranks at most three moves of the
+        caller-supplied candidates onto an understaffed path and returns one
+        confirmation token per move. Nothing is executed until the matching
+        approve route is called with that token.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [siteCode, shiftId, toPathId, candidates]
+              properties:
+                siteCode: { type: string }
+                shiftId: { type: string }
+                toPathId: { type: string }
+                candidates:
+                  type: array
+                  items:
+                    type: object
+                    required: [associateId]
+                    properties:
+                      associateId: { type: string }
+                      fromPathId: { type: string }
+      responses:
+        "200":
+          description: The ranked proposals, each with its token and expiry.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericJSON"
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "415": { $ref: "#/components/responses/UnsupportedMediaType" }
+        "502": { $ref: "#/components/responses/UpstreamUnavailable" }
+        "503": { $ref: "#/components/responses/NotConfigured" }
+  /labor-reallocation/proposals/{proposalId}/approve:
+    post:
+      tags: [act]
+      summary: Approve one move and delegate assign_labor (ADR 0029).
+      parameters:
+        - name: proposalId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, approvedBy]
+              properties:
+                token: { type: string }
+                approvedBy: { type: string }
+      responses:
+        "200":
+          description: The executed assignment.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericJSON"
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
         "409": { $ref: "#/components/responses/Conflict" }
         "410": { $ref: "#/components/responses/Gone" }
         "413": { $ref: "#/components/responses/PayloadTooLarge" }

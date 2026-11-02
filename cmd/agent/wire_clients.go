@@ -14,10 +14,13 @@ import (
 // any of them means "not configured".
 type outboundClients struct {
 	// om backs the daily brief's promise-health section (ADR 0024).
-	om       ports.OrderManagementMCPClient
-	wes      ports.WesWorkPlanningClient
-	fe       ports.FulfillmentExecutionClient
-	wfm      ports.WorkforceManagementClient
+	om  ports.OrderManagementMCPClient
+	wes ports.WesWorkPlanningClient
+	fe  ports.FulfillmentExecutionClient
+	wfm ports.WorkforceManagementClient
+	// wfmSite is the same upstream's get_staffing_gap addressed by siteCode
+	// (the labor-reallocation reads, ADR 0029). It is nil exactly when wfm is.
+	wfmSite  ports.StaffingGapBySiteClient
 	facility ports.FacilityLayoutClient
 	inv      ports.InventoryStorageClient
 	lp       ports.LaborPerformanceClient
@@ -174,6 +177,9 @@ func newOutboundClients(cfg config.Config) outboundClients {
 			return mcpclient.NewFulfillmentExecution(c)
 		}),
 		wfm: newMCPClient("workforce-management", cfg.WorkforceManagement.Endpoint, func(c mcpclient.Config) ports.WorkforceManagementClient {
+			return mcpclient.NewWorkforceManagement(c)
+		}),
+		wfmSite: newMCPClient("workforce-management", cfg.WorkforceManagement.Endpoint, func(c mcpclient.Config) ports.StaffingGapBySiteClient {
 			return mcpclient.NewWorkforceManagement(c)
 		}),
 		facility: newMCPClient("facility-layout", cfg.FacilityLayout.Endpoint, func(c mcpclient.Config) ports.FacilityLayoutClient {

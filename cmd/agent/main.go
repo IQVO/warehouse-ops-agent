@@ -89,6 +89,11 @@ func run() error {
 		return err
 	}
 
+	laborOutlook, laborReallocation, err := newLaborReallocation(cfg, logger, clients.wfmSite)
+	if err != nil {
+		return err
+	}
+
 	mcpDeps := inboundmcp.Deps{
 		DailyBrief:          decision.dailyBrief,
 		FlowBalanceAdvisory: decision.flowBalance,
@@ -99,6 +104,9 @@ func run() error {
 		TransferWatch:       decision.transferWatch,
 		NetworkOrderOutlook: decision.networkOrderOutlook,
 		NetworkNodeOutlook:  decision.networkNodeOutlook,
+		// Only the token-less outlook: the act half (laborReallocation) is
+		// REST-only and is NOT here, by design.
+		LaborReallocationOutlook: laborOutlook,
 	}
 	mcpHandler := inboundmcp.Handler(inboundmcp.NewServer(mcpDeps))
 
@@ -115,6 +123,8 @@ func run() error {
 		// ReleaseWork is the ADR-0027 act slice, REST-only: it is NOT in
 		// mcpDeps above, by design.
 		ReleaseWork: releaseWork,
+		// LaborReallocation is the ADR-0029 act slice #2, REST-only as well.
+		LaborReallocation: laborReallocation,
 		// MCPHandler mounts /mcp on the SAME chi router as every REST
 		// route (ADR-0010): otelchi trace, otelchimetric RED duration,
 		// and RequestLogger all apply to MCP traffic too, not just REST.
@@ -143,6 +153,7 @@ func serveAgent(cfg config.Config, logger *slog.Logger, serviceName string, hand
 			"fulfillment_execution_endpoint_configured", cfg.FulfillmentExecution.Endpoint != "",
 			"inventory_storage_endpoint_configured", cfg.InventoryStorage.Endpoint != "",
 			"workforce_management_endpoint_configured", cfg.WorkforceManagement.Endpoint != "",
+			"workforce_management_a2a_configured", cfg.WorkforceManagementA2AURL != "",
 			"facility_layout_endpoint_configured", cfg.FacilityLayout.Endpoint != "",
 			"warehouse_planning_endpoint_configured", cfg.WarehousePlanning.Endpoint != "",
 			"product_master_endpoint_configured", cfg.ProductMaster.Endpoint != "",

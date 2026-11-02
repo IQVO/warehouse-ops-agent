@@ -12,9 +12,28 @@ import (
 
 	"github.com/a2aproject/a2a-go/v2/a2a"
 	"github.com/a2aproject/a2a-go/v2/a2aclient"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/claudioed/warehouse-ops-agent/internal/adapters/outbound/httpclient"
+	"github.com/claudioed/warehouse-ops-agent/internal/domain/authority"
 )
+
+// tracerName is the OTel instrumentation scope of the delegation spans.
+const tracerName = "github.com/claudioed/warehouse-ops-agent/internal/adapters/outbound/a2a"
+
+// skillAuthority is the authority level of every skill this agent may ask a
+// peer for (contracts G1/G2): the level the PEER declares on its card. The
+// two write skills are L3 (human-gated here, ADR 0027/0029); the exception
+// lookup is a read. A skill missing from this table is a programming error
+// caught by TestEverySkillHasADeclaredAuthority.
+var skillAuthority = map[string]string{
+	releaseSkill:        authority.L3,
+	assignLaborSkill:    authority.L3,
+	findExceptionsSkill: authority.L1,
+}
 
 // wellKnownPath is the Agent Card discovery path (A2A spec); served by every
 // agent in this fleet behind its Kong prefix as well as in-cluster.
@@ -80,6 +99,27 @@ func (p *peer) fail(format string, args ...any) error {
 // break the envelope contract wrap p.unreachable; a peer problem is
 // returned in the answer for the caller to classify.
 func (p *peer) ask(ctx context.Context, skill string, args map[string]any) (answer, error) {
+	ctx, span := otel.Tracer(tracerName).Start(ctx, "a2a.skill "+skill,
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(attribute.String("a2a.skill", skill)),
+		trace.WithAttributes(
+			attribute.String(authority.AttrOperationName, authority.OpInvokeAgent),
+			attribute.String(authority.AttrAgentName, authority.AgentName),
+			attribute.String(authority.AttrAuthority, skillAuthority[skill]),
+		),
+	)
+	defer span.End()
+	ans, err := p.doAsk(ctx, skill, args)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+	} else if ans.problem != nil {
+		span.SetStatus(codes.Error, ans.problem.Title)
+	}
+	return ans, err
+}
+
+// doAsk is ask without the span.
+func (p *peer) doAsk(ctx context.Context, skill string, args map[string]any) (answer, error) {
 	client, err := p.resolve(ctx)
 	if err != nil {
 		return answer{}, err

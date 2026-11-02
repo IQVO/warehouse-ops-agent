@@ -120,42 +120,75 @@ func (s *Signer) Mint(action Action, pathId, source, rationale string) (string, 
 		// caller shows the human must say exactly what the token says.
 		ExpiresAt: s.now().UTC().Add(s.ttl).Truncate(time.Second),
 	}
-	payload, err := encode(p)
+	token, err := s.seal([wireStrings]string{string(p.Action), p.PathId, p.Source, p.Rationale, p.Nonce}, p.ExpiresAt)
 	if err != nil {
-		return "", Proposal{}, fmt.Errorf("approval: encoding proposal: %w", err)
+		return "", Proposal{}, err
 	}
-	enc := base64.RawURLEncoding.EncodeToString(payload)
-	return enc + "." + s.sign(enc), p, nil
+	return token, p, nil
 }
 
-// Verify authenticates token (constant-time) and checks it has not expired.
-// Expiry is half-open: a token is dead AT its ExpiresAt instant.
+// Verify authenticates a RELEASE token (constant-time) and checks it has not
+// expired. Expiry is half-open: a token is dead AT its ExpiresAt instant. A
+// labor-reallocation token is an invalid token here, and vice versa.
 func (s *Signer) Verify(token string) (Proposal, error) {
-	if token == "" || len(token) > maxTokenLen {
-		return Proposal{}, ErrInvalidToken
-	}
-	enc, sig, ok := strings.Cut(token, ".")
-	if !ok || enc == "" || sig == "" {
-		return Proposal{}, ErrInvalidToken
-	}
-	if !hmac.Equal([]byte(sig), []byte(s.sign(enc))) {
-		return Proposal{}, ErrInvalidToken
-	}
-	payload, err := base64.RawURLEncoding.DecodeString(enc)
+	f, exp, err := s.open(token)
 	if err != nil {
-		return Proposal{}, ErrInvalidToken
+		return Proposal{}, err
 	}
-	p, err := decode(payload)
-	if err != nil {
-		return Proposal{}, ErrInvalidToken
+	p := Proposal{
+		Action:    Action(f[0]),
+		PathId:    f[1],
+		Source:    f[2],
+		Rationale: f[3],
+		Nonce:     f[4],
+		ExpiresAt: exp,
 	}
 	if p.Action != ActionReleaseNextWork || strings.TrimSpace(p.PathId) == "" || p.Nonce == "" {
 		return Proposal{}, ErrInvalidToken
 	}
-	if !s.now().UTC().Before(p.ExpiresAt) {
-		return Proposal{}, ErrExpired
+	if err := s.live(p.ExpiresAt); err != nil {
+		return Proposal{}, err
 	}
 	return p, nil
+}
+
+// open authenticates token and returns its positional string fields and
+// expiry, without interpreting them.
+func (s *Signer) open(token string) ([wireStrings]string, time.Time, error) {
+	var zero [wireStrings]string
+	if token == "" || len(token) > maxTokenLen {
+		return zero, time.Time{}, ErrInvalidToken
+	}
+	enc, sig, ok := strings.Cut(token, ".")
+	if !ok || enc == "" || sig == "" {
+		return zero, time.Time{}, ErrInvalidToken
+	}
+	if !hmac.Equal([]byte(sig), []byte(s.sign(enc))) {
+		return zero, time.Time{}, ErrInvalidToken
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(enc)
+	if err != nil {
+		return zero, time.Time{}, ErrInvalidToken
+	}
+	return decode(payload)
+}
+
+// live reports ErrExpired once exp has been reached.
+func (s *Signer) live(exp time.Time) error {
+	if !s.now().UTC().Before(exp) {
+		return ErrExpired
+	}
+	return nil
+}
+
+// seal signs one positional payload.
+func (s *Signer) seal(fields [wireStrings]string, exp time.Time) (string, error) {
+	payload, err := encode(fields, exp)
+	if err != nil {
+		return "", fmt.Errorf("approval: encoding proposal: %w", err)
+	}
+	enc := base64.RawURLEncoding.EncodeToString(payload)
+	return enc + "." + s.sign(enc), nil
 }
 
 func (s *Signer) sign(enc string) string {
@@ -164,47 +197,46 @@ func (s *Signer) sign(enc string) string {
 	return base64.RawURLEncoding.EncodeToString(m.Sum(nil))
 }
 
-// wireFields is the arity of the positional payload:
-// [action, pathId, source, rationale, nonce, expiresAtUnixSeconds].
-// A positional array (rather than a tagged struct) keeps the wire shape out
-// of the domain model — JSON field naming is an adapter concern — and makes
-// decoding strict by construction: wrong arity or wrong element type is an
-// invalid token, never a defaulted field.
-const wireFields = 6
+// wireStrings is the number of string fields of the positional payload;
+// the sixth element is the expiry in unix seconds. Release tokens carry
+// [action, pathId, source, rationale, nonce, exp]; reallocation tokens
+// carry [action, associateId, fromPathId, toPathId, nonce, exp]. The action
+// in position 0 is what tells them apart, so one kind can never be redeemed
+// as the other. A positional array (rather than a tagged struct) keeps the
+// wire shape out of the domain model -- JSON field naming is an adapter
+// concern -- and makes decoding strict by construction: wrong arity or
+// wrong element type is an invalid token, never a defaulted field.
+const (
+	wireStrings = 5
+	wireFields  = 6 // the strings plus the expiry
+)
 
-func encode(p Proposal) ([]byte, error) {
-	return json.Marshal([]any{string(p.Action), p.PathId, p.Source, p.Rationale, p.Nonce, p.ExpiresAt.Unix()})
+func encode(f [wireStrings]string, exp time.Time) ([]byte, error) {
+	return json.Marshal([]any{f[0], f[1], f[2], f[3], f[4], exp.Unix()})
 }
 
-func decode(payload []byte) (Proposal, error) {
+func decode(payload []byte) ([wireStrings]string, time.Time, error) {
+	var str [wireStrings]string
 	dec := json.NewDecoder(bytes.NewReader(payload))
 	dec.UseNumber()
 	var arr []any
 	if err := dec.Decode(&arr); err != nil || len(arr) != wireFields {
-		return Proposal{}, ErrInvalidToken
+		return str, time.Time{}, ErrInvalidToken
 	}
-	var str [5]string
 	for i := range str {
 		v, ok := arr[i].(string)
 		if !ok {
-			return Proposal{}, ErrInvalidToken
+			return str, time.Time{}, ErrInvalidToken
 		}
 		str[i] = v
 	}
-	num, ok := arr[5].(json.Number)
+	num, ok := arr[wireStrings].(json.Number)
 	if !ok {
-		return Proposal{}, ErrInvalidToken
+		return str, time.Time{}, ErrInvalidToken
 	}
 	secs, err := num.Int64()
 	if err != nil {
-		return Proposal{}, ErrInvalidToken
+		return str, time.Time{}, ErrInvalidToken
 	}
-	return Proposal{
-		Action:    Action(str[0]),
-		PathId:    str[1],
-		Source:    str[2],
-		Rationale: str[3],
-		Nonce:     str[4],
-		ExpiresAt: time.Unix(secs, 0).UTC(),
-	}, nil
+	return str, time.Unix(secs, 0).UTC(), nil
 }

@@ -19,6 +19,19 @@ The server identifies itself as `warehouse-ops-agent-mcp` version `1.0.0`.
 Every tool call runs inside an OTel span named `mcp.tool <name>` with the
 attribute `mcp.tool.name` (`addTool` in `tools.go`).
 
+## Authority levels
+
+Every tool declares exactly one authority level in its `_meta` under
+`com.warehouse/authority` (fleet contract G1-G3): the twelve plain reads are
+`L1`, `labor_reallocation_outlook` is `L2` because it recommends a concrete
+action a human may then approve over REST. There is no `L3`/`L4` tool on this
+server: the agent's two writes are REST-only act slices. The levels live in
+`internal/adapters/inbound/mcp/authority.go`; a tool missing from that table
+panics at registration, and `TestEveryToolDeclaresExactlyOneAuthorityLevel`
+registers every tool and pins the table to the registered set. Each tool call's
+`mcp.tool <name>` span also carries `gen_ai.operation.name=execute_tool`,
+`gen_ai.agent.name=warehouse-ops-agent` and `warehouse.authority`.
+
 ## Tool list
 
 The table below comes from a live `tools/list` call against a binary built
@@ -40,8 +53,9 @@ every field without `omitempty` as required.
 | `explain_network_imbalance` | yes | `NETWORK_INVENTORY_PLANNING_MCP_ENDPOINT` is set | none | none | `GET /transfer-watch/imbalance` |
 | `get_network_order_outlook` | yes | `CUSTOMER_ORDERING_MCP_ENDPOINT` is set ([ADR 0026](../adr/0026-network-outlook-and-process-path-client.md)) | `orderId` | none | no REST route |
 | `get_network_node_outlook` | yes | `NODE_TOPOLOGY_MCP_ENDPOINT` is set ([ADR 0026](../adr/0026-network-outlook-and-process-path-client.md)) | `nodeId` | none | no REST route |
+| `labor_reallocation_outlook` | yes | `WORKFORCE_MANAGEMENT_MCP_ENDPOINT` is set ([ADR 0029](../adr/0029-labor-reallocation-act-slice.md)) | `siteCode`, `shiftId`, `toPathId`, `candidates` (1-20 of `associateId`, optional `fromPathId`) | none | the ranking behind `POST /labor-reallocation/proposals`, **without** a token, proposal id or expiry |
 
-All twelve carry `ReadOnlyHint: true`. The agent has no write tool.
+All thirteen carry `ReadOnlyHint: true`. The agent has no write tool.
 `internal/architecture/zerowrite/zerowrite_test.go`
 (`TestNoMutatingToolAnnotationInMCPServer`) fails the build if a tool is
 registered without the read-only hint. See the

@@ -10,7 +10,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/claudioed/warehouse-ops-agent/internal/application/usecases"
-	"github.com/claudioed/warehouse-ops-agent/internal/domain/policy"
+	"github.com/claudioed/warehouse-ops-agent/internal/domain/authority"
 )
 
 // tracerName is the OTel instrumentation scope for MCP tool spans.
@@ -67,6 +67,15 @@ type Deps struct {
 	// NODE_TOPOLOGY_MCP_ENDPOINT) means get_network_node_outlook is
 	// simply not registered.
 	NetworkNodeOutlook *usecases.NetworkNodeOutlook
+
+	// LaborReallocationOutlook is the READ half of the ADR-0029 act slice
+	// #2: ranked reallocation moves with no confirmation token (authority
+	// L2). Nil (no WORKFORCE_MANAGEMENT_MCP_ENDPOINT) means
+	// labor_reallocation_outlook is simply not registered. The ACT half
+	// (usecases.LaborReallocation, with the token signer and the write port)
+	// is REST-only and must never appear in this struct; the zerowrite
+	// fitness tests fail the build if it does.
+	LaborReallocationOutlook *usecases.LaborReallocationOutlook
 }
 
 // --- get_daily_brief -----------------------------------------------------
@@ -233,103 +242,6 @@ func (d Deps) explainTravelFactor(ctx context.Context, in explainTravelFactorInp
 	return out, nil
 }
 
-// --- detect_stranded_reservation ---------------------------------------
-
-// strandedReservationInput's fields mirror
-// usecases.StrandedReservationRequest exactly: taskType and skuCode/
-// minUsableThreshold anchor the correlation, reservationId/binId are
-// optional candidates the tool would recommend revoking (with a mandatory
-// blast radius) if the correlation confirms a stranded reservation. All
-// fields are untrusted caller input, passed straight through to the
-// use case's outbound port calls (each of which validates its own
-// arguments on the upstream side) -- this tool never resolves or guesses
-// a candidate reservation/bin on the caller's behalf.
-type strandedReservationInput struct {
-	TaskType           string `json:"taskType" jsonschema:"the process/task type whose expired leases are the suspected correlation signal: PICK, PACK, or SLAM"`
-	WithinSeconds      int    `json:"withinSeconds,omitempty" jsonschema:"bounds fulfillment-execution's diagnose_stuck_tasks window; 0 (default) means already-expired only"`
-	SKU                string `json:"sku" jsonschema:"the stock-keeping unit under suspicion of being stranded"`
-	MinUsableThreshold int    `json:"minUsableThreshold" jsonschema:"the usable-quantity ceiling at or below which a shortfall is considered correlated with the expired leases"`
-	ReservationId      string `json:"reservationId,omitempty" jsonschema:"the candidate reservation this tool would recommend revoking if the correlation confirms a stranded reservation; omit if no candidate is yet known"`
-	BinId              string `json:"binId,omitempty" jsonschema:"the bin holding the reservation's stock, used to build the mandatory blast radius before any revoke is recommended; omit if not yet known"`
-}
-
-type binLineDTO struct {
-	StockUnitId string `json:"stockUnitId"`
-	SKU         string `json:"sku"`
-	Reserved    int    `json:"reserved"`
-	Usable      int    `json:"usable"`
-	State       string `json:"state"`
-}
-
-type blastRadiusDTO struct {
-	SKU           string       `json:"sku"`
-	BinId         string       `json:"binId"`
-	ReservationId string       `json:"reservationId"`
-	QuantityFreed int          `json:"quantityFreed"`
-	BinLines      []binLineDTO `json:"binLines"`
-}
-
-type strandedReservationEvidenceDTO struct {
-	Tool    string `json:"tool"`
-	Summary string `json:"summary"`
-}
-
-type strandedReservationOutput struct {
-	Detected      bool                             `json:"detected"`
-	Action        string                           `json:"action"`
-	ReservationId string                           `json:"reservationId,omitempty"`
-	Rationale     string                           `json:"rationale"`
-	Evidence      []strandedReservationEvidenceDTO `json:"evidence"`
-	BlastRadius   *blastRadiusDTO                  `json:"blastRadius,omitempty"`
-}
-
-func (d Deps) detectStrandedReservation(ctx context.Context, in strandedReservationInput) (strandedReservationOutput, error) {
-	result, err := d.StrandedReservation.Execute(ctx, usecases.StrandedReservationRequest{
-		TaskType:           policy.TaskType(in.TaskType),
-		WithinSeconds:      in.WithinSeconds,
-		SKU:                in.SKU,
-		MinUsableThreshold: in.MinUsableThreshold,
-		ReservationId:      in.ReservationId,
-		BinId:              in.BinId,
-	})
-	if err != nil {
-		return strandedReservationOutput{}, err
-	}
-
-	evidence := make([]strandedReservationEvidenceDTO, 0, len(result.Evidence))
-	for _, e := range result.Evidence {
-		evidence = append(evidence, strandedReservationEvidenceDTO{Tool: e.Tool, Summary: e.Summary})
-	}
-
-	out := strandedReservationOutput{
-		Detected:      result.Detected,
-		Action:        string(result.Action),
-		ReservationId: result.ReservationId,
-		Rationale:     result.Rationale,
-		Evidence:      evidence,
-	}
-	if result.BlastRadius != nil {
-		lines := make([]binLineDTO, 0, len(result.BlastRadius.BinLines))
-		for _, l := range result.BlastRadius.BinLines {
-			lines = append(lines, binLineDTO{
-				StockUnitId: l.StockUnitId,
-				SKU:         l.SKU,
-				Reserved:    l.Reserved,
-				Usable:      l.Usable,
-				State:       l.State,
-			})
-		}
-		out.BlastRadius = &blastRadiusDTO{
-			SKU:           result.BlastRadius.SKU,
-			BinId:         result.BlastRadius.BinId,
-			ReservationId: result.BlastRadius.ReservationId,
-			QuantityFreed: result.BlastRadius.QuantityFreed,
-			BinLines:      lines,
-		}
-	}
-	return out, nil
-}
-
 // --- registration -----------------------------------------------------------
 
 // registerTools adds every tool to the server, each wrapped so its handler
@@ -338,9 +250,9 @@ func (d Deps) detectStrandedReservation(ctx context.Context, in strandedReservat
 // explain_travel_factor, detect_stranded_reservation,
 // find_master_data_gaps, get_inbound_outlook, the three transfer-watch
 // tools and the two network-outlook tools are registered only when their
-// use case is wired (see each one's own nil check below) — up to twelve
-// tools total, every one of them read-only. This agent has no write tool
-// at all.
+// use case is wired (see each one's own nil check below), plus
+// labor_reallocation_outlook (authority L2) — up to thirteen tools total,
+// every one of them read-only. This agent has no write tool at all.
 func (d Deps) registerTools(server *mcp.Server) {
 	readOnly := true
 
@@ -415,21 +327,44 @@ func (d Deps) registerTools(server *mcp.Server) {
 			Annotations: &mcp.ToolAnnotations{ReadOnlyHint: readOnly},
 		}, d.getNetworkNodeOutlook)
 	}
+	d.registerLaborReallocationTool(server, readOnly)
 }
 
-// addTool registers one tool. It centralises the cross-cutting concern
-// every tool shares: a span per call, and mapping a handler error onto the
-// span before returning it.
+// registerLaborReallocationTool adds labor_reallocation_outlook (ADR 0029,
+// authority L2) when its read-only use case is wired. It stays in this file
+// so the zero-write fitness test scans its ReadOnlyHint like every sibling.
+func (d Deps) registerLaborReallocationTool(server *mcp.Server, readOnly bool) {
+	if d.LaborReallocationOutlook == nil {
+		return
+	}
+	addTool(server, &mcp.Tool{
+		Name:        "labor_reallocation_outlook",
+		Description: "Rank at most three moves that would cover an understaffed process path with associates a human offers, from workforce-management's get_staffing_gap readings (siteCode, shiftId, toPathId, candidates). Each move carries reason codes, the verbatim staffing readings it rests on and the next read-only check; candidates that cannot move are reported with the reason. It never invents an associate or a quantity, and moves nobody off a path that is not above its plannedHeads. Recommendation only (authority L2): it issues no confirmation token and has no write path; placing an associate is a separate, human-approved REST step this server does not offer.",
+		Annotations: &mcp.ToolAnnotations{ReadOnlyHint: readOnly},
+	}, d.laborReallocationOutlook)
+}
+
+// addTool registers one tool. It centralises the cross-cutting concerns
+// every tool shares: the declared authority level on the tool's Meta
+// (authority.go), a span per call carrying the G9 attributes
+// (gen_ai.operation.name, gen_ai.agent.name, warehouse.authority), and
+// mapping a handler error onto the span before returning it.
 func addTool[In, Out any](
 	server *mcp.Server,
 	tool *mcp.Tool,
 	handle func(context.Context, In) (Out, error),
 ) {
+	level := stampAuthority(tool)
 	mcp.AddTool(server, tool, func(ctx context.Context, _ *mcp.CallToolRequest, in In) (*mcp.CallToolResult, Out, error) {
 		var zero Out
 		ctx, span := otel.Tracer(tracerName).Start(ctx, "mcp.tool "+tool.Name,
 			trace.WithAttributes(
 				attribute.String("mcp.tool.name", tool.Name),
+			),
+			trace.WithAttributes(
+				attribute.String(authority.AttrOperationName, authority.OpExecuteTool),
+				attribute.String(authority.AttrAgentName, authority.AgentName),
+				attribute.String(authority.AttrAuthority, level),
 			),
 		)
 		defer span.End()

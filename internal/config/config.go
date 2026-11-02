@@ -269,6 +269,16 @@ type Config struct {
 	// "disabled" and behave exactly as before. A malformed value is a
 	// startup error, never silently dropped.
 	ExceptionManagementA2AURL string
+
+	// WorkforceManagementA2AURL is WORKFORCE_MANAGEMENT_A2A_URL, the base
+	// URL of the workforce-management A2A agent the labor-reallocation act
+	// slice (ADR 0029, act slice #2) delegates assign_labor to. Empty (the
+	// default) turns the feature off: both /labor-reallocation routes answer
+	// 503 and no write adapter is built. A malformed value is a startup
+	// error, never silently dropped. Setting it also requires
+	// WORKFORCE_MANAGEMENT_MCP_ENDPOINT (the staffing reads behind the
+	// proposals).
+	WorkforceManagementA2AURL string
 }
 
 // ActConfig configures the act slice (ADR 0027): the one human-confirmed

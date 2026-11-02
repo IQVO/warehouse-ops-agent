@@ -23,6 +23,7 @@ data:
   FULFILLMENT_EXECUTION_MCP_ENDPOINT: {{ .Values.upstreams.fulfillmentExecution.endpoint | quote }}
   INVENTORY_STORAGE_MCP_ENDPOINT: {{ .Values.upstreams.inventoryStorage.endpoint | quote }}
   WORKFORCE_MANAGEMENT_MCP_ENDPOINT: {{ .Values.upstreams.workforceManagement.endpoint | quote }}
+  WORKFORCE_MANAGEMENT_A2A_URL: {{ .Values.upstreams.workforceManagement.a2aEndpoint | quote }}
   FACILITY_LAYOUT_MCP_ENDPOINT: {{ .Values.upstreams.facilityLayout.endpoint | quote }}
   WAREHOUSE_PLANNING_MCP_ENDPOINT: {{ .Values.upstreams.warehousePlanning.endpoint | quote }}
   PRODUCT_MASTER_MCP_ENDPOINT: {{ .Values.upstreams.productMaster.endpoint | quote }}

@@ -123,6 +123,9 @@ type StaffingGap struct {
 	PlannedHeads int    `json:"plannedHeads"`
 	ActiveHeads  int    `json:"activeHeads"`
 	Understaffed bool   `json:"understaffed"`
+	// SiteCode is echoed by the tool only when the gap was scoped to one
+	// site (a siteCode lookup); a legacy buildingId lookup omits it.
+	SiteCode string `json:"siteCode,omitempty"`
 }
 
 // LaborAssignment mirrors workforce-management's assign_labor tool output

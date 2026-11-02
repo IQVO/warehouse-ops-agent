@@ -10,13 +10,17 @@ import (
 	"time"
 )
 
-// loadA2ASettings reads the settings of the two outbound A2A features onto
-// cfg: the ADR-0027 act slice and the ADR-0028 advisory exception lookup.
+// loadA2ASettings reads the settings of the outbound A2A features onto cfg:
+// the ADR-0027 act slice, the ADR-0028 advisory exception lookup and the
+// ADR-0029 labor-reallocation act slice.
 func loadA2ASettings(cfg *Config) (err error) {
 	if cfg.Act, err = loadAct(); err != nil {
 		return err
 	}
-	cfg.ExceptionManagementA2AURL, err = loadOptionalHTTPURL("EXCEPTION_MANAGEMENT_A2A_URL")
+	if cfg.ExceptionManagementA2AURL, err = loadOptionalHTTPURL("EXCEPTION_MANAGEMENT_A2A_URL"); err != nil {
+		return err
+	}
+	cfg.WorkforceManagementA2AURL, err = loadOptionalHTTPURL("WORKFORCE_MANAGEMENT_A2A_URL")
 	return err
 }
 

@@ -5,7 +5,8 @@ package zerowrite
 // its executable boundary, so "the lookup grew teeth" can only happen by
 // editing these assertions in a reviewed change:
 //
-//  1. the a2a adapter package holds exactly TWO client types;
+//  1. the a2a adapter package holds exactly THREE client types (the two
+//     write clients of ADR 0027/0029 and this read-only one);
 //  2. the new client implements the read port only (one exported method),
 //     and the write verb stays on the write client alone;
 //  3. the read port declares a single read verb;
@@ -36,6 +37,8 @@ const (
 	exceptionClient  = "exceptions.go"
 	exceptionRecv    = "ExceptionClient"
 	releaseClientRcv = "Client"
+	laborClientRcv   = "LaborClient"
+	laborClientGo    = "labor.go"
 )
 
 // readSkillsAllowed is every exception-management skill the lookup client
@@ -193,26 +196,29 @@ func a2aAdapterFile(t *testing.T, name string) string {
 	return ""
 }
 
-// (1) The adapter package holds exactly two client types.
-func TestA2AAdapterHoldsExactlyTwoClients(t *testing.T) {
+// (1) The adapter package holds exactly three client types: the release
+// client (ADR 0027), the labor client (ADR 0029) and the read-only lookup.
+func TestA2AAdapterHoldsExactlyThreeClients(t *testing.T) {
 	var clients []string
 	for _, path := range a2aAdapterFiles(t) {
 		clients = append(clients, exportedStructTypes(parsed(t, path))...)
 	}
-	requireEqual(t, "exported client types in internal/adapters/outbound/a2a", clients, []string{releaseClientRcv, exceptionRecv})
+	requireEqual(t, "exported client types in internal/adapters/outbound/a2a", clients, []string{releaseClientRcv, laborClientRcv, exceptionRecv})
 }
 
 // (2) The lookup client implements the read port only; the write verb stays
 // on the write client alone.
 func TestExceptionClientImplementsOnlyTheReadPort(t *testing.T) {
-	var onException, onRelease []string
+	var onException, onRelease, onLabor []string
 	for _, path := range a2aAdapterFiles(t) {
 		f := parsed(t, path)
 		onException = append(onException, exportedMethodsOf(f, exceptionRecv)...)
 		onRelease = append(onRelease, exportedMethodsOf(f, releaseClientRcv)...)
+		onLabor = append(onLabor, exportedMethodsOf(f, laborClientRcv)...)
 	}
 	requireEqual(t, "exported methods of ExceptionClient", onException, []string{"OpenExceptions"})
-	requireEqual(t, "exported methods of Client (the one write-port implementation)", onRelease, []string{"ReleaseNextWork"})
+	requireEqual(t, "exported methods of Client (the release write-port implementation)", onRelease, []string{"ReleaseNextWork"})
+	requireEqual(t, "exported methods of LaborClient (the labor write-port implementation)", onLabor, []string{"AssignLabor"})
 }
 
 // (3) The read port declares one read verb and nothing else.
@@ -246,7 +252,9 @@ func TestExceptionClientCallsOnlyAllowListedReadSkills(t *testing.T) {
 		}
 	}
 	writeSide := map[string]bool{"releaseSkill": true, "WorkReleaser": true, "ReleasedWork": true, "ReleaseNextWork": true,
-		"ErrWorkPlanningUnreachable": true, "ErrNoPendingWork": true, "ErrUnknownWorkPlanningPath": true}
+		"ErrWorkPlanningUnreachable": true, "ErrNoPendingWork": true, "ErrUnknownWorkPlanningPath": true,
+		"assignLaborSkill": true, "LaborAssigner": true, "AssignLabor": true, "AssignLaborRequest": true,
+		"ErrAssignmentRejected": true, "ErrAssignmentNotFound": true, "ErrAssignmentInvalid": true, "ErrWorkforceAgentUnreachable": true}
 	ast.Inspect(f, func(n ast.Node) bool {
 		if name := identName(n); writeSide[name] {
 			t.Errorf("exceptions.go references the write side (%s) — the lookup client must stay read-only", name)
@@ -262,4 +270,43 @@ func sortedKeys(m map[string]bool) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// writeSkills are the two skills this agent may ever ask a peer to EXECUTE
+// (ADR 0027, ADR 0029); readSkillsAllowed are the read ones. Every skill
+// constant in the a2a adapter must be in exactly one of the two sets, so a
+// third write skill cannot be added without editing this file.
+var writeSkills = map[string]bool{"release_next_work": true, "assign_labor": true}
+
+// (6) The adapter's skill constants are exactly the known write + read
+// skills, and each write client asks only its own write skill.
+func TestA2ASkillConstantsAreExactlyTheKnownSkills(t *testing.T) {
+	var got []string
+	for _, path := range a2aAdapterFiles(t) {
+		for name, id := range stringConsts(parsed(t, path)) {
+			if strings.HasSuffix(name, "Skill") {
+				got = append(got, id)
+			}
+		}
+	}
+	want := []string{"release_next_work", "assign_labor", "find_exceptions"}
+	requireEqual(t, "skill constants in internal/adapters/outbound/a2a", got, want)
+	for _, id := range got {
+		if !writeSkills[id] && !readSkillsAllowed[id] {
+			t.Errorf("skill %q is neither an allow-listed write nor read skill", id)
+		}
+	}
+}
+
+// (7) LaborClient asks exactly one skill: assign_labor.
+func TestLaborClientAsksOnlyAssignLabor(t *testing.T) {
+	f := parsed(t, a2aAdapterFile(t, laborClientGo))
+	consts := stringConsts(f)
+	asked := askSkillArgs(f)
+	if len(asked) != 1 {
+		t.Fatalf("labor.go asks %v, want exactly one skill", asked)
+	}
+	if consts[asked[0]] != "assign_labor" {
+		t.Errorf("labor.go asks %q (%q), want assign_labor", asked[0], consts[asked[0]])
+	}
 }
