@@ -28,8 +28,6 @@ func NewOrderManagement(cfg Config) *OrderManagement {
 	return &OrderManagement{session: New(cfg)}
 }
 
-var _ ports.OrderManagementMCPClient = (*OrderManagement)(nil)
-
 // GetPromiseHealth calls get_promise_health for the window [query.From,
 // query.To), both sent as UTC RFC 3339 instants under the tool's published
 // from/to keys. An empty PathId is omitted so no path filter applies.

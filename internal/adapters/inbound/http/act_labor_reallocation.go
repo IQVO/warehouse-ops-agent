@@ -115,7 +115,7 @@ func toReallocationProposalDTO(p usecases.ReallocationProposal) reallocationProp
 // postReallocationProposal handles POST /labor-reallocation/proposals.
 func (h *Handlers) postReallocationProposal(w nethttp.ResponseWriter, r *nethttp.Request) {
 	if h.LaborReallocation == nil {
-		writeJSON(w, nethttp.StatusServiceUnavailable, map[string]string{"error": laborReallocationNotConfigured})
+		writeProblem(w, r, nethttp.StatusServiceUnavailable, laborReallocationNotConfigured)
 		return
 	}
 	var req reallocationProposeRequest
@@ -128,7 +128,7 @@ func (h *Handlers) postReallocationProposal(w nethttp.ResponseWriter, r *nethttp
 	}
 	p, err := h.LaborReallocation.Propose(r.Context(), in)
 	if err != nil {
-		writeActError(w, err)
+		writeActErrorFor(w, r, err, "workforce-management")
 		return
 	}
 	out := reallocationProposalsDTO{
@@ -144,14 +144,14 @@ func (h *Handlers) postReallocationProposal(w nethttp.ResponseWriter, r *nethttp
 	for _, s := range p.Skipped {
 		out.Skipped = append(out.Skipped, skippedCandidateDTO{AssociateId: s.AssociateId, Reason: s.Reason})
 	}
-	writeJSON(w, nethttp.StatusOK, out)
+	writeJSON(w, out)
 }
 
 // postReallocationApproval handles
 // POST /labor-reallocation/proposals/{proposalId}/approve.
 func (h *Handlers) postReallocationApproval(w nethttp.ResponseWriter, r *nethttp.Request) {
 	if h.LaborReallocation == nil {
-		writeJSON(w, nethttp.StatusServiceUnavailable, map[string]string{"error": laborReallocationNotConfigured})
+		writeProblem(w, r, nethttp.StatusServiceUnavailable, laborReallocationNotConfigured)
 		return
 	}
 	var req reallocationApproveRequest
@@ -160,10 +160,10 @@ func (h *Handlers) postReallocationApproval(w nethttp.ResponseWriter, r *nethttp
 	}
 	out, err := h.LaborReallocation.Approve(r.Context(), chi.URLParam(r, "proposalId"), req.Token, req.ApprovedBy)
 	if err != nil {
-		writeActError(w, err)
+		writeActErrorFor(w, r, err, "workforce-management")
 		return
 	}
-	writeJSON(w, nethttp.StatusOK, reallocationOutcomeDTO{
+	writeJSON(w, reallocationOutcomeDTO{
 		ProposalId:   out.ProposalId,
 		AssociateId:  out.AssociateId,
 		PathId:       out.PathId,

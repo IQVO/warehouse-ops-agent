@@ -36,8 +36,6 @@ func NewNetworkInventoryPlanning(cfg Config) *NetworkInventoryPlanning {
 	return &NetworkInventoryPlanning{session: New(cfg)}
 }
 
-var _ ports.NetworkInventoryPlanningClient = (*NetworkInventoryPlanning)(nil)
-
 // GetTransfer calls get_transfer.
 func (c *NetworkInventoryPlanning) GetTransfer(ctx context.Context, transferID string) (ports.TransferDetail, error) {
 	var out ports.TransferDetail

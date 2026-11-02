@@ -37,18 +37,18 @@ func (h *Handlers) getWESDashboard(w http.ResponseWriter, r *http.Request) {
 // silently substituted default that would answer a question nobody asked.
 func (h *Handlers) serveDashboard(w http.ResponseWriter, r *http.Request, execute func(context.Context, time.Time, time.Time) usecases.DashboardResult) {
 	if h.ConsoleReports == nil {
-		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "console reports not configured"})
+		writeProblem(w, r, http.StatusServiceUnavailable, "console reports not configured")
 		return
 	}
 
 	from, err := parseOptionalTime(r.URL.Query().Get("from"), "from")
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		writeProblem(w, r, http.StatusBadRequest, callerDetail(err))
 		return
 	}
 	to, err := parseOptionalTime(r.URL.Query().Get("to"), "to")
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		writeProblem(w, r, http.StatusBadRequest, callerDetail(err))
 		return
 	}
 
@@ -58,12 +58,12 @@ func (h *Handlers) serveDashboard(w http.ResponseWriter, r *http.Request, execut
 		// make every upstream either 400 or return nothing, degrading
 		// all sections at once and reporting "the contexts are down"
 		// when in fact the request was wrong.
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "query parameter 'to' must be after 'from'"})
+		writeProblem(w, r, http.StatusBadRequest, "query parameter 'to' must be after 'from'")
 		return
 	}
 
 	result := execute(r.Context(), resolvedFrom, resolvedTo)
-	writeJSON(w, http.StatusOK, toDashboardDTO(result))
+	writeJSON(w, toDashboardDTO(result))
 }
 
 // parseOptionalTime parses an RFC3339 timestamp, returning nil (not an

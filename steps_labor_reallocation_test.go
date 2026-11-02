@@ -75,7 +75,7 @@ func (w *world) rememberFirstProposal() error {
 		} `json:"proposals"`
 	}
 	if err := json.Unmarshal(w.body, &out); err != nil || len(out.Proposals) == 0 {
-		return fmt.Errorf("no proposal in %s (%v)", w.body, err)
+		return fmt.Errorf("no proposal in %s (%w)", w.body, err)
 	}
 	w.firstProposalId, w.firstToken = out.Proposals[0].ProposalId, out.Proposals[0].Token
 	return nil

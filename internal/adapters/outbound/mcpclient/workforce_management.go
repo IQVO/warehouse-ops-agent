@@ -19,17 +19,12 @@ func NewWorkforceManagement(cfg Config) *WorkforceManagement {
 	return &WorkforceManagement{session: New(cfg)}
 }
 
-var (
-	_ ports.WorkforceManagementClient = (*WorkforceManagement)(nil)
-	_ ports.StaffingGapBySiteClient   = (*WorkforceManagement)(nil)
-)
-
 func (c *WorkforceManagement) GetStaffingGap(ctx context.Context, buildingId, shiftId, pathId string) (ports.StaffingGap, error) {
 	var out ports.StaffingGap
 	err := c.session.callTool(ctx, "get_staffing_gap", map[string]any{
 		"buildingId": buildingId,
 		"shiftId":    shiftId,
-		"pathId":     pathId,
+		argPathID:    pathId,
 	}, &out)
 	return out, err
 }

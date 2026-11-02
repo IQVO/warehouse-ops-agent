@@ -6,7 +6,6 @@ import (
 	"io"
 	"mime"
 	nethttp "net/http"
-	"strings"
 	"time"
 
 	"github.com/claudioed/warehouse-ops-agent/internal/application/usecases"
@@ -102,7 +101,7 @@ type releaseOutcomeDTO struct {
 // postReleaseProposal handles POST /act/release-next-work/proposals.
 func (h *Handlers) postReleaseProposal(w nethttp.ResponseWriter, r *nethttp.Request) {
 	if h.ReleaseWork == nil {
-		writeJSON(w, nethttp.StatusServiceUnavailable, map[string]string{"error": actNotConfigured})
+		writeProblem(w, r, nethttp.StatusServiceUnavailable, actNotConfigured)
 		return
 	}
 	var req releaseProposeRequest
@@ -111,10 +110,10 @@ func (h *Handlers) postReleaseProposal(w nethttp.ResponseWriter, r *nethttp.Requ
 	}
 	p, err := h.ReleaseWork.Propose(r.Context(), req.BuildingId, req.ShiftId, req.PathId)
 	if err != nil {
-		writeActError(w, err)
+		writeActError(w, r, err)
 		return
 	}
-	writeJSON(w, nethttp.StatusOK, releaseProposalDTO{
+	writeJSON(w, releaseProposalDTO{
 		Token:            p.Token,
 		ExpiresAt:        p.ExpiresAt.UTC().Format(time.RFC3339),
 		Action:           string(approval.ActionReleaseNextWork),
@@ -128,7 +127,7 @@ func (h *Handlers) postReleaseProposal(w nethttp.ResponseWriter, r *nethttp.Requ
 // postReleaseApproval handles POST /act/release-next-work/approvals.
 func (h *Handlers) postReleaseApproval(w nethttp.ResponseWriter, r *nethttp.Request) {
 	if h.ReleaseWork == nil {
-		writeJSON(w, nethttp.StatusServiceUnavailable, map[string]string{"error": actNotConfigured})
+		writeProblem(w, r, nethttp.StatusServiceUnavailable, actNotConfigured)
 		return
 	}
 	var req releaseApproveRequest
@@ -137,10 +136,10 @@ func (h *Handlers) postReleaseApproval(w nethttp.ResponseWriter, r *nethttp.Requ
 	}
 	out, err := h.ReleaseWork.Approve(r.Context(), req.Token)
 	if err != nil {
-		writeActError(w, err)
+		writeActError(w, r, err)
 		return
 	}
-	writeJSON(w, nethttp.StatusOK, releaseOutcomeDTO{
+	writeJSON(w, releaseOutcomeDTO{
 		PathId:     out.PathId,
 		WorkUnitId: out.Released.WorkUnitId,
 		CPT:        out.Released.CPT,
@@ -155,7 +154,7 @@ func (h *Handlers) postReleaseApproval(w nethttp.ResponseWriter, r *nethttp.Requ
 func decodeActBody(w nethttp.ResponseWriter, r *nethttp.Request, dst any) bool {
 	mt, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if err != nil || mt != "application/json" {
-		writeJSON(w, nethttp.StatusUnsupportedMediaType, map[string]string{"error": "Content-Type must be application/json"})
+		writeProblem(w, r, nethttp.StatusUnsupportedMediaType, "Content-Type must be application/json")
 		return false
 	}
 	dec := json.NewDecoder(nethttp.MaxBytesReader(w, r.Body, maxActBodyBytes))
@@ -163,14 +162,14 @@ func decodeActBody(w nethttp.ResponseWriter, r *nethttp.Request, dst any) bool {
 	if err := dec.Decode(dst); err != nil {
 		var tooBig *nethttp.MaxBytesError
 		if errors.As(err, &tooBig) {
-			writeJSON(w, nethttp.StatusRequestEntityTooLarge, map[string]string{"error": "request body too large"})
+			writeProblem(w, r, nethttp.StatusRequestEntityTooLarge, "request body too large")
 			return false
 		}
-		writeJSON(w, nethttp.StatusBadRequest, map[string]string{"error": "invalid JSON body: " + err.Error()})
+		writeProblem(w, r, nethttp.StatusBadRequest, "invalid JSON body: "+err.Error())
 		return false
 	}
 	if _, err := dec.Token(); !errors.Is(err, io.EOF) {
-		writeJSON(w, nethttp.StatusBadRequest, map[string]string{"error": "invalid JSON body: trailing data"})
+		writeProblem(w, r, nethttp.StatusBadRequest, "invalid JSON body: trailing data")
 		return false
 	}
 	return true
@@ -178,7 +177,14 @@ func decodeActBody(w nethttp.ResponseWriter, r *nethttp.Request, dst any) bool {
 
 // writeActError maps the act slice's typed outcomes onto statuses. Anything
 // unrecognised is an upstream degradation (502), never blamed on the caller.
-func writeActError(w nethttp.ResponseWriter, err error) {
+func writeActError(w nethttp.ResponseWriter, r *nethttp.Request, err error) {
+	writeActErrorFor(w, r, err, "wes-work-planning")
+}
+
+// writeActErrorFor is writeActError naming the upstream a 502 blames: each act
+// slice delegates to a different peer (ADR 0027 wes-work-planning, ADR 0029
+// workforce-management).
+func writeActErrorFor(w nethttp.ResponseWriter, r *nethttp.Request, err error, upstream string) {
 	status := nethttp.StatusBadGateway
 	switch {
 	case errors.Is(err, usecases.ErrInvalidInput), errors.Is(err, approval.ErrInvalidToken), errors.Is(err, approval.ErrUnsupportedAction),
@@ -199,9 +205,15 @@ func writeActError(w nethttp.ResponseWriter, err error) {
 	case errors.Is(err, ports.ErrWorkPlanningUnreachable), errors.Is(err, ports.ErrWorkforceAgentUnreachable):
 		status = nethttp.StatusBadGateway
 	}
-	msg := err.Error()
 	if status == nethttp.StatusBadGateway {
-		msg = strings.TrimSpace(msg)
+		writeProblem(w, r, status, upstreamDetail(upstream, err))
+		return
 	}
-	writeJSON(w, status, map[string]string{"error": msg})
+	if errors.Is(err, ports.ErrAssignmentRejected) {
+		// The peer's own prose never reaches the body (problem.go); a fixed
+		// sentence beats callerDetail reading the "ports:" prefix as a slug.
+		writeProblem(w, r, status, "workforce-management rejected the move on a domain rule")
+		return
+	}
+	writeProblem(w, r, status, callerDetail(err))
 }

@@ -101,7 +101,7 @@ type FlowBalanceAdvisory struct {
 // upstream is called.
 func (uc *FlowBalanceAdvisory) Execute(ctx context.Context, buildingId, shiftId, pathId string) (policy.Decision, error) {
 	var missing []string
-	for _, p := range []struct{ name, value string }{{"buildingId", buildingId}, {"shiftId", shiftId}, {"pathId", pathId}} {
+	for _, p := range []struct{ name, value string }{{"buildingId", buildingId}, {"shiftId", shiftId}, {keyPathID, pathId}} {
 		if strings.TrimSpace(p.value) == "" {
 			missing = append(missing, p.name)
 		}
@@ -125,12 +125,12 @@ func (uc *FlowBalanceAdvisory) Execute(ctx context.Context, buildingId, shiftId,
 		return policy.Decision{}, err
 	}
 	if wesSignal == nil {
-		logger.Warn("flow_balance_advisory: wes-work-planning unavailable", "pathId", sanitizeForLog(pathId))
+		logger.Warn("flow_balance_advisory: wes-work-planning unavailable", keyPathID, sanitizeForLog(pathId))
 	}
 
 	wfmSignal, err := uc.gatherStaffingSignal(ctx, buildingId, shiftId, pathId)
 	if err != nil {
-		logger.Warn("flow_balance_advisory: workforce-management unavailable", "pathId", sanitizeForLog(pathId), "error", sanitizeForLog(err.Error()))
+		logger.Warn("flow_balance_advisory: workforce-management unavailable", keyPathID, sanitizeForLog(pathId), "error", sanitizeForLog(err.Error()))
 	}
 
 	feSignal, err := uc.gatherStuckTasksSignal(ctx, window)
@@ -140,7 +140,7 @@ func (uc *FlowBalanceAdvisory) Execute(ctx context.Context, buildingId, shiftId,
 
 	decision := policy.Decide(pathId, wesSignal, wfmSignal, feSignal)
 	if decision.Partial {
-		logger.Warn("flow_balance_advisory: partial decision", "pathId", sanitizeForLog(pathId), "missingSignals", decision.MissingSignals)
+		logger.Warn("flow_balance_advisory: partial decision", keyPathID, sanitizeForLog(pathId), "missingSignals", decision.MissingSignals)
 	}
 
 	// Labor-utilization correlation overlay (ADR 0008, Phase 3): additive,
@@ -151,7 +151,7 @@ func (uc *FlowBalanceAdvisory) Execute(ctx context.Context, buildingId, shiftId,
 	if wesSignal != nil {
 		utilSignal, err := uc.gatherUtilizationSignal(ctx, pathId, uc.UtilizationWindowSeconds)
 		if err != nil {
-			logger.Warn("flow_balance_advisory: labor-performance unavailable", "pathId", sanitizeForLog(pathId), "error", sanitizeForLog(err.Error()))
+			logger.Warn("flow_balance_advisory: labor-performance unavailable", keyPathID, sanitizeForLog(pathId), "error", sanitizeForLog(err.Error()))
 		}
 		if utilSignal != nil {
 			decision.Evidence = append(decision.Evidence, policy.FlowBalanceEvidenceEntry{
@@ -199,7 +199,7 @@ func (uc *FlowBalanceAdvisory) arbitrate(ctx context.Context, logger *slog.Logge
 	arb := policy.Arbitrate(det, proposal, err, mode)
 
 	attrs := []any{
-		"pathId", sanitizeForLog(pathId),
+		keyPathID, sanitizeForLog(pathId),
 		"mode", string(mode),
 		"source", string(arb.Source),
 		"model", sanitizeForLog(plan.Model),
@@ -232,19 +232,19 @@ func (uc *FlowBalanceAdvisory) arbitrate(ctx context.Context, logger *slog.Logge
 func flowBalanceFacts(wes *policy.RebalanceSignal, wfm *policy.StaffingSignal, fe *policy.StuckTasksSignal) map[string]any {
 	facts := map[string]any{}
 	if wes != nil {
-		facts[wes.Source] = map[string]any{"pathId": wes.PathId, "action": string(wes.Action), "backlogDepth": wes.BacklogDepth, "wip": wes.WIP}
+		facts[wes.Source] = map[string]any{keyPathID: wes.PathId, "action": string(wes.Action), "backlogDepth": wes.BacklogDepth, "wip": wes.WIP}
 	} else {
-		facts[wesSource] = "unavailable"
+		facts[wesSource] = factUnavailable
 	}
 	if wfm != nil {
-		facts[wfm.Source] = map[string]any{"pathId": wfm.PathId, "plannedHeads": wfm.PlannedHeads, "activeHeads": wfm.ActiveHeads, "understaffed": wfm.Understaffed}
+		facts[wfm.Source] = map[string]any{keyPathID: wfm.PathId, "plannedHeads": wfm.PlannedHeads, "activeHeads": wfm.ActiveHeads, "understaffed": wfm.Understaffed}
 	} else {
-		facts[wfmSource] = "unavailable"
+		facts[wfmSource] = factUnavailable
 	}
 	if fe != nil {
 		facts[fe.Source] = map[string]any{"stuckTaskCount": fe.Count, "reasons": fe.Reasons}
 	} else {
-		facts[feSource] = "unavailable"
+		facts[feSource] = factUnavailable
 	}
 	return facts
 }

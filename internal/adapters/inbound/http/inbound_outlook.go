@@ -20,19 +20,19 @@ import (
 // every optional route here.
 func (h *Handlers) getInboundOutlook(w http.ResponseWriter, r *http.Request) {
 	if h.InboundOutlook == nil {
-		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "inbound-receiving not configured"})
+		writeProblem(w, r, http.StatusServiceUnavailable, "inbound-receiving not configured")
 		return
 	}
 	res, err := h.InboundOutlook.Execute(r.Context())
 	if err != nil {
-		status := http.StatusBadGateway
 		if errors.Is(err, usecases.ErrInboundReceivingNotConfigured) {
-			status = http.StatusServiceUnavailable
+			writeProblem(w, r, http.StatusServiceUnavailable, "inbound-receiving not configured")
+			return
 		}
-		writeJSON(w, status, map[string]string{"error": err.Error()})
+		writeProblem(w, r, http.StatusBadGateway, upstreamDetail("inbound-receiving", err))
 		return
 	}
-	writeJSON(w, http.StatusOK, toInboundOutlookDTO(res))
+	writeJSON(w, toInboundOutlookDTO(res))
 }
 
 // inboundOutlookDTO is the GET /inbound-outlook body. staleAfterSeconds is

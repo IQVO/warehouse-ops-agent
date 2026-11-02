@@ -1,0 +1,516 @@
+# OpenAPI 3.1 description of warehouse-ops-agent's REST console API.
+#
+# Kept in sync with internal/adapters/inbound/http/router.go (the chi
+# wiring) — every route below is registered there and nowhere else, and
+# every non-2xx answer is an RFC 9457 application/problem+json document
+# produced by problem.go's writeProblem (portfolio rec, 2026-11-02).
+# Error details are caller-safe: handler-authored sentences or a fixed
+# sentence plus the upstream's ADR 0018 classification slug; upstream
+# free text never appears in a response body.
+openapi: 3.1.0
+info:
+  title: warehouse-ops-agent REST console
+  version: 1.0.0
+  summary: Read-only operational console API plus the human-gated act slice.
+  description: >
+    Thirteen GET routes (health, daily brief, flow-balance, travel-factor
+    explanation, the console-bff order-lifecycle and WMS/WES dashboards,
+    runtime signals, master-data gaps, inbound outlook, transfer watch)
+    and the two ADR 0027 POST routes of the act slice. Optional
+    capabilities that the composition root has not wired answer 503 with
+    problem type not-configured rather than panicking.
+servers:
+  - url: http://localhost:8080
+    description: Local console (port follows PORT).
+tags:
+  - name: health
+  - name: briefs
+  - name: console
+  - name: network
+  - name: act
+paths:
+  /healthz:
+    get:
+      tags: [health]
+      summary: Liveness probe.
+      responses:
+        "200":
+          description: The agent is up.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    const: ok
+  /daily-brief:
+    get:
+      tags: [briefs]
+      summary: The shift-start operational brief.
+      responses:
+        "200":
+          description: The assembled brief.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericJSON"
+  /flow-balance/{pathId}:
+    get:
+      tags: [briefs]
+      summary: Correlated staffing/flow advisory for one process path.
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+        - name: buildingId
+          in: query
+          required: true
+          schema: { type: string }
+          description: Workforce-management building scope.
+        - name: shiftId
+          in: query
+          required: true
+          schema: { type: string }
+          description: Workforce-management shift scope.
+      responses:
+        "200":
+          description: The advisory decision.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericJSON"
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "503": { $ref: "#/components/responses/NotConfigured" }
+  /explain-travel-factor:
+    get:
+      tags: [briefs]
+      summary: Explain the travel distance factor between two locations.
+      description: >
+        facility-layout rejection of a malformed code is a 400 (the
+        caller's input); any other upstream failure is a 502, never
+        blamed on the caller (ADR 0016/0018).
+      parameters:
+        - name: pathId
+          in: query
+          required: true
+          schema: { type: string }
+        - name: fromLocationCode
+          in: query
+          required: true
+          schema: { type: string }
+          description: Seven-segment facility-layout location code.
+        - name: toLocationCode
+          in: query
+          required: true
+          schema: { type: string }
+          description: Seven-segment facility-layout location code.
+      responses:
+        "200":
+          description: The travel reading and its correlation, when produced.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericJSON"
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "502": { $ref: "#/components/responses/UpstreamUnavailable" }
+        "503": { $ref: "#/components/responses/NotConfigured" }
+  /console/orders/{id}/lifecycle:
+    get:
+      tags: [console]
+      summary: Order lifecycle read model for the console shell.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+          description: Customer order id.
+      responses:
+        "200":
+          description: The order's lifecycle view.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericJSON"
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/Internal" }
+        "503": { $ref: "#/components/responses/NotConfigured" }
+  /console/reports/wms:
+    get:
+      tags: [console]
+      summary: WMS chart dashboard (order funnel, flow accuracy, catalog growth).
+      parameters:
+        - name: from
+          in: query
+          required: false
+          schema: { type: string, format: date-time }
+          description: RFC 3339 window start; defaults to trailing 24h.
+        - name: to
+          in: query
+          required: false
+          schema: { type: string, format: date-time }
+          description: RFC 3339 window end; must be after "from".
+      responses:
+        "200":
+          description: The dashboard; each section carries its own availability.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericJSON"
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "503": { $ref: "#/components/responses/NotConfigured" }
+  /console/reports/wes:
+    get:
+      tags: [console]
+      summary: WES chart dashboard (queue status, stuck tasks, station standards, labor).
+      parameters:
+        - name: from
+          in: query
+          required: false
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          required: false
+          schema: { type: string, format: date-time }
+      responses:
+        "200":
+          description: The dashboard; each section carries its own availability.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericJSON"
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "503": { $ref: "#/components/responses/NotConfigured" }
+  /runtime-signals:
+    get:
+      tags: [briefs]
+      summary: Phase 5 runtime-feedback signals.
+      responses:
+        "200":
+          description: The runtime signals view.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericJSON"
+        "503": { $ref: "#/components/responses/NotConfigured" }
+  /master-data-gaps:
+    get:
+      tags: [network]
+      summary: Product-master gap report (ADR 0020).
+      parameters:
+        - name: kind
+          in: query
+          required: false
+          schema: { type: string }
+          description: Restrict to one gap kind.
+        - name: cursor
+          in: query
+          required: false
+          schema: { type: string }
+          description: Resume token from a previous page.
+      responses:
+        "200":
+          description: The gap report with completeness flag.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericJSON"
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "502": { $ref: "#/components/responses/UpstreamUnavailable" }
+        "503": { $ref: "#/components/responses/NotConfigured" }
+  /inbound-outlook:
+    get:
+      tags: [network]
+      summary: Inbound-receiving outlook (ADR 0021).
+      responses:
+        "200":
+          description: The inbound outlook; each section carries its own reason.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericJSON"
+        "502": { $ref: "#/components/responses/UpstreamUnavailable" }
+        "503": { $ref: "#/components/responses/NotConfigured" }
+  /transfer-watch/stuck:
+    get:
+      tags: [network]
+      summary: Stuck network transfers (ADR 0019).
+      parameters:
+        - name: olderThanMinutes
+          in: query
+          required: true
+          schema: { type: integer, minimum: 1 }
+          description: Staleness threshold; the agent never picks one itself.
+        - name: state
+          in: query
+          required: false
+          schema: { type: string }
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer }
+      responses:
+        "200":
+          description: The stuck-transfer list.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericJSON"
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "502": { $ref: "#/components/responses/UpstreamUnavailable" }
+        "503": { $ref: "#/components/responses/NotConfigured" }
+  /transfer-watch/transfers/{id}:
+    get:
+      tags: [network]
+      summary: One transfer's status.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: The transfer status view.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericJSON"
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "502": { $ref: "#/components/responses/UpstreamUnavailable" }
+        "503": { $ref: "#/components/responses/NotConfigured" }
+  /transfer-watch/imbalance:
+    get:
+      tags: [network]
+      summary: Network inventory imbalance view.
+      responses:
+        "200":
+          description: The imbalance view.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericJSON"
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "502": { $ref: "#/components/responses/UpstreamUnavailable" }
+        "503": { $ref: "#/components/responses/NotConfigured" }
+  /act/release-next-work/proposals:
+    post:
+      tags: [act]
+      summary: Propose the release of the next work unit (ADR 0027).
+      description: >
+        The human-gated act slice: returns a confirmation token the
+        operator must present to /approvals. This route — and its sibling
+        approval route — is one of the two write surfaces of this agent
+        (the other is /labor-reallocation, ADR 0029).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [buildingId, shiftId, pathId]
+              properties:
+                buildingId: { type: string }
+                shiftId: { type: string }
+                pathId: { type: string }
+      responses:
+        "200":
+          description: The proposal with its confirmation token and expiry.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericJSON"
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "415": { $ref: "#/components/responses/UnsupportedMediaType" }
+        "502": { $ref: "#/components/responses/UpstreamUnavailable" }
+        "503": { $ref: "#/components/responses/NotConfigured" }
+  /act/release-next-work/approvals:
+    post:
+      tags: [act]
+      summary: Confirm and execute a proposal with its token (ADR 0027).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token: { type: string }
+      responses:
+        "200":
+          description: The executed release.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericJSON"
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "410": { $ref: "#/components/responses/Gone" }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "415": { $ref: "#/components/responses/UnsupportedMediaType" }
+        "502": { $ref: "#/components/responses/UpstreamUnavailable" }
+        "503": { $ref: "#/components/responses/NotConfigured" }
+  /labor-reallocation/proposals:
+    post:
+      tags: [act]
+      summary: Propose labor reallocation moves (ADR 0029).
+      description: >
+        Second human-gated act slice. Ranks at most three moves of the
+        caller-supplied candidates onto an understaffed path and returns one
+        confirmation token per move. Nothing is executed until the matching
+        approve route is called with that token.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [siteCode, shiftId, toPathId, candidates]
+              properties:
+                siteCode: { type: string }
+                shiftId: { type: string }
+                toPathId: { type: string }
+                candidates:
+                  type: array
+                  items:
+                    type: object
+                    required: [associateId]
+                    properties:
+                      associateId: { type: string }
+                      fromPathId: { type: string }
+      responses:
+        "200":
+          description: The ranked proposals, each with its token and expiry.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericJSON"
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "415": { $ref: "#/components/responses/UnsupportedMediaType" }
+        "502": { $ref: "#/components/responses/UpstreamUnavailable" }
+        "503": { $ref: "#/components/responses/NotConfigured" }
+  /labor-reallocation/proposals/{proposalId}/approve:
+    post:
+      tags: [act]
+      summary: Approve one move and delegate assign_labor (ADR 0029).
+      parameters:
+        - name: proposalId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, approvedBy]
+              properties:
+                token: { type: string }
+                approvedBy: { type: string }
+      responses:
+        "200":
+          description: The executed assignment.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericJSON"
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "410": { $ref: "#/components/responses/Gone" }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "415": { $ref: "#/components/responses/UnsupportedMediaType" }
+        "502": { $ref: "#/components/responses/UpstreamUnavailable" }
+        "503": { $ref: "#/components/responses/NotConfigured" }
+components:
+  parameters:
+    PathId:
+      name: pathId
+      in: path
+      required: true
+      schema: { type: string }
+      description: Canonical process-path id.
+  responses:
+    BadRequest:
+      description: The request itself is invalid (missing/invalid parameters).
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    NotFound:
+      description: The addressed entity does not exist.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    Conflict:
+      description: The act slice's precondition failed (already used, no pending work).
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    Gone:
+      description: The confirmation token has expired.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    UnsupportedMediaType:
+      description: Content-Type must be application/json.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    PayloadTooLarge:
+      description: The request body exceeds the act-slice limit.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    Internal:
+      description: An unexpected internal failure.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    UpstreamUnavailable:
+      description: An upstream context failed or is unreachable (never the caller's fault).
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    NotConfigured:
+      description: The capability behind this route is not wired in this deployment.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+  schemas:
+    Problem:
+      type: object
+      description: >
+        RFC 9457 problem details. The detail member is caller-safe by
+        construction — authored sentences, or a fixed sentence plus the
+        upstream's ADR 0018 slug. Upstream prose never appears.
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          description: Stable problem identifier URI.
+          examples:
+            - https://problems.warehouse-ops-agent.io/upstream-unavailable
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+    GenericJSON:
+      type: object
+      additionalProperties: true
+      description: >
+        Response body of the read routes. The concrete DTO shapes are
+        pinned by the golden/contract tests in
+        internal/adapters/inbound/http (testdata) and the godog suite in
+        features/; this document pins paths, parameters, statuses and the
+        error contract.

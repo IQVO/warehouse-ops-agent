@@ -37,8 +37,6 @@ func NewInboundReceiving(cfg Config) *InboundReceiving {
 	return &InboundReceiving{session: New(cfg)}
 }
 
-var _ ports.InboundReceivingClient = (*InboundReceiving)(nil)
-
 // ListAsns calls list_asns. Zero query fields are omitted so
 // inbound-receiving applies its own defaults.
 func (c *InboundReceiving) ListAsns(ctx context.Context, query ports.InboundAsnListQuery) (ports.InboundAsnPage, error) {

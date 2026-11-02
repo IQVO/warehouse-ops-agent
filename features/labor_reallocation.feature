@@ -120,7 +120,7 @@ Feature: Labor reallocation (act slice #2)
     And I have proposed moving "a1" from "pick" to "pack"
     When I approve the first proposal as "supervisor-1"
     Then the response status is 409
-    And the response error mentions "certification"
+    And the response error mentions "rejected the move on a domain rule"
 
   Scenario: An unknown associate at workforce-management is reported as not found
     Given the workforce-management agent does not know the associate

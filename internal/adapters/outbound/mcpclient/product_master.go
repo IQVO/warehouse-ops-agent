@@ -38,8 +38,6 @@ func NewProductMaster(cfg Config) *ProductMaster {
 	return &ProductMaster{session: New(cfg)}
 }
 
-var _ ports.ProductMasterClient = (*ProductMaster)(nil)
-
 // ListProducts calls list_products. Zero/nil query fields are omitted so
 // product-master applies its own defaults.
 func (c *ProductMaster) ListProducts(ctx context.Context, query ports.ProductListQuery) (ports.ProductPage, error) {

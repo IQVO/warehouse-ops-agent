@@ -1,6 +1,7 @@
 package http
 
 import (
+	"net/http"
 	"time"
 
 	"github.com/claudioed/warehouse-ops-agent/internal/domain/policy"
@@ -266,4 +267,10 @@ func toOpenExceptionDTOs(exceptions []policy.OpenException) []openExceptionDTO {
 		})
 	}
 	return out
+}
+
+// getDailyBrief handles GET /daily-brief.
+func (h *Handlers) getDailyBrief(w http.ResponseWriter, r *http.Request) {
+	brief := h.DailyBrief.Execute(r.Context())
+	writeJSON(w, toDailyBriefDTO(brief))
 }
