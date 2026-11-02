@@ -70,7 +70,22 @@ grep -q 'SELLER_INBOUND_MCP_ENDPOINT' <<<"$set_seller_endpoint" || fail "upstrea
 grep -q 'value: "http://seller-inbound-mcp.warehouse-systems.svc.cluster.local:8090/mcp"' <<<"$set_seller_endpoint" ||
   fail "upstreams.sellerInbound.endpoint does not reach the Deployment as SELLER_INBOUND_MCP_ENDPOINT verbatim"
 
-# The act slice (ADR 0027) is the only write route. Behind Kong it gets its OWN
+# WORKFORCE_MANAGEMENT_A2A_URL (ADR 0029, the labor-reallocation act slice) is
+# ALWAYS rendered in both the Deployment and the ConfigMap from
+# upstreams.workforceManagement.a2aEndpoint; empty = the feature is off, and a
+# set value reaches the Deployment verbatim.
+grep -q 'name: WORKFORCE_MANAGEMENT_A2A_URL' <<<"$deployment" || fail "WORKFORCE_MANAGEMENT_A2A_URL is not always rendered into the Deployment"
+grep -A1 'name: WORKFORCE_MANAGEMENT_A2A_URL' <<<"$deployment" | grep -q 'value: ""' || fail "WORKFORCE_MANAGEMENT_A2A_URL is not empty (feature off) by default"
+grep -q 'WORKFORCE_MANAGEMENT_A2A_URL: ""' <<<"$configmap_default" || fail "WORKFORCE_MANAGEMENT_A2A_URL is not always rendered into the ConfigMap"
+a2a_url='http://workforce-management-a2a.warehouse-systems.svc.cluster.local:8093/'
+set_a2a="$(helm template "$release" "$chart_dir" --set-string "upstreams.workforceManagement.a2aEndpoint=$a2a_url" --show-only templates/deployment.yaml)"
+grep -A1 'name: WORKFORCE_MANAGEMENT_A2A_URL' <<<"$set_a2a" | grep -q "value: \"$a2a_url\"" || fail "upstreams.workforceManagement.a2aEndpoint does not reach the Deployment as WORKFORCE_MANAGEMENT_A2A_URL verbatim"
+set_a2a_cm="$(helm template "$release" "$chart_dir" --set-string "upstreams.workforceManagement.a2aEndpoint=$a2a_url" --show-only templates/configmap.yaml)"
+grep -q "WORKFORCE_MANAGEMENT_A2A_URL: \"$a2a_url\"" <<<"$set_a2a_cm" || fail "upstreams.workforceManagement.a2aEndpoint does not reach the ConfigMap as WORKFORCE_MANAGEMENT_A2A_URL verbatim"
+# The A2A endpoint is not the MCP endpoint: setting one never sets the other.
+grep -A1 'name: WORKFORCE_MANAGEMENT_MCP_ENDPOINT' <<<"$set_a2a" | grep -q 'value: ""' || fail "a2aEndpoint leaked into WORKFORCE_MANAGEMENT_MCP_ENDPOINT"
+
+# The act slices (ADR 0027, ADR 0029) are the only write routes. Behind Kong it gets its OWN
 # route with a GET/OPTIONS-only cors plugin, so a browser's preflight for POST
 # is refused at the edge, while the main route's cors plugin (all methods)
 # stays for /mcp. Rendered only when the Gateway API route AND cors are on.
@@ -85,6 +100,13 @@ if grep -E 'konghq.com/plugins' <<<"$act_route" | grep -qE -- '-cors([",])'; the
   fail "the act route is attached to the all-methods cors plugin"
 fi
 grep -q 'prometheus' <<<"$act_route" || fail "the act route lost the prometheus plugin"
+# ADR 0029: the labor-reallocation write routes get the SAME read-only edge
+# CORS (a second rule on the same route, so the same plugin list).
+grep -q 'value: /api/warehouse-ops-agent/labor-reallocation$' <<<"$act_route" || fail "the act route does not match <host path>/labor-reallocation"
+grep -q 'replacePrefixMatch: /labor-reallocation$' <<<"$act_route" || fail "the act route does not rewrite the stripped prefix back to /labor-reallocation"
+[ "$(grep -c 'type: PathPrefix' <<<"$act_route")" = "2" ] || fail "the act route must carry exactly the /act and /labor-reallocation rules"
+grep -q 'labor-reallocation' <<<"$(helm template "$release" "$chart_dir" "${edge_args[@]}" --show-only templates/httproute.yaml)" &&
+  fail "the MAIN route mentions /labor-reallocation — it must stay on the act route with the read-only cors plugin"
 
 plugins="$(helm template "$release" "$chart_dir" "${edge_args[@]}" --show-only templates/kong-plugins.yaml)"
 # Bounded slices after each plugin's name line (each block is far shorter than

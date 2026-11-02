@@ -73,6 +73,8 @@ spec:
               value: {{ .Values.upstreams.inventoryStorage.endpoint | quote }}
             - name: WORKFORCE_MANAGEMENT_MCP_ENDPOINT
               value: {{ .Values.upstreams.workforceManagement.endpoint | quote }}
+            - name: WORKFORCE_MANAGEMENT_A2A_URL
+              value: {{ .Values.upstreams.workforceManagement.a2aEndpoint | quote }}
             - name: FACILITY_LAYOUT_MCP_ENDPOINT
               value: {{ .Values.upstreams.facilityLayout.endpoint | quote }}
             - name: ORDER_MANAGEMENT_MCP_ENDPOINT
