@@ -44,12 +44,8 @@ func NewInventoryReservations(baseURL string, timeout time.Duration) *InventoryR
 var _ ports.InventoryReservationsClient = (*InventoryReservations)(nil)
 
 func (c *InventoryReservations) GetReservationsByDemandRef(ctx context.Context, demandRef string) ([]ports.ReservationDTO, error) {
-	var out []ports.ReservationDTO
 	q := url.Values{"demandRef": {demandRef}}
-	if err := httpGetJSON(ctx, c.client, c.baseURL, "/reservations", q, &out); err != nil {
-		return nil, err
-	}
-	return out, nil
+	return listAll[ports.ReservationDTO](ctx, c.client, c.baseURL, "/reservations", q)
 }
 
 // WorkUnits implements ports.WorkUnitsClient by calling
@@ -66,12 +62,8 @@ func NewWorkUnits(baseURL string, timeout time.Duration) *WorkUnits {
 var _ ports.WorkUnitsClient = (*WorkUnits)(nil)
 
 func (c *WorkUnits) GetWorkUnitsByReference(ctx context.Context, reference string) ([]ports.WorkUnitDTO, error) {
-	var out []ports.WorkUnitDTO
 	q := url.Values{"reference": {reference}}
-	if err := httpGetJSON(ctx, c.client, c.baseURL, "/work-units", q, &out); err != nil {
-		return nil, err
-	}
-	return out, nil
+	return listAll[ports.WorkUnitDTO](ctx, c.client, c.baseURL, "/work-units", q)
 }
 
 // TasksByOrder implements ports.TasksByOrderClient by calling
@@ -88,10 +80,6 @@ func NewTasksByOrder(baseURL string, timeout time.Duration) *TasksByOrder {
 var _ ports.TasksByOrderClient = (*TasksByOrder)(nil)
 
 func (c *TasksByOrder) GetTasksByOrderRef(ctx context.Context, orderRef string) ([]ports.TaskDTO, error) {
-	var out []ports.TaskDTO
 	q := url.Values{"orderRef": {orderRef}}
-	if err := httpGetJSON(ctx, c.client, c.baseURL, "/tasks", q, &out); err != nil {
-		return nil, err
-	}
-	return out, nil
+	return listAll[ports.TaskDTO](ctx, c.client, c.baseURL, "/tasks", q)
 }

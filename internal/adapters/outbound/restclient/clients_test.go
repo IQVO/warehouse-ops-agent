@@ -59,7 +59,7 @@ func TestInventoryReservations_GetReservationsByDemandRef(t *testing.T) {
 		if got := r.URL.Query().Get("demandRef"); got != "ord-1" {
 			t.Fatalf("expected demandRef=ord-1, got %q", got)
 		}
-		_ = json.NewEncoder(w).Encode([]ports.ReservationDTO{{SKU: "SKU-1", Quantity: 2, Status: "ACTIVE"}})
+		_ = json.NewEncoder(w).Encode(map[string]any{"items": []ports.ReservationDTO{{SKU: "SKU-1", Quantity: 2, Status: "ACTIVE"}}})
 	}))
 	defer srv.Close()
 
@@ -78,7 +78,7 @@ func TestWorkUnits_GetWorkUnitsByReference(t *testing.T) {
 		if got := r.URL.Query().Get("reference"); got != "ord-1" {
 			t.Fatalf("expected reference=ord-1, got %q", got)
 		}
-		_ = json.NewEncoder(w).Encode([]ports.WorkUnitDTO{{Id: "ord-1-line-1", PathId: "pick-zone-a", State: "Released"}})
+		_ = json.NewEncoder(w).Encode(map[string]any{"items": []ports.WorkUnitDTO{{Id: "ord-1-line-1", PathId: "pick-zone-a", State: "Released"}}})
 	}))
 	defer srv.Close()
 
@@ -97,7 +97,7 @@ func TestTasksByOrder_GetTasksByOrderRef(t *testing.T) {
 		if got := r.URL.Query().Get("orderRef"); got != "ord-1-line-1" {
 			t.Fatalf("expected orderRef=ord-1-line-1, got %q", got)
 		}
-		_ = json.NewEncoder(w).Encode([]ports.TaskDTO{{Id: "task-1", Type: "PICK", Status: "COMPLETED"}})
+		_ = json.NewEncoder(w).Encode(map[string]any{"items": []ports.TaskDTO{{Id: "task-1", Type: "PICK", Status: "COMPLETED"}}})
 	}))
 	defer srv.Close()
 
@@ -120,5 +120,55 @@ func TestHTTPGetJSON_DecodeError(t *testing.T) {
 	client := NewOrderManagement(srv.URL, 0)
 	if _, err := client.GetOrder(context.Background(), "ord-1"); err == nil {
 		t.Fatal("expected a decode error")
+	}
+}
+
+func TestListAll_FollowsNextCursorRepeatingFilters(t *testing.T) {
+	var calls int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		q := r.URL.Query()
+		if q.Get("orderRef") != "o1" || q.Get("limit") != "500" {
+			t.Fatalf("filters/limit not sent on every page: %s", r.URL.RawQuery)
+		}
+		switch q.Get("cursor") {
+		case "":
+			_ = json.NewEncoder(w).Encode(map[string]any{"items": []ports.TaskDTO{{Id: "t1"}}, "nextCursor": "c2"})
+		case "c2":
+			_ = json.NewEncoder(w).Encode(map[string]any{"items": []ports.TaskDTO{{Id: "t2"}}})
+		default:
+			t.Fatalf("unexpected cursor %q", q.Get("cursor"))
+		}
+	}))
+	defer srv.Close()
+
+	tasks, err := NewTasksByOrder(srv.URL, 0).GetTasksByOrderRef(context.Background(), "o1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if calls != 2 || len(tasks) != 2 || tasks[0].Id != "t1" || tasks[1].Id != "t2" {
+		t.Fatalf("calls=%d tasks=%+v", calls, tasks)
+	}
+}
+
+func TestListAll_ErrorsWhenPageBoundExceeded(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{"items": []ports.TaskDTO{{Id: "t"}}, "nextCursor": "more"})
+	}))
+	defer srv.Close()
+
+	if _, err := NewTasksByOrder(srv.URL, 0).GetTasksByOrderRef(context.Background(), "o1"); err == nil {
+		t.Fatal("expected an error when nextCursor never ends")
+	}
+}
+
+func TestListAll_PropagatesProviderError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+	}))
+	defer srv.Close()
+
+	if _, err := NewWorkUnits(srv.URL, 0).GetWorkUnitsByReference(context.Background(), "r"); err == nil {
+		t.Fatal("expected an error for a 400")
 	}
 }

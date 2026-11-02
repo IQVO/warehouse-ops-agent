@@ -295,6 +295,11 @@ timeout per call, `internal/adapters/outbound/restclient/clients.go`):
 | 3 | `GET /work-units?reference=<id>` | `WES_WORK_PLANNING_REST_URL` |
 | 4 | `GET /tasks?orderRef=<workUnitId>` once per work unit from step 3 | `FULFILLMENT_EXECUTION_REST_URL` |
 
+Steps 2-4 are paged collections: each request sends `limit=500`, reads the
+`items` array of the `{items, nextCursor}` envelope and follows `nextCursor`
+(filters repeated) until it is absent. More than 20 pages for one call is
+an error, never a silent truncation.
+
 **Response (`200`):** `orderId` plus four stages. A stage is `null` when
 its context did not answer:
 
