@@ -18,7 +18,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/claudioed/warehouse-ops-agent/internal/adapters/outbound/httpclient"
-	"github.com/claudioed/warehouse-ops-agent/internal/observability"
+	"github.com/claudioed/warehouse-ops-agent/internal/domain/authority"
 )
 
 // tracerName is the OTel instrumentation scope of the delegation spans.
@@ -30,9 +30,9 @@ const tracerName = "github.com/claudioed/warehouse-ops-agent/internal/adapters/o
 // lookup is a read. A skill missing from this table is a programming error
 // caught by TestEverySkillHasADeclaredAuthority.
 var skillAuthority = map[string]string{
-	releaseSkill:        observability.AuthorityL3,
-	assignLaborSkill:    observability.AuthorityL3,
-	findExceptionsSkill: observability.AuthorityL1,
+	releaseSkill:        authority.L3,
+	assignLaborSkill:    authority.L3,
+	findExceptionsSkill: authority.L1,
 }
 
 // wellKnownPath is the Agent Card discovery path (A2A spec); served by every
@@ -102,7 +102,11 @@ func (p *peer) ask(ctx context.Context, skill string, args map[string]any) (answ
 	ctx, span := otel.Tracer(tracerName).Start(ctx, "a2a.skill "+skill,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(attribute.String("a2a.skill", skill)),
-		trace.WithAttributes(observability.AgenticAttributes(observability.OpInvokeAgent, skillAuthority[skill])...),
+		trace.WithAttributes(
+			attribute.String(authority.AttrOperationName, authority.OpInvokeAgent),
+			attribute.String(authority.AttrAgentName, authority.AgentName),
+			attribute.String(authority.AttrAuthority, skillAuthority[skill]),
+		),
 	)
 	defer span.End()
 	ans, err := p.doAsk(ctx, skill, args)

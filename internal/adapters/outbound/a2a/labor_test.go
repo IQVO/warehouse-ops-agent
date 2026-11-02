@@ -17,7 +17,7 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
-	"github.com/claudioed/warehouse-ops-agent/internal/observability"
+	"github.com/claudioed/warehouse-ops-agent/internal/domain/authority"
 	"github.com/claudioed/warehouse-ops-agent/internal/ports"
 )
 
@@ -209,10 +209,10 @@ func TestAssignLabor_SpanCarriesTheAgenticAttributes(t *testing.T) {
 			attrs[string(kv.Key)] = kv.Value.String()
 		}
 		want := map[string]string{
-			observability.AttrOperationName: observability.OpInvokeAgent,
-			observability.AttrAgentName:     "warehouse-ops-agent",
-			observability.AttrAuthority:     "L3",
-			"a2a.skill":                     "assign_labor",
+			authority.AttrOperationName: authority.OpInvokeAgent,
+			authority.AttrAgentName:     "warehouse-ops-agent",
+			authority.AttrAuthority:     "L3",
+			"a2a.skill":                 "assign_labor",
 		}
 		for k, v := range want {
 			if attrs[k] != v {
@@ -227,7 +227,7 @@ func TestAssignLabor_SpanCarriesTheAgenticAttributes(t *testing.T) {
 
 func TestEverySkillHasADeclaredAuthority(t *testing.T) {
 	for _, skill := range []string{releaseSkill, assignLaborSkill, findExceptionsSkill} {
-		if !observability.ValidAuthority(skillAuthority[skill]) {
+		if !authority.Valid(skillAuthority[skill]) {
 			t.Errorf("skill %q has authority %q, want one of L1..L4", skill, skillAuthority[skill])
 		}
 	}

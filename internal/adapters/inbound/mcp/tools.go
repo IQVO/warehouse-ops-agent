@@ -10,6 +10,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/claudioed/warehouse-ops-agent/internal/application/usecases"
+	"github.com/claudioed/warehouse-ops-agent/internal/domain/authority"
 	"github.com/claudioed/warehouse-ops-agent/internal/domain/policy"
 )
 
@@ -67,6 +68,15 @@ type Deps struct {
 	// NODE_TOPOLOGY_MCP_ENDPOINT) means get_network_node_outlook is
 	// simply not registered.
 	NetworkNodeOutlook *usecases.NetworkNodeOutlook
+
+	// LaborReallocationOutlook is the READ half of the ADR-0029 act slice
+	// #2: ranked reallocation moves with no confirmation token (authority
+	// L2). Nil (no WORKFORCE_MANAGEMENT_MCP_ENDPOINT) means
+	// labor_reallocation_outlook is simply not registered. The ACT half
+	// (usecases.LaborReallocation, with the token signer and the write port)
+	// is REST-only and must never appear in this struct; the zerowrite
+	// fitness tests fail the build if it does.
+	LaborReallocationOutlook *usecases.LaborReallocationOutlook
 }
 
 // --- get_daily_brief -----------------------------------------------------
@@ -338,9 +348,9 @@ func (d Deps) detectStrandedReservation(ctx context.Context, in strandedReservat
 // explain_travel_factor, detect_stranded_reservation,
 // find_master_data_gaps, get_inbound_outlook, the three transfer-watch
 // tools and the two network-outlook tools are registered only when their
-// use case is wired (see each one's own nil check below) — up to twelve
-// tools total, every one of them read-only. This agent has no write tool
-// at all.
+// use case is wired (see each one's own nil check below), plus
+// labor_reallocation_outlook (authority L2) — up to thirteen tools total,
+// every one of them read-only. This agent has no write tool at all.
 func (d Deps) registerTools(server *mcp.Server) {
 	readOnly := true
 
@@ -415,21 +425,44 @@ func (d Deps) registerTools(server *mcp.Server) {
 			Annotations: &mcp.ToolAnnotations{ReadOnlyHint: readOnly},
 		}, d.getNetworkNodeOutlook)
 	}
+	d.registerLaborReallocationTool(server, readOnly)
 }
 
-// addTool registers one tool. It centralises the cross-cutting concern
-// every tool shares: a span per call, and mapping a handler error onto the
-// span before returning it.
+// registerLaborReallocationTool adds labor_reallocation_outlook (ADR 0029,
+// authority L2) when its read-only use case is wired. It stays in this file
+// so the zero-write fitness test scans its ReadOnlyHint like every sibling.
+func (d Deps) registerLaborReallocationTool(server *mcp.Server, readOnly bool) {
+	if d.LaborReallocationOutlook == nil {
+		return
+	}
+	addTool(server, &mcp.Tool{
+		Name:        "labor_reallocation_outlook",
+		Description: "Rank at most three moves that would cover an understaffed process path with associates a human offers, from workforce-management's get_staffing_gap readings (siteCode, shiftId, toPathId, candidates). Each move carries reason codes, the verbatim staffing readings it rests on and the next read-only check; candidates that cannot move are reported with the reason. It never invents an associate or a quantity, and moves nobody off a path that is not above its plannedHeads. Recommendation only (authority L2): it issues no confirmation token and has no write path; placing an associate is a separate, human-approved REST step this server does not offer.",
+		Annotations: &mcp.ToolAnnotations{ReadOnlyHint: readOnly},
+	}, d.laborReallocationOutlook)
+}
+
+// addTool registers one tool. It centralises the cross-cutting concerns
+// every tool shares: the declared authority level on the tool's Meta
+// (authority.go), a span per call carrying the G9 attributes
+// (gen_ai.operation.name, gen_ai.agent.name, warehouse.authority), and
+// mapping a handler error onto the span before returning it.
 func addTool[In, Out any](
 	server *mcp.Server,
 	tool *mcp.Tool,
 	handle func(context.Context, In) (Out, error),
 ) {
+	level := stampAuthority(tool)
 	mcp.AddTool(server, tool, func(ctx context.Context, _ *mcp.CallToolRequest, in In) (*mcp.CallToolResult, Out, error) {
 		var zero Out
 		ctx, span := otel.Tracer(tracerName).Start(ctx, "mcp.tool "+tool.Name,
 			trace.WithAttributes(
 				attribute.String("mcp.tool.name", tool.Name),
+			),
+			trace.WithAttributes(
+				attribute.String(authority.AttrOperationName, authority.OpExecuteTool),
+				attribute.String(authority.AttrAgentName, authority.AgentName),
+				attribute.String(authority.AttrAuthority, level),
 			),
 		)
 		defer span.End()
