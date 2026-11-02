@@ -21,7 +21,7 @@ import (
 // upstream failures as 502 would contradict the partial-tolerant design.
 func (h *Handlers) getOrderLifecycle(w http.ResponseWriter, r *http.Request) {
 	if h.OrderLifecycle == nil {
-		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "order lifecycle not configured"})
+		writeProblem(w, r, http.StatusServiceUnavailable, "order lifecycle not configured")
 		return
 	}
 	orderId := chi.URLParam(r, "id")
@@ -29,16 +29,16 @@ func (h *Handlers) getOrderLifecycle(w http.ResponseWriter, r *http.Request) {
 	result, err := h.OrderLifecycle.Execute(r.Context(), orderId)
 	if err != nil {
 		if errors.Is(err, ports.ErrNotFound) {
-			writeJSON(w, http.StatusNotFound, map[string]string{"error": "order not found"})
+			writeProblem(w, r, http.StatusNotFound, "order not found")
 			return
 		}
 		// Defensive only: Execute does not return any other error today.
 		// If that contract ever widens, fail loudly as an internal error
 		// rather than mislabelling it an upstream (502) failure.
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+		writeProblem(w, r, http.StatusInternalServerError, "internal error")
 		return
 	}
-	writeJSON(w, http.StatusOK, toOrderLifecycleDTO(result))
+	writeJSON(w, toOrderLifecycleDTO(result))
 }
 
 // orderLifecycleDTO's field names/shapes are hand-kept in sync with

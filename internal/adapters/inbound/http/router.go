@@ -14,7 +14,6 @@ package http
 
 import (
 	"encoding/json"
-	"errors"
 	"log/slog"
 	"net/http"
 	"os"
@@ -148,7 +147,7 @@ func NewRouter(h *Handlers, serviceName string) *chi.Mux {
 }
 
 func healthz(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	writeJSON(w, map[string]string{"status": "ok"})
 }
 
 // corsMiddleware allows the warehouse-console browser SPA to call this
@@ -171,65 +170,10 @@ func corsMiddleware() func(http.Handler) http.Handler {
 	})
 }
 
-func (h *Handlers) getDailyBrief(w http.ResponseWriter, r *http.Request) {
-	brief := h.DailyBrief.Execute(r.Context())
-	writeJSON(w, http.StatusOK, toDailyBriefDTO(brief))
-}
-
-// getFlowBalanceException handles GET /flow-balance/{pathId}?buildingId=&shiftId=.
-// buildingId and shiftId are required query params (the workforce-management
-// staffing-gap lookup needs them); a missing FlowBalanceAdvisory (not wired
-// by the composition root) responds 503 rather than a nil-pointer panic.
-func (h *Handlers) getFlowBalanceException(w http.ResponseWriter, r *http.Request) {
-	if h.FlowBalanceAdvisory == nil {
-		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "flow balance advisory not configured"})
-		return
-	}
-	pathId := chi.URLParam(r, "pathId")
-	buildingId := r.URL.Query().Get("buildingId")
-	shiftId := r.URL.Query().Get("shiftId")
-
-	decision, err := h.FlowBalanceAdvisory.Execute(r.Context(), buildingId, shiftId, pathId)
-	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
-		return
-	}
-	writeJSON(w, http.StatusOK, toFlowBalanceExceptionDTO(decision))
-}
-
-// getExplainTravelFactor handles
-// GET /explain-travel-factor?pathId=&fromLocationCode=&toLocationCode=.
-// fromLocationCode and toLocationCode are required query params -- the
-// caller must already know both facility-layout location codes (see
-// usecases.ExplainTravelFactor's own doc comment for why this handler
-// never infers them). A missing ExplainTravelFactor (not wired by the
-// composition root) responds 503 rather than a nil-pointer panic.
-func (h *Handlers) getExplainTravelFactor(w http.ResponseWriter, r *http.Request) {
-	if h.ExplainTravelFactor == nil {
-		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "explain travel factor not configured"})
-		return
-	}
-	pathId := r.URL.Query().Get("pathId")
-	from := r.URL.Query().Get("fromLocationCode")
-	to := r.URL.Query().Get("toLocationCode")
-
-	result, err := h.ExplainTravelFactor.Execute(r.Context(), pathId, from, to)
-	if err != nil {
-		// Invalid caller input is a 400; anything else is facility-layout
-		// being unreachable or rejecting the call -- an upstream
-		// degradation, reported as 502 rather than blamed on the caller.
-		status := http.StatusBadGateway
-		if errors.Is(err, usecases.ErrInvalidInput) {
-			status = http.StatusBadRequest
-		}
-		writeJSON(w, status, map[string]string{"error": err.Error()})
-		return
-	}
-	writeJSON(w, http.StatusOK, toTravelFactorDTO(result))
-}
-
-func writeJSON(w http.ResponseWriter, status int, body any) {
+// writeJSON answers 200 with an application/json body; every error path
+// goes through writeProblem instead (RFC 9457).
+func writeJSON(w http.ResponseWriter, body any) {
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
+	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(body)
 }
