@@ -32,6 +32,8 @@ repos:
 ```
 cmd/agent/                           composition root (main.go, reasoner.go)
 internal/
+  domain/authority/                  MCP authority levels L1-L4 (ADR 0029); the MCP adapter's
+                                     authority.go refuses a tool with no level
   domain/policy/                     pure decision-policy layer:
                                         arbitrate.go   — combines deterministic
                                                           Decision + optional LLM

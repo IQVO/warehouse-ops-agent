@@ -39,9 +39,10 @@ Source of truth: `internal/architecture/architecture_test.go`,
    a signal the change belongs in a different repo (a new or existing
    bounded context), per ADR 0001's Consequences — not something to add
    here.
-4. **Zero write tools today, CI-enforced** by
-   `internal/architecture/zerowrite/zerowrite_test.go`. Do not add an `AssignLabor`,
-   `ReleaseNextWork`, `RevokeReservation`, or similar mutating method to
+4. **Exactly two write ports, CI-enforced** by
+   `internal/architecture/zerowrite/zerowrite_test.go` and `act_slice_test.go`:
+   `ReleaseNextWork` (ADR 0027) and `AssignLabor` (ADR 0029), each human-confirmed
+   and REST-only. Do not add a `RevokeReservation` or any other mutating method to
    any outbound client, and do not register a non-read-only MCP tool on
    this agent's own inbound server, without first re-reading
    `docs/docs/mcp/governance-note.md`'s "future act slice" guardrails
