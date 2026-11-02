@@ -19,7 +19,10 @@ func NewWorkforceManagement(cfg Config) *WorkforceManagement {
 	return &WorkforceManagement{session: New(cfg)}
 }
 
-var _ ports.WorkforceManagementClient = (*WorkforceManagement)(nil)
+var (
+	_ ports.WorkforceManagementClient = (*WorkforceManagement)(nil)
+	_ ports.StaffingGapBySiteClient   = (*WorkforceManagement)(nil)
+)
 
 func (c *WorkforceManagement) GetStaffingGap(ctx context.Context, buildingId, shiftId, pathId string) (ports.StaffingGap, error) {
 	var out ports.StaffingGap
@@ -27,6 +30,19 @@ func (c *WorkforceManagement) GetStaffingGap(ctx context.Context, buildingId, sh
 		"buildingId": buildingId,
 		"shiftId":    shiftId,
 		"pathId":     pathId,
+	}, &out)
+	return out, err
+}
+
+// GetStaffingGapForSite calls get_staffing_gap by the canonical siteCode,
+// which scopes the associate count to that site (ADR 0034 there). It is the
+// read behind the labor-reallocation proposals (ADR 0029).
+func (c *WorkforceManagement) GetStaffingGapForSite(ctx context.Context, siteCode, shiftId, pathId string) (ports.StaffingGap, error) {
+	var out ports.StaffingGap
+	err := c.session.callTool(ctx, "get_staffing_gap", map[string]any{
+		"siteCode": siteCode,
+		"shiftId":  shiftId,
+		"pathId":   pathId,
 	}, &out)
 	return out, err
 }

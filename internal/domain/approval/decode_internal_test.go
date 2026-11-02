@@ -4,7 +4,7 @@ import "testing"
 
 func TestDecodeIsStrictAboutShapeAndTypes(t *testing.T) {
 	good := `["release_next_work","pick-zone-a","deterministic","r","abc",1793016300]`
-	if _, err := decode([]byte(good)); err != nil {
+	if _, _, err := decode([]byte(good)); err != nil {
 		t.Fatalf("a well-formed payload must decode: %v", err)
 	}
 	for name, bad := range map[string]string{
@@ -18,7 +18,7 @@ func TestDecodeIsStrictAboutShapeAndTypes(t *testing.T) {
 		"empty document":    ``,
 		"not json":          `release_next_work`,
 	} {
-		if _, err := decode([]byte(bad)); err == nil {
+		if _, _, err := decode([]byte(bad)); err == nil {
 			t.Errorf("%s: decode succeeded, want ErrInvalidToken", name)
 		}
 	}
