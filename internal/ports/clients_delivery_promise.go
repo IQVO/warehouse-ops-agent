@@ -106,6 +106,7 @@ type DeliveryOffer struct {
 	PolicyVersion           string             `json:"policyVersion"`
 	QuotedAt                string             `json:"quotedAt"`
 	ExpiresAt               string             `json:"expiresAt"`
+	OrderByAt               string             `json:"orderByAt"`
 }
 
 // PromiseTerms mirrors the terms of a promise: tier, shipBy, the

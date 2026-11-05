@@ -14,7 +14,7 @@ import (
 // deliveryPromiseGoldenPath is a VERBATIM copy of delivery-promise's own
 // published tool registry golden
 // (delivery-promise: internal/adapters/inbound/mcp/testdata/tool_registry.golden.json,
-// pinned at delivery-promise origin/develop 58c9d67). Refresh it with
+// pinned at delivery-promise origin/develop ee39624). Refresh it with
 //
 //	git -C ../delivery-promise show origin/develop:internal/adapters/inbound/mcp/testdata/tool_registry.golden.json
 //
@@ -63,7 +63,7 @@ func newDeliveryPromiseTestUpstream(t *testing.T) *goldenUpstream {
 	  "lines":[{"catalogItemId":"item-1","quantity":2}],
 	  "window":{"earliest":"2026-10-26T08:00:00Z","latest":"2026-10-27T20:00:00Z"},
 	  "witnessPath":{"nodeId":"node-1","legs":["lane-1","lane-2"],"deliveryWaveId":"wave-1","pickupDepartureId":"dep-1"},
-	  "basis":"NETWORK","policyVersion":"v3","quotedAt":"2026-10-24T08:00:00Z","expiresAt":"2026-10-24T08:15:00Z"}`)
+	  "basis":"NETWORK","policyVersion":"v3","quotedAt":"2026-10-24T08:00:00Z","expiresAt":"2026-10-24T08:15:00Z","orderByAt":"2026-10-24T11:00:00Z"}`)
 	promise := goldenJSON(t, `{"promiseId":"prm-1","orderId":"ord-3f9c","offerId":"off-1","state":"KEPT",
 	  "groupNo":1,"destinationPostalPrefix":"013","holdExpiresAt":"2026-10-24T09:00:00Z",
 	  "lines":[{"catalogItemId":"item-1","quantity":2}],
