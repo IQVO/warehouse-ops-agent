@@ -14,7 +14,7 @@ import (
 // deliveryPromiseGoldenPath is a VERBATIM copy of delivery-promise's own
 // published tool registry golden
 // (delivery-promise: internal/adapters/inbound/mcp/testdata/tool_registry.golden.json,
-// pinned at delivery-promise origin/develop ee39624). Refresh it with
+// pinned at delivery-promise origin/develop a8b587c). Refresh it with
 //
 //	git -C ../delivery-promise show origin/develop:internal/adapters/inbound/mcp/testdata/tool_registry.golden.json
 //
@@ -56,7 +56,7 @@ func newDeliveryPromiseTestUpstream(t *testing.T) *goldenUpstream {
 	t.Helper()
 	golden := loadGoldenTools(t, deliveryPromiseGoldenPath)
 	policy := goldenJSON(t, `{"policyVersion":"v3","version":3,"offerTtlMinutes":15,"holdTtlMinutes":30,
-	  "packagesPerOrder":4,"capacitySharePercent":60,
+	  "packagesPerOrder":4,"capacitySharePercent":60,"transitWindowDays":21,"transitServiceLevelPercent":85,"minTransitObservations":15,
 	  "orderDeadlines":[{"tier":"STANDARD","localTime":"20:00"},{"tier":"EXPRESS","localTime":"22:00","regionId":"region-1"}],
 	  "publishedAt":"2026-10-01T00:00:00Z"}`)
 	offer := goldenJSON(t, `{"offerId":"off-1","state":"QUOTED","groupNo":1,"destinationPostalPrefix":"013","tier":"STANDARD",

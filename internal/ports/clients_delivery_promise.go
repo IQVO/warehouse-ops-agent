@@ -50,14 +50,17 @@ type DeliveryPromiseClient interface {
 // TTLs, the package cap, the network's capacity share and the order
 // deadlines per tier and region.
 type PromisePolicy struct {
-	PolicyVersion        string                 `json:"policyVersion"`
-	Version              int                    `json:"version"`
-	OfferTtlMinutes      int                    `json:"offerTtlMinutes"`
-	HoldTtlMinutes       int                    `json:"holdTtlMinutes"`
-	PackagesPerOrder     int                    `json:"packagesPerOrder"`
-	CapacitySharePercent int                    `json:"capacitySharePercent"`
-	OrderDeadlines       []PromiseOrderDeadline `json:"orderDeadlines"`
-	PublishedAt          string                 `json:"publishedAt"`
+	PolicyVersion              string                 `json:"policyVersion"`
+	Version                    int                    `json:"version"`
+	OfferTtlMinutes            int                    `json:"offerTtlMinutes"`
+	HoldTtlMinutes             int                    `json:"holdTtlMinutes"`
+	PackagesPerOrder           int                    `json:"packagesPerOrder"`
+	CapacitySharePercent       int                    `json:"capacitySharePercent"`
+	TransitWindowDays          int                    `json:"transitWindowDays"`
+	TransitServiceLevelPercent int                    `json:"transitServiceLevelPercent"`
+	MinTransitObservations     int                    `json:"minTransitObservations"`
+	OrderDeadlines             []PromiseOrderDeadline `json:"orderDeadlines"`
+	PublishedAt                string                 `json:"publishedAt"`
 }
 
 // PromiseOrderDeadline mirrors one tier's order deadline: the local
