@@ -173,3 +173,39 @@ func TestListAll_PropagatesProviderError(t *testing.T) {
 		t.Fatal("expected an error for a 400")
 	}
 }
+
+// A 200 that is not a page (retired key, null/missing items, bare array) must be an error:
+// reading it as "no rows" would show an order with no tasks/reservations/work units.
+func TestListAll_RefusesA200ThatIsNotAPage(t *testing.T) {
+	bodies := map[string]string{
+		"retired key":  `{"tasks":[{"id":"t1"}],"nextToken":"x"}`,
+		"null items":   `{"items":null}`,
+		"empty object": `{}`,
+		"bare array":   `[{"id":"t1"}]`,
+	}
+	for name, body := range bodies {
+		t.Run(name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				_, _ = w.Write([]byte(body))
+			}))
+			defer srv.Close()
+
+			got, err := NewTasksByOrder(srv.URL, 0).GetTasksByOrderRef(context.Background(), "o1")
+			if err == nil {
+				t.Fatalf("read %s as a page with %d tasks", body, len(got))
+			}
+		})
+	}
+}
+
+func TestListAll_AnEmptyItemsArrayIsAnEmptyCollection(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"items":[]}`))
+	}))
+	defer srv.Close()
+
+	tasks, err := NewTasksByOrder(srv.URL, 0).GetTasksByOrderRef(context.Background(), "o1")
+	if err != nil || len(tasks) != 0 {
+		t.Fatalf("tasks=%+v err=%v", tasks, err)
+	}
+}
