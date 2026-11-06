@@ -11,6 +11,7 @@ package restclient
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -73,8 +74,26 @@ const (
 
 // pagedList is the fleet's paged collection envelope (REST guideline §3.3).
 type pagedList[T any] struct {
-	Items      []T    `json:"items"`
-	NextCursor string `json:"nextCursor"`
+	Items      []T
+	NextCursor string
+}
+
+// UnmarshalJSON refuses a body that is not a page: "items" must be a JSON array (empty is
+// fine). A 200 with a retired key or null/missing items is a contract violation, never an
+// empty collection.
+func (p *pagedList[T]) UnmarshalJSON(b []byte) error {
+	var raw struct {
+		Items      *[]T   `json:"items"`
+		NextCursor string `json:"nextCursor"`
+	}
+	if err := json.Unmarshal(b, &raw); err != nil {
+		return err
+	}
+	if raw.Items == nil {
+		return errors.New(`not a page: "items" is missing or null`)
+	}
+	p.Items, p.NextCursor = *raw.Items, raw.NextCursor
+	return nil
 }
 
 // listAll reads every page of a collection GET: it reads `items`, follows
