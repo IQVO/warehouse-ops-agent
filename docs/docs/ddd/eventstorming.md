@@ -139,7 +139,7 @@ flowchart LR
     RM["StrandedReservationException read model: detected, action, evidence, blastRadius"]:::readmodel
     CMD["revoke_reservation on inventory-storage"]:::command
     H1["Hotspot: E2 has an MCP tool but no REST route"]:::hotspot
-    H2["Hotspot: act slice needs an authorization gate and human confirmation"]:::hotspot
+    H2["Hotspot: a revoke act slice would reuse the ADR 0027 confirmation-token gate; none exists"]:::hotspot
     Planner --> RM
     FE --> P1
     IS1 --> P1
@@ -176,8 +176,8 @@ Omits: the per-branch evidence lines.
 | Arbitrate / ValidatePlan | Policy | `policy.Arbitrate`, `policy.ValidatePlan` |
 | Evaluate / blast-radius rule | Policy | `policy.Evaluate`, `holdException`, `revokeException` |
 | DailyBrief, FlowBalanceException, StrandedReservationException | Read Model | `policy.DailyBrief`, `policy.Decision`, `policy.StrandedReservationException` |
-| `assign_labor`, `release_next_work`, `revoke_reservation` | Command (on another context, by a human) | named in `policy.RecommendedAction` / `policy.StrandedReservationAction`; no client method exists (`zerowrite` tests) |
+| `assign_labor`, `release_next_work`, `revoke_reservation` | Command (on another context, by a human) | named in `policy.RecommendedAction` / `policy.StrandedReservationAction`; `release_next_work` and `assign_labor` are delegated over A2A only after a human approves a proposal (ADR 0027, ADR 0029); no `revoke_reservation` client method exists (`zerowrite` tests) |
 | E3 reasoner not implemented | Hotspot | ADR 0004 Status |
 | Stuck-task reading not path-scoped | Hotspot | `policy.StuckTasksSignal` doc comment |
 | E2 has no REST route | Hotspot | `inbound/http/router.go` has no stranded-reservation route |
-| Act slice guardrails | Hotspot | Governance note, "The future act slice" |
+| Act slice guardrails | Hotspot (the gate is decided in ADR 0027 and used by ADR 0027 and ADR 0029; `revoke_reservation` has no slice) | Governance note, "The act slice has landed" |

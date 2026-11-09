@@ -11,8 +11,9 @@ This page is the operational view of every edge: what is called, how it
 is configured, and how a failure shows up. The strategic view (context
 mapping patterns, subdomain classes) is on the
 [Context map](./context-map.md). Every call is a read made at request
-time; the agent never writes to another context, never subscribes to an
-event and publishes none.
+time, except the two opt-in act slices, which delegate one human-approved write
+to the owning context over A2A (ADR 0027 and ADR 0029, see the A2A row below); the
+agent never subscribes to an event and publishes none.
 
 ## Transport conventions
 
@@ -165,7 +166,7 @@ section, up to the 5 s timeout.
 | Kafka (any topic, produce or consume) | absent | the agent reads at request time only; it has no Kafka client and publishes no CloudEvents ([Domain events](../ddd/domain-events.md)) |
 | network-fulfillment | absent | no client in `internal/adapters/outbound`; Separate Ways on the [Context map](./context-map.md) |
 | slotting-optimization | absent | no client |
-| Any write call to a sibling | forbidden | zero-write tests; `detect_stranded_reservation` recommends `revoke_reservation` but never calls it |
+| Any write call to a sibling other than the two human-approved A2A act slices (`release_next_work`, `assign_labor`) | forbidden | zero-write tests (`act_slice_test.go` pins the four routes and the two verbs); `detect_stranded_reservation` recommends `revoke_reservation` but never calls it |
 | A Go import of a sibling module | forbidden | `TestNoDirectDependencyOnBoundedContexts` |
 | Postgres or any other store | absent | the agent is stateless |
 
