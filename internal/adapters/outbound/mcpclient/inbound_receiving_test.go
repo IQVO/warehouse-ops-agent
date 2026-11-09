@@ -22,7 +22,7 @@ import (
 // inboundReceivingGoldenPath is a VERBATIM copy of inbound-receiving's own
 // published tool registry golden
 // (inbound-receiving: internal/adapters/inbound/mcp/testdata/tool_registry.golden.json,
-// pinned at inbound-receiving origin/develop 139f73a). Refresh it with
+// pinned at inbound-receiving origin/develop 8c5e3ab). Refresh it with
 //
 //	git -C ../inbound-receiving show origin/develop:internal/adapters/inbound/mcp/testdata/tool_registry.golden.json
 //
