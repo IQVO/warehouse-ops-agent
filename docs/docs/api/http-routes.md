@@ -46,7 +46,9 @@ REST contract. If they disagree with the router, the router is correct.
 | `GET /transfer-watch/transfers/{id}` | `TransferWatch.TransferStatus` | network-inventory-planning over MCP | 200, 400, 404, 502, 503 |
 | `GET /transfer-watch/imbalance` | `TransferWatch.NetworkImbalance` | network-inventory-planning over MCP | 200, 400, 502, 503 |
 | `POST /act/release-next-work/proposals` | `ReleaseWork.Propose` | the flow-balance policy (reads only); **writes nothing** | 200, 400, 409, 413, 415, 502, 503 |
-| `POST /act/release-next-work/approvals` | `ReleaseWork.Approve` | **wes-work-planning over A2A** (`release_next_work`) — this agent's only write | 200, 400, 404, 409, 410, 413, 415, 502, 503 |
+| `POST /act/release-next-work/approvals` | `ReleaseWork.Approve` | **wes-work-planning over A2A** (`release_next_work`) — the first of this agent's two writes | 200, 400, 404, 409, 410, 413, 415, 502, 503 |
+| `POST /labor-reallocation/proposals` | `LaborReallocation.Propose` | workforce-management `get_staffing_gap` over MCP (reads only); **writes nothing** | 200, 400, 409, 413, 415, 502, 503 |
+| `POST /labor-reallocation/proposals/{proposalId}/approve` | `LaborReallocation.Approve` | **workforce-management over A2A** (`assign_labor`) — this agent's second write | 200, 400, 404, 409, 410, 413, 415, 502, 503 |
 | `/mcp` (any method) | this agent's own MCP server | see [MCP tools](../mcp/tools.md) | MCP protocol |
 
 `Recoverer` turns a panic into a `500` on any route.

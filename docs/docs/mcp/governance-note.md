@@ -35,6 +35,12 @@ Concretely, the only write tools this agent could ever call are:
 
 ## v1 scope: read-only, recommendations-only
 
+:::note
+This section states the v1 scope. Two human-gated REST act slices have landed
+since (ADR 0027 and ADR 0029, below); the statements here hold for every other
+surface, and for the MCP server without exception.
+:::
+
 `warehouse-ops-agent` holds **zero write capability**. Every MCP tool this
 agent's own inbound server exposes (`get_daily_brief`,
 `list_open_exceptions`, `get_flow_balance_exception`,
@@ -102,8 +108,9 @@ read skill, no write verb), it runs after the minting decision is final and
 cannot alter it, `Approve` never calls it, the answer is not persisted, and
 neither the MCP server nor the LLM reasoner can reach it (all asserted
 statically in `internal/architecture/zerowrite/exception_context_test.go` and
-`act_slice_test.go`). The write surface is still exactly the two ADR-0027
-routes and the one `ReleaseNextWork` verb.
+`act_slice_test.go`). The write surface is still exactly the four routes of the two
+act slices (ADR 0027 and ADR 0029) and the two verbs `ReleaseNextWork` and
+`AssignLabor`.
 
 ## The act slice's guardrails (as decided ahead of the implementation): authorization gate + human confirmation
 

@@ -51,11 +51,14 @@ Supporting quadrant:
 | Axis | Evidence | Reading |
 |---|---|---|
 | Model complexity | 0 aggregate roots, 0 repositories, 0 migrations, 0 persisted tables, 0 domain events. The policy layer is about 1,460 lines (comments included) of pure functions and value types across the 9 non-test files of `internal/domain/policy` (`Decide`, `Evaluate`, `SynthesizePathBrief`, `Arbitrate`/`ValidatePlan`, `CorrelateUtilization`, `CorrelateTravelFactor`, `SummarizeCapacityOutlook`, `ClassifyErrorRate`/`ClassifyLatencyP99`). | Low to moderate: branching decision tables, no lifecycle or consistency boundary. |
-| Business differentiation | It correlates facts other contexts own and only *recommends*; it can execute nothing (zero write tools, CI-enforced by `internal/architecture/zerowrite`). Its value is operator time saved, not a capability the warehouse sells. | Below the midline: useful operator tooling, not the differentiator. |
+| Business differentiation | It correlates facts other contexts own and *recommends*; its only writes are two opt-in, human-gated REST slices that delegate to the owning context over A2A (ADR 0027, ADR 0029); it has zero write tools (CI-enforced by `internal/architecture/zerowrite`). Its value is operator time saved, not a capability the warehouse sells. | Below the midline: useful operator tooling, not the differentiator. |
 
-The thing that would move it right and up is an act slice (write tools
-behind an authorization gate and human confirmation, see the
-[Governance note](../mcp/governance-note.md)) — and [ADR 0001](../adr/0001-warehouse-ops-agent-placement.md)
+The thing that would move it right and up is more act slices (a
+propose-then-approve flow behind a confirmation token and a human's explicit
+second call, see the [Governance note](../mcp/governance-note.md)). Two exist
+today, both opt-in and REST-only
+([ADR 0027](../adr/0027-act-slice-human-confirmed-work-release.md) and
+[ADR 0029](../adr/0029-labor-reallocation-act-slice.md)) — and [ADR 0001](../adr/0001-warehouse-ops-agent-placement.md)
 says that if a slice ever needs an aggregate, an invariant or persisted
 state, it belongs in a different repo.
 
