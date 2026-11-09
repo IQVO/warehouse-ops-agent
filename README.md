@@ -335,7 +335,7 @@ Configuration below) and an `ANTHROPIC_API_KEY` in the environment.
 
 ## Status
 
-Shipped on `develop` (all read-only, recommendations-only):
+Shipped on `develop` (read-only recommendations, plus the two opt-in, human-gated act slices at the end of this list):
 
 - **E3 daily brief** — `GET /daily-brief`, `get_daily_brief`,
   `list_open_exceptions`: backlog (wes), staffing gap (workforce-management),
@@ -386,7 +386,21 @@ Shipped on `develop` (all read-only, recommendations-only):
   Off (503 / tools absent) unless `NETWORK_INVENTORY_PLANNING_MCP_ENDPOINT`
   is set.
 
-No write path exists (see the
+- **Act slice 1: release the next work unit** (ADR 0027) —
+  `POST /act/release-next-work/proposals` (reads only, mints a confirmation
+  token) and `POST /act/release-next-work/approvals` (consumes the token,
+  delegates `release_next_work` to wes-work-planning over A2A). Off (503) unless
+  `WES_WORK_PLANNING_A2A_URL` is set.
+- **Act slice 2: labor reallocation** (ADR 0029) —
+  `POST /labor-reallocation/proposals` and
+  `POST /labor-reallocation/proposals/{proposalId}/approve` (delegates ONE move
+  to workforce-management's `assign_labor` over A2A), plus the token-less
+  `labor_reallocation_outlook` MCP tool. Off (503) unless
+  `WORKFORCE_MANAGEMENT_A2A_URL` is set.
+
+Those four REST routes are the only writes, REST-only, never an MCP tool,
+never reachable by the LLM; the gate is an HMAC confirmation token, not caller
+authentication (see the
 [governance note](./docs/docs/mcp/governance-note.md)).
 
 ## Observability

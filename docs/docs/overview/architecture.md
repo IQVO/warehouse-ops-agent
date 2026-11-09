@@ -7,7 +7,8 @@ description: The hexagonal layout of warehouse-ops-agent, its single binary and 
 
 # Architecture
 
-warehouse-ops-agent is a read-only decision-support aggregator, not a
+warehouse-ops-agent is a decision-support aggregator, read-only apart from two
+opt-in, human-gated act slices (ADR 0027, ADR 0029), not a
 bounded context: it owns no aggregate and persists nothing
 ([ADR 0001](../adr/0001-warehouse-ops-agent-placement.md)). Its code
 still follows the fleet's hexagonal layout, with one difference: the
@@ -118,7 +119,7 @@ are read tools on the allow-list, called through the same MCP sessions.
 | no module of a sibling context is ever a Go dependency (fulfillment-execution, wes-work-planning, workforce-management, inventory-storage, facility-layout, warehouse-planning, product-master, inbound-receiving) | `TestNoDirectDependencyOnBoundedContexts` |
 | no auth middleware comes back ([ADR 0006](../adr/0006-fleet-wide-auth-removal.md)) | `TestNoAuthMiddlewareReintroduced` |
 | no `json:` or `db:` struct tags in the domain | `TestNoStructTagsInDomain` |
-| no write: no mutating HTTP method in outbound clients, only read MCP tools called, every served tool `ReadOnlyHint` | `internal/architecture/zerowrite` |
+| no write: no mutating HTTP method in outbound clients, only read MCP tools called, every served tool `ReadOnlyHint`; the only writes are the four act-slice `POST` routes and the two A2A write verbs, never an MCP tool | `internal/architecture/zerowrite` (`act_slice_test.go`) |
 
 The config-to-use-case mapping (`toUseCaseTargets`, `toPathTaskTypes` in
 `cmd/agent/main.go`) exists so that `internal/application` never imports

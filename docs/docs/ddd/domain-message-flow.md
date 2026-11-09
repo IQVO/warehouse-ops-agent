@@ -14,9 +14,12 @@ notation: every arrow is prefixed `cmd:` (command), `evt:` (event) or
 `qry:` (query) and numbered.
 
 :::note[Only queries]
-Every message in this service's flows is a `qry:`. It issues no command to
-any context (zero write tools, CI-enforced) and publishes or consumes no
-event (no Kafka I/O). Where a human would act on a recommendation, that
+Every message in the flows below is a `qry:`. They issue no command to
+any context (the agent has zero write tools, CI-enforced), and the service
+publishes or consumes no event (no Kafka I/O). The only commands it ever sends
+are the two opt-in act slices (`release_next_work` and `assign_labor`, delegated
+over A2A after a human's explicit approval; ADR 0027 and ADR 0029), which are not
+modelled in these flows; see [HTTP routes](../api/http-routes.md). Where a human would act on a recommendation, that
 step happens outside this service and is shown as a note, not an arrow.
 :::
 

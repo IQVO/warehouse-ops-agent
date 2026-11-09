@@ -162,8 +162,11 @@ boundary. Concretely it produces:
 - and, for `warehouse-console`, the **order lifecycle** read model and the
   **WMS / WES report dashboards** (ADR 0002 / 0003).
 
-It recommends; it never acts. There is no write path (zero write tools,
-CI-enforced).
+It recommends. It has no write tool, and two opt-in, human-gated REST slices
+are its only writes: release the next work unit ([ADR 0027](../adr/0027-act-slice-human-confirmed-work-release.md))
+and labor reallocation ([ADR 0029](../adr/0029-labor-reallocation-act-slice.md)),
+each a propose-then-approve pair that delegates over A2A to the owning context
+(CI-enforced by `internal/architecture/zerowrite`).
 
 ## Strategic Classification
 
@@ -311,5 +314,6 @@ Top terms: **DailyBrief**, **PathBrief**, **OpenException**,
 - DailyBrief (E3) LLM-reasoner coverage is a documented next phase of
   ADR 0004, not implemented.
 - `explain_travel_factor` cannot resolve location codes itself (ADR 0009).
-- What would an act slice's authorization gate be, now that ADR 0006
-  removed fleet auth? (Governance note.)
+- Answered by ADR 0027: with fleet auth removed (ADR 0006), the act slices'
+  gate is a short-lived HMAC confirmation token plus an explicit second call, not
+  caller identity (Governance note).

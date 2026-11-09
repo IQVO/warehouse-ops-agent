@@ -40,7 +40,7 @@ The canvas sections map to this repo as follows:
 | 3. State transitions | none — no status enum with transition methods exists in `internal/domain/policy` |
 | 4. Enforced invariants | none over persisted state. The rejections that do exist are **input validation at an untrusted boundary** (see below) |
 | 5. Corrective policies | the degrade-to-`hold` rules below play this role for *recommendations*, not for state |
-| 6. Handled commands | none — every inbound message is a query (`GET` routes, read-only MCP tools) |
+| 6. Handled commands | none that change state here — every inbound message is a query (`GET` routes, read-only MCP tools), except the four `POST` routes of the two opt-in act slices, which only propose or, on a human's approval, delegate to another context over A2A (ADR 0027, ADR 0029) |
 | 7. Created events | none — no Kafka I/O, no CloudEvents type (see [Domain events](./domain-events.md)) |
 | 8. Throughput | n/a for an aggregate; request-rate estimates for the use cases are below |
 | 9. Size | n/a — nothing is stored |

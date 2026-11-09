@@ -8,8 +8,10 @@ description: Every application use case in internal/application/usecases — wha
 # Use cases
 
 Every use case lives in `internal/application/usecases` and is wired in
-`cmd/agent/main.go`. All of them are **read-only queries**: none changes
-state in this service (it has none) or in any other context, and none
+`cmd/agent/main.go`. All of them are **read-only queries** except the two
+opt-in act slices (`ReleaseWork` and `LaborReallocation`, below): none changes
+state in this service (it has none), none changes another context's state
+except through those two human-approved A2A delegations, and none
 raises or publishes a domain event (see [Domain events](./domain-events.md)).
 There is no Kafka consumer and no scheduler, so the only triggers are an
 HTTP request or an MCP tool call.
@@ -38,6 +40,9 @@ Two rules run through every use case:
 | Order lifecycle (console-bff) | `OrderLifecycle.Execute` | `GET /console/orders/{id}/lifecycle` | none | always wired |
 | Console report dashboards | `ConsoleReports.ExecuteWMS`, `ExecuteWES` | `GET /console/reports/wms`, `/wes` | none | always wired |
 | Runtime signals | `RuntimeSignals.Execute` | `GET /runtime-signals` | none | always wired |
+| Act slice: release the next work unit (ADR 0027) | `ReleaseWork.Propose`, `ReleaseWork.Approve` | `POST /act/release-next-work/proposals`, `POST /act/release-next-work/approvals` | none (never an MCP tool) | only with `WES_WORK_PLANNING_A2A_URL` (otherwise `503`) |
+| Act slice: labor reallocation (ADR 0029) | `LaborReallocation.Propose`, `LaborReallocation.Approve` | `POST /labor-reallocation/proposals`, `POST /labor-reallocation/proposals/{proposalId}/approve` | none (never an MCP tool) | only with `WORKFORCE_MANAGEMENT_A2A_URL` and `WORKFORCE_MANAGEMENT_MCP_ENDPOINT` (otherwise `503`) |
+| Labor reallocation outlook | `LaborReallocationOutlook.Execute` | none | `labor_reallocation_outlook` (the same ranking, no token, read-only) | only with `WORKFORCE_MANAGEMENT_MCP_ENDPOINT` |
 
 Request and response shapes are on [HTTP routes](../api/http-routes.md)
 and [MCP tools](../mcp/tools.md); this page describes behaviour.
