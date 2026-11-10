@@ -64,8 +64,8 @@ go test . -run 'TestFeatures/The_WMS_dashboard' -v
 
 | Fleet test type | Status here |
 |---|---|
-| Integration tests with testcontainers | none: nothing to containerise (no Postgres, no Kafka). `TestPostgresIntegrationTestsUseTestcontainers` is a fleet sensor that passes because no `-tags=integration` test exists. |
-| Contract tests (schemathesis) | none: the repo has no `apis/openapi.yaml`. Every route is described by hand on [HTTP routes](../api/http-routes.md). |
+| Integration tests with testcontainers | not needed: nothing to containerise (no Postgres, no Kafka). The `-tags=integration` tests (`internal/adapters/inbound/mcp/streamable_http_integration_test.go`, `internal/adapters/outbound/mcpclient/mcpclient_integration_test.go`) boot real MCP Streamable HTTP endpoints in-process, never behind an env var or `t.Skip`. `TestPostgresIntegrationTestsUseTestcontainers` passes because none of them opens a database. |
+| Contract tests (schemathesis) | none yet. `apis/openapi.yaml` is linted (`api-lint`) and rendered into the generated REST reference (`docs-api-drift`), but not property-tested against the running binary. |
 | AsyncAPI catalogue | `TestEventCatalogueMatchesContract` skips with `no apis/asyncapi.yaml: nothing to compare`; the agent publishes no events. |
 | Live-LLM evals | none: every reasoner test uses a fake Anthropic server (`fake_anthropic_test.go`, `internal/adapters/outbound/llm/anthropic/*_test.go`). |
 

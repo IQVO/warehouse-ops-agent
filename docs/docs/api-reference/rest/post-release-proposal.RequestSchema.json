@@ -1,0 +1,1 @@
+{"title":"Body","body":{"required":true,"content":{"application/json":{"schema":{"type":"object","required":["buildingId","shiftId","pathId"],"properties":{"buildingId":{"type":"string"},"shiftId":{"type":"string"},"pathId":{"type":"string"}}}}}}}

@@ -1,0 +1,71 @@
+---
+id: get-master-data-gaps
+title: "Product-master gap report (ADR 0020)."
+description: "Product-master products that are unclassified or whose declared and measured dimensions disagree (ADR 0020). An unknown kind or a cursor product-master rejects is a 400, product-master unreachable is a 502, and an unwired use case (PRODUCT_MASTER_MCP_ENDPOINT unset) is a 503."
+sidebar_label: "Product-master gap report (ADR 0020)."
+hide_title: true
+hide_table_of_contents: true
+api: eJztWNtuIzcS/ZUCX2IjrUucGWRW+2SMnYEXO2PH1mweZo1BiV3dzZhNdlhFawRDwH7EfmG+JKhuyVJ8SRAgefOT0N1k1WGdw7rozgjWbGafTCBZxnRjrgsTO0ooLoaz0sxMTfIeWSidoOA77NgUpiS2yXW6xszMRYpltjJq+2XQDY8M0qAAJoIcrEdmVzkqISZYNpEJSrIeE5WAoYSWkLM+lK6lwC4GhtIx1okIDo5PLmE6PZoejuE4QA43IS4D3LjQm0OwOXG897wFkugnUhyOAeHVdFo8XJBDIrQNLjwNi15Pj4oeDqqXpVNAmQksMsHBxeX5yce388/vj6/mp5ef37+9+Hz64eTi/OzDHHJgksOtlW/H/w2mMB0mbEkoaYTvTMCWzMwobFMYp6H7OVNamcIk+jmrNzOr0DMVhm1DLZrZnZFVp7tYkgu1WT8M/iXpFysgEWIgqLHrAzM26+Le5RCfv9Rpbgkk3lCAKsUWELpEty5mhg5rGpv1tTrgLgYmVpNH06n+/NbQvBkQJ+piElg6acDGtvMkFIgZKo/12BTGxiAURC1g13lne4FOfmI1c/cYeVwo96YwWJZOl6K/SCpscQpHUqYnDtWjhUUsVxArkIYgEZaQYhbiMShaG4NNJAQn83PgBjviXuOdC4FKWKz6bXX0JYWJok6o5BCrEAO4IJQC+gmW2KkyJi4sYg7lpBHp4EAXlih42MtwMFXGGjg7ITVQEUpOxJN/gjSOoYw2txREAWjspeECdsIrgAUls6LcGKSUYoIttEGp4sRr2N5RoOTsv67OP5j1er0uzKvnaFP1EAs4YfKVKt+FW/SuhIPWMbtQT7YvdnAOf4fLLsWFp/brP+b0AW/fv4V/vHr9HWwMQEmCzm/4Gh6gpXZBSVFa9J7SiLEiZcvGwJKyVWPwy//+D5iliXrxmRSmJS6GJFO5L3tvofOZ+3jmjiURtl8xDHnqmzfAPtdj+Lj5osiYINAtJcCuI0w8xH13BT8Np9xSUZiBN83H3Z5wt8F4eEUfBuVK+qy2DYkrKYjm3wQfL8+UBPqCes363K/S49lkywCPl5ioiZlpFDseYU1Bxi5Oticd5YC36Ly6MNfre/k8kTc2p9h90gtQUxpyilLz5DYXWDDYp2zu3GnhUbwbpb6eHj1WqpaLLQu97r4IVOj8UIgc/6YGHAwMKamDSr5iqDB7eZHti2z/Ptl++3SCtdjhwnknK1hQ4/rs7XgoRqqIELVgKuUubGoBdT6utBq86PVFr3+LXteFaUmauJkM+iZXGjMzk6GnHmnzMqqHMYEp3W6b35y8mfUhmE0mPlr0TWSZvZm+mT6K6r/1cy+ZqFm5bw2r6H1cMlycX84Ph/bShSr2yDc4nwgnXJ5ezbeWTGEUzuDjm/F0rJ45ty2mVd//YTmKwa/gfgDaQ3F8cbbTYpNbDKMaRacXK8DeWdreObT9ndu03k+BatEFQRc0NsVeZFQctZMmL8Y2tpOzH/5zPnli/+N+fN64JEQB3p3ON90qHDSEXpoCSnR+BYvkqCqg8nE5WqBX1guQhLfkRxVaiQnoS+cx9AcvhiI4nH20qCqIqaQ08q4iu7Ke+m7yx/dXkx9Pr6BEbhYRU8kFpBzEtQTs6oCeC9jThbb6XMCm44WYxcd408MIXFGCJYptdq2vLOPmrh99BxfnV/dn2zTnu9DDebfla5s1HW0m0OEkbRe5HwQgxSjQ4H4CxcBLSjq4DSPI9j7rndBlIxtD5ep+QE0oTd8kYIAOg7M3LtSaZtaF6SJLi2GP/gez8d6sszfUPrwAd7vc/TJcPzdcb/KVdnSTzqPrCejv0t0mJ30yj3LSdWE07ei3u7sFMn1Mfr3W18NQrJlKI7Pwe2Pxs9w8P3s/A++GVrs/AG7RZ13SD+p/yukfzd6/6/3+v4Cd/2t9SK6vM7NPWmkawpJSH45h17G11MnerkdTuFq5Lw3vTudmvf4Vpi5vYg==
+sidebar_class_name: "get api-method"
+info_path: docs/api-reference/rest/warehouse-ops-agent-rest-console
+custom_edit_url: null
+hide_send_button: true
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Product-master gap report (ADR 0020)."}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/master-data-gaps"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Product-master products that are unclassified or whose declared and measured dimensions disagree (ADR 0020). An unknown kind or a cursor product-master rejects is a 400, product-master unreachable is a 502, and an unwired use case (PRODUCT_MASTER_MCP_ENDPOINT unset) is a 503.
+
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./get-master-data-gaps.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./get-master-data-gaps.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./get-master-data-gaps.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

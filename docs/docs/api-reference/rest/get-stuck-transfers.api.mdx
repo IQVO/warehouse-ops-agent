@@ -1,0 +1,71 @@
+---
+id: get-stuck-transfers
+title: "Stuck network transfers (ADR 0019)."
+description: "Network transfers stuck longer than olderThanMinutes (ADR 0019). olderThanMinutes is required and must be positive: the agent never picks a staleness threshold on the operator behalf."
+sidebar_label: "Stuck network transfers (ADR 0019)."
+hide_title: true
+hide_table_of_contents: true
+api: eJztWM1u20YQfpXBXmqjlKikCZqqp6BNgxRt7NpKc3B9GJJDcevlLrsztCwYAvoQfcI+STH8kRxLTv/QQwGfBJGzs9/MfPtxZ26N4JLN/MJ4klWIV+YyMaGhiGKDf1OYuVmSnEubXy0iei4psklMQZxH26iNmZu3/VKQ0QJYF4ALfkkRpEIPwRUUFxX6761vhRiOXn59BrPZky+Op/svLUOkX1obqQD0BdQtC2QETWAr9prmIBUBLskLeLqmCI3NrxgQWNCRJ2aQKhJXwRUQfGfehxUiZFShK6c/eZOYBiPWJBrW/OLWeKzJzM19QCYxViP9paW4NokZwZm5xJYSw3lFNZr5rZF1ow6sF1pSNImprbd1W5v5k839vJ3vY/3ygcCCJ7DC5Mqp2SRbnCwo9DC4Eh0fQscSrV+azR1PztZW/r6nMc7N5lLNuQmeidXg6WymPx9GvKio58Zk5Ao4yzI1icmDF/Kia7BpnM07BqY/sy683d85ZD9TroixKKyaojuNWmKxCqCvy4e7nw34IAvFGkLZ5ToSFhCDVnkKii8PPo8kBF8vToArbIgBI0FjvacCsnW3bKkU8amijpgLCLEwWA+akejRpVhgo7xKrc9C64u0EmngSA0LFDzuiN27KsISuLVC6qAklDYSp8oFy1CEvK2VD431DA1KxQnsaJso5aVlRTk4pBhDhBFaz3Ox4jRtr8lTtPm35ydvzWaz2STm2UOF0uoTy8A7PZPWX6OzBRzVltn6ZTo+2ME5/kgtmxgyR/Wnf17Te3X75iv44tnzz2FwAAUJWjfUq/8DNdUZRUWZo3MUJ4wlabXy4Flim6sz+P3X3wBbqYIqC5PCzIkTCBEQSntz5yk0ruUun23DEgnrTxgG0XoB7NrlFN4NbxQZ03BisWkII/d53x2hiz7KsRSJ6eumgtvcIe6YjPuH9YB4ZI62KbEFebGlpQjvzt5oEegG68ZRJ+5KPZ6nYwV4usJIVWiZJqHhSac3UxvSMdJJ6/EardMtzOVmS589BdlGcUASFLGW5uAy61nQ54d87rYzpz3eLVOfHWYqFkUkZipAkyBrKAIx+CBANx+Xl0dKPlLy31Dy+ezpPiVf+m19OhWmG4ESraNCi2oZWh8J86rL1lFfIS1qz5JPGEpsnTwq6SNt/zvafnZYSXNsMLNONTSjynYXCr2M6/1IGaGauuqu5dYP1xNqXFjrBeWRr498/U/4uklMTVKFoRvtujapzNykYxcxWaHkVdq1FppfitdjR9dGZ+ZdGuZp6kKOrgos8xezF7O9zH6nrzvaBFXmJkSBMjgXVgynJ2eL46nRPsf6MnToB6wHUgpnr84XoyeTGIXT7/FkOpvqztzWNcZ115ZgMQnerWHbeN9B8fL0zY6PVVujnyxRtC/OBdjZnMZzh3l37oaG7hCoGq0XtL5v4neZUYIsrVRtNs1Dnb754ceT9MB6s9fBLiobhcjD61eLoYmCo4rQSZVAgdatIYuWygRKF1aTDJ1WPtFJwTW5SYm59uN00zj0XeBJ/yHsY59kZQkhFhQnzpaUr3NHXZPz/vvz9P2rcyiQqyxgLDiB2HqxNQHbpUfHCdTIQnGivRYsseEEhkYMQisuhKtkO7CAjj67jkxWYTjvTz+H05PzbWxDz7hLPZw0Y71G5bSktUIZIqn7mUXwEEMQqPCuiKLnFUV4PvsMVlaq7ZnWc6Fmkzz40i5btY0o1ThNadDb/Mr6pUrNJjFNYKnR3yl/N7IBvzeZuTN2uU//2516/69HOoOo6LUrbRzaLkMd2W8H4bgwHwpHJ8kqHZeJUXVQi9vbDJneRbfZ6ON+JKKCUlhWcdwNRR5M4tHZEPAx/MNRzwPBXNH68JDqGl2r5t2MaA9ov2ycGf0V23EqtLO91D/Rdp+H+YV+ICrCgmKXmn7Ryzyn5u6qvXmOetkq+utXC7PZ/AGCzDzM
+sidebar_class_name: "get api-method"
+info_path: docs/api-reference/rest/warehouse-ops-agent-rest-console
+custom_edit_url: null
+hide_send_button: true
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Stuck network transfers (ADR 0019)."}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/transfer-watch/stuck"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Network transfers stuck longer than olderThanMinutes (ADR 0019). olderThanMinutes is required and must be positive: the agent never picks a staleness threshold on the operator behalf.
+
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./get-stuck-transfers.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./get-stuck-transfers.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./get-stuck-transfers.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

@@ -12,6 +12,9 @@ info:
   title: warehouse-ops-agent REST console
   version: 1.0.0
   summary: Read-only operational console API plus the human-gated act slice.
+  contact:
+    name: warehouse-ops-agent maintainers
+    url: https://github.com/IQVO/warehouse-ops-agent
   description: >
     Thirteen GET routes (health, daily brief, flow-balance, travel-factor
     explanation, the console-bff order-lifecycle and WMS/WES dashboards,
@@ -33,6 +36,10 @@ paths:
     get:
       tags: [health]
       summary: Liveness probe.
+      operationId: getHealthz
+      description: >
+        Liveness probe: answers 200 with status ok while the process is
+        serving. It checks no upstream.
       responses:
         "200":
           description: The agent is up.
@@ -49,6 +56,10 @@ paths:
     get:
       tags: [briefs]
       summary: The shift-start operational brief.
+      operationId: getDailyBrief
+      description: >
+        Assembles the shift-start operational brief from the MCP read
+        tools of the wired upstream contexts.
       responses:
         "200":
           description: The assembled brief.
@@ -60,6 +71,12 @@ paths:
     get:
       tags: [briefs]
       summary: Correlated staffing/flow advisory for one process path.
+      operationId: getFlowBalanceException
+      description: >
+        Correlates the workforce-management staffing gap for the building
+        and shift with the flow on one process path and returns the
+        advisory decision. buildingId and shiftId are required; an unwired
+        flow-balance advisory answers 503 not-configured.
       parameters:
         - $ref: "#/components/parameters/PathId"
         - name: buildingId
@@ -85,6 +102,7 @@ paths:
     get:
       tags: [briefs]
       summary: Explain the travel distance factor between two locations.
+      operationId: getExplainTravelFactor
       description: >
         facility-layout rejection of a malformed code is a 400 (the
         caller's input); any other upstream failure is a 502, never
@@ -118,6 +136,13 @@ paths:
     get:
       tags: [console]
       summary: Order lifecycle read model for the console shell.
+      operationId: getOrderLifecycle
+      description: >
+        Order lifecycle read model for the console shell. An order order-
+        management does not know is a 404; any other upstream failure
+        degrades that one stage to null in a 200 response (partial-
+        tolerant, ADR 0002), so there is no 502 branch. An unwired use
+        case answers 503.
       parameters:
         - name: id
           in: path
@@ -138,6 +163,11 @@ paths:
     get:
       tags: [console]
       summary: WMS chart dashboard (order funnel, flow accuracy, catalog growth).
+      operationId: getWMSDashboard
+      description: >
+        WMS chart dashboard for the window from..to (defaults to the
+        trailing 24 hours): order funnel, flow accuracy and catalog
+        growth. Each section carries its own availability.
       parameters:
         - name: from
           in: query
@@ -162,6 +192,11 @@ paths:
     get:
       tags: [console]
       summary: WES chart dashboard (queue status, stuck tasks, station standards, labor).
+      operationId: getWESDashboard
+      description: >
+        WES chart dashboard for the window from..to (defaults to the
+        trailing 24 hours): queue status, stuck tasks, station standards
+        and labor. Each section carries its own availability.
       parameters:
         - name: from
           in: query
@@ -184,6 +219,11 @@ paths:
     get:
       tags: [briefs]
       summary: Phase 5 runtime-feedback signals.
+      operationId: getRuntimeSignals
+      description: >
+        Phase 5 runtime-feedback signals. An unwired runtime-signals use
+        case answers 503 not-configured, the same convention as every
+        optional route.
       responses:
         "200":
           description: The runtime signals view.
@@ -196,6 +236,13 @@ paths:
     get:
       tags: [network]
       summary: Product-master gap report (ADR 0020).
+      operationId: getMasterDataGaps
+      description: >
+        Product-master products that are unclassified or whose declared
+        and measured dimensions disagree (ADR 0020). An unknown kind or a
+        cursor product-master rejects is a 400, product-master unreachable
+        is a 502, and an unwired use case (PRODUCT_MASTER_MCP_ENDPOINT
+        unset) is a 503.
       parameters:
         - name: kind
           in: query
@@ -221,6 +268,14 @@ paths:
     get:
       tags: [network]
       summary: Inbound-receiving outlook (ADR 0021).
+      operationId: getInboundOutlook
+      description: >
+        The dock side near-term picture read from inbound-receiving (ADR
+        0021): ASNs awaiting arrival, appointments in the next 24 hours,
+        open receipts older than INBOUND_STALE_RECEIPT_AGE and receipts
+        closed with discrepancies today. Takes no parameters; each section
+        carries its own omitted reason and complete flag. Every section
+        unreachable is a 502; an unwired use case is a 503.
       responses:
         "200":
           description: The inbound outlook; each section carries its own reason.
@@ -234,6 +289,11 @@ paths:
     get:
       tags: [network]
       summary: Stuck network transfers (ADR 0019).
+      operationId: getStuckTransfers
+      description: >
+        Network transfers stuck longer than olderThanMinutes (ADR 0019).
+        olderThanMinutes is required and must be positive: the agent never
+        picks a staleness threshold on the operator behalf.
       parameters:
         - name: olderThanMinutes
           in: query
@@ -263,6 +323,10 @@ paths:
     get:
       tags: [network]
       summary: One transfer's status.
+      operationId: getTransferStatus
+      description: >
+        Status of one network transfer, read from network-inventory-
+        planning (ADR 0019).
       parameters:
         - name: id
           in: path
@@ -283,6 +347,10 @@ paths:
     get:
       tags: [network]
       summary: Network inventory imbalance view.
+      operationId: getNetworkImbalance
+      description: >
+        Network inventory imbalance view, read from network-inventory-
+        planning (ADR 0019).
       responses:
         "200":
           description: The imbalance view.
@@ -298,6 +366,7 @@ paths:
     post:
       tags: [act]
       summary: Propose the release of the next work unit (ADR 0027).
+      operationId: postReleaseProposal
       description: >
         The human-gated act slice: returns a confirmation token the
         operator must present to /approvals. This route — and its sibling
@@ -331,6 +400,12 @@ paths:
     post:
       tags: [act]
       summary: Confirm and execute a proposal with its token (ADR 0027).
+      operationId: postReleaseApproval
+      description: >
+        Second step of the human-gated release act slice (ADR 0027): the
+        operator presents the confirmation token returned by /proposals
+        and the agent executes that one release. An expired token is a
+        410.
       requestBody:
         required: true
         content:
@@ -358,6 +433,7 @@ paths:
     post:
       tags: [act]
       summary: Propose labor reallocation moves (ADR 0029).
+      operationId: postReallocationProposal
       description: >
         Second human-gated act slice. Ranks at most three moves of the
         caller-supplied candidates onto an understaffed path and returns one
@@ -399,6 +475,12 @@ paths:
     post:
       tags: [act]
       summary: Approve one move and delegate assign_labor (ADR 0029).
+      operationId: postReallocationApproval
+      description: >
+        Second step of the labor-reallocation act slice (ADR 0029):
+        approves one proposed move with its confirmation token and
+        approver, and delegates the assignment to workforce-management
+        assign_labor. An expired token is a 410.
       parameters:
         - name: proposalId
           in: path

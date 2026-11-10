@@ -8,10 +8,13 @@ description: Every HTTP route the warehouse-ops-agent router registers, with its
 # HTTP routes
 
 This page lists every route that `internal/adapters/inbound/http/router.go`
-registers (lines 114–134). The repo has no `apis/openapi.yaml`, so no API
-reference is generated. This page and the shorter
-[API surface](../api-surface.md) summary are the only description of the
-REST contract. If they disagree with the router, the router is correct.
+registers. The machine-readable contract is `apis/openapi.yaml`
+(Spectral-linted in CI's `api-lint` job); the REST reference generated from
+it sits next to this page in the sidebar (*REST reference (generated)*), and
+CI's `docs-api-drift` job fails when that generated reference is stale. This
+page and the shorter [API surface](../api-surface.md) summary add the prose
+the spec does not carry (upstream fan-out, degradation). If any of them
+disagrees with the router, the router is correct.
 
 ## Conventions shared by every route
 
@@ -24,7 +27,7 @@ REST contract. If they disagree with the router, the router is correct.
 | CORS | `go-chi/cors`. Allowed origins come from `CORS_ALLOWED_ORIGINS` (comma-separated, default `http://localhost:5173`). Allowed methods `GET` and `OPTIONS` — deliberately *not* `POST`, so a browser fails the preflight for the act-slice routes. Behind Kong the gateway's own CORS plugin answers the preflight instead, so the chart gives `/act` a dedicated route with a `GET`/`OPTIONS`-only plugin (the rest of the agent, including `POST /mcp`, keeps the all-methods plugin). Allowed headers `Content-Type` and `Authorization`. No credentials, preflight cached for 300 s (`corsMiddleware`). |
 | Middleware order | `middleware.RequestID`, `otelchi.Middleware` (one server span per request, named after the chi route pattern), `otelchimetric.NewServerRequestDuration`, `otelchimetric.NewServerActiveRequests`, `RequestLogger`, `middleware.Recoverer`, CORS. `/mcp` goes through the same chain ([ADR 0010](../adr/0010-standard-metrics-convention.md)). |
 | Body | JSON with `Content-Type: application/json` (`writeJSON`). |
-| Errors | A flat `{"error": "<message>"}` object. It is not an RFC 7807 problem document, and there is no `type` slug to match on. |
+| Errors | An RFC 9457 `application/problem+json` document (`type`, `title`, `status`, `detail`, `instance`; `problem.go`). `detail` is caller-safe: a handler-authored sentence, or a fixed sentence plus the upstream's ADR 0018 slug; upstream free text never reaches a response body. Per-route `{"error": ...}` examples below predate that change: the status codes are still right, the body shape is the problem document. |
 | Optional capabilities | A route whose use case is not wired returns `503` with an `error` message instead of panicking. Five routes depend on an optional upstream: `/master-data-gaps` (product-master), `/inbound-outlook` (inbound-receiving) and the three `/transfer-watch/*` routes (network-inventory-planning). |
 | Upstream failures | Most use cases degrade instead of failing: a missing signal becomes `null`, an `unavailable` entry or a conservative `hold`. A `502` is returned only where the code says so (see each route). |
 

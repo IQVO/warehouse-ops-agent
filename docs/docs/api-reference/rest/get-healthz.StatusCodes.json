@@ -1,0 +1,1 @@
+{"responses":{"200":{"description":"The agent is up.","content":{"application/json":{"schema":{"type":"object","required":["status"],"properties":{"status":{"type":"string","const":"ok"}}}}}}}}

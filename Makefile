@@ -8,7 +8,7 @@ GOLANGCI_LINT_VERSION := v2.13.1
 COVERAGE_THRESHOLD    := 90
 COVERPKG              := ./internal/domain/...,./internal/application/...,./internal/adapters/inbound/...
 
-.PHONY: help build vet fmt fmt-check lint test integration coverage bdd arch-test mutation-fast vuln check check-all
+.PHONY: help build vet fmt fmt-check lint test integration coverage bdd arch-test mutation-fast vuln api-lint check check-all
 
 help: ## Show the available targets
 	@echo "warehouse-ops-agent — make targets"
@@ -25,6 +25,7 @@ help: ## Show the available targets
 	@echo "  arch-test     Hexagonal architecture fitness tests (arch-go) + zero-write guardrail"
 	@echo "  mutation-fast gremlins unleash ./internal/domain (see .gremlins.yaml) — CI's blocking mutation job"
 	@echo "  vuln          govulncheck ./..."
+	@echo "  api-lint      Spectral over apis/openapi.yaml (same ruleset and severity as CI's api-lint job)"
 	@echo "  check         FAST pre-commit bundle: fmt-check vet build lint test"
 	@echo "  check-all     check + coverage arch-test bdd (pre-push gate)"
 	@echo ""
@@ -102,6 +103,15 @@ vuln: ## Known CVEs in the dependency graph and the Go stdlib
 		exit 1; \
 	fi
 	govulncheck ./...
+
+api-lint: ## Spectral over apis/openapi.yaml (same command as CI's api-lint job)
+	@if ! command -v spectral >/dev/null 2>&1; then \
+		echo "spectral is not installed."; \
+		echo "install it with:"; \
+		echo "  npm install -g @stoplight/spectral-cli"; \
+		exit 1; \
+	fi
+	spectral lint apis/openapi.yaml --ruleset .spectral.yaml --fail-severity=warn
 
 check: fmt-check vet build lint test ## Fast pre-commit bundle
 	@echo "check: OK"

@@ -1,6 +1,7 @@
 import {themes as prismThemes} from 'prism-react-renderer';
 import type {Config} from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
+import type * as OpenApiPlugin from 'docusaurus-plugin-openapi-docs';
 
 const config: Config = {
   title: 'Warehouse Ops Agent',
@@ -45,6 +46,7 @@ const config: Config = {
           routeBasePath: 'docs',
           editUrl:
             'https://github.com/IQVO/warehouse-ops-agent/tree/main/docs/',
+          docItemComponent: '@theme/ApiItem',
         },
         blog: false,
         theme: {
@@ -54,7 +56,32 @@ const config: Config = {
     ],
   ],
 
-  themes: ['@docusaurus/theme-mermaid'],
+  plugins: [
+    [
+      'docusaurus-plugin-openapi-docs',
+      {
+        id: 'openapi',
+        docsPluginId: 'classic',
+        config: {
+          'warehouse-ops-agent': {
+            // The single source of truth: the same Spectral-linted spec CI
+            // gates on (api-lint). Regenerate with
+            // `npm run gen-api-docs warehouse-ops-agent`; the docs-api-drift
+            // CI job fails when the committed output is stale.
+            specPath: '../apis/openapi.yaml',
+            outputDir: 'docs/api-reference/rest',
+            sidebarOptions: {
+              groupPathsBy: 'tag',
+              categoryLinkSource: 'tag',
+            },
+            hideSendButton: true,
+          } satisfies OpenApiPlugin.Options,
+        },
+      },
+    ],
+  ],
+
+  themes: ['docusaurus-theme-openapi-docs', '@docusaurus/theme-mermaid'],
 
   themeConfig: {
     image: 'img/logo.svg',

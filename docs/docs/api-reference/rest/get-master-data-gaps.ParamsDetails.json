@@ -1,0 +1,1 @@
+{"parameters":[{"name":"kind","in":"query","required":false,"schema":{"type":"string"},"description":"Restrict to one gap kind."},{"name":"cursor","in":"query","required":false,"schema":{"type":"string"},"description":"Resume token from a previous page."}]}

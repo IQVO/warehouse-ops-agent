@@ -2,18 +2,22 @@
 id: api-surface
 title: API surface
 sidebar_label: API Surface
-description: The REST endpoint and MCP tools warehouse-ops-agent exposes. No OpenAPI spec yet — documented here in prose.
+description: The REST endpoints and MCP tools warehouse-ops-agent exposes. The REST contract is apis/openapi.yaml; this page is the prose summary.
 ---
 
 # API surface
 
-`warehouse-ops-agent` has no `apis/openapi.yaml` — its surface is small
-enough that it is documented here in prose rather than generated. Every
-route is a `GET` (CORS therefore allows only `GET` and the `OPTIONS` preflight,
-for the origins in `CORS_ALLOWED_ORIGINS`), and neither surface is authenticated (see
-[ADR 0006](./adr/0006-fleet-wide-auth-removal.md)). This page is kept current
-by hand; if it drifts from `internal/adapters/inbound/`, the code is
-authoritative.
+The REST contract is `apis/openapi.yaml` (linted by CI's `api-lint` job);
+the REST reference generated from it is under *API Surface → REST reference
+(generated)*, and CI's `docs-api-drift` job keeps it in sync. This page is
+the hand-kept prose summary of both surfaces. Every REST route is a `GET`
+except the four opt-in act-slice `POST` routes
+([ADR 0027](./adr/0027-act-slice-human-confirmed-work-release.md),
+[ADR 0029](./adr/0029-labor-reallocation-act-slice.md)); CORS allows only `GET`
+and the `OPTIONS` preflight, for the origins in `CORS_ALLOWED_ORIGINS`, so a
+browser cannot call the act slices. Neither surface is authenticated (see
+[ADR 0006](./adr/0006-fleet-wide-auth-removal.md)). If this page drifts from
+`internal/adapters/inbound/`, the code is authoritative.
 
 ## REST (`internal/adapters/inbound/http`)
 

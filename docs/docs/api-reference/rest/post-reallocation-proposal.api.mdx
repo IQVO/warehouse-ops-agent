@@ -1,0 +1,69 @@
+---
+id: post-reallocation-proposal
+title: "Propose labor reallocation moves (ADR 0029)."
+description: "Second human-gated act slice. Ranks at most three moves of the caller-supplied candidates onto an understaffed path and returns one confirmation token per move. Nothing is executed until the matching approve route is called with that token."
+sidebar_label: "Propose labor reallocation moves (ADR 0029)."
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "post api-method"
+info_path: docs/api-reference/rest/warehouse-ops-agent-rest-console
+custom_edit_url: null
+hide_send_button: true
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Propose labor reallocation moves (ADR 0029)."}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/labor-reallocation/proposals"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Second human-gated act slice. Ranks at most three moves of the caller-supplied candidates onto an understaffed path and returns one confirmation token per move. Nothing is executed until the matching approve route is called with that token.
+
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./post-reallocation-proposal.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./post-reallocation-proposal.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

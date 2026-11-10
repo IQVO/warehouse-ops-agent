@@ -1,0 +1,1 @@
+{"parameters":[{"name":"pathId","in":"query","required":true,"schema":{"type":"string"}},{"name":"fromLocationCode","in":"query","required":true,"schema":{"type":"string"},"description":"Seven-segment facility-layout location code."},{"name":"toLocationCode","in":"query","required":true,"schema":{"type":"string"},"description":"Seven-segment facility-layout location code."}]}
