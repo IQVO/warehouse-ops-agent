@@ -140,8 +140,8 @@ The `8101`–`8107` defaults are a local port assignment made in
 them with per-service overrides when several run on one machine. The
 chart renders a `*_REST_URL` or `*_REPORTS_REST_URL` key only when its
 value is non-empty, so with empty values the binary falls back to these
-localhost defaults. In the kind cluster, warehouse-infra
-(`terraform/ops-agent.tf`) sets all eleven to the in-cluster Services, for
+localhost defaults. In the k3s cluster, warehouse-infra
+(`helm-values/warehouse-ops-agent.yaml`) sets all eleven to the in-cluster Services, for
 example `http://order-management-reports.warehouse-systems.svc.cluster.local:80`.
 
 ### Runtime signals
@@ -153,10 +153,12 @@ example `http://order-management-reports.warehouse-systems.svc.cluster.local:80`
 | `RUNTIME_SIGNALS_NAMESPACE` | `warehouse-systems` | no | Kubernetes namespace the Loki query is scoped to. | `internal/config/config.go` | `runtimeSignals.namespace` |
 | `RUNTIME_SIGNALS_SERVICES` | `order-management,inventory-storage,wes-work-planning,fulfillment-execution,workforce-management,facility-layout,labor-performance,process-path-management` | no | Comma-separated Istio `destination_service_name` values (and Loki `app` labels) to report on. product-master, warehouse-planning, inbound-receiving and the network contexts are not in the default. | `internal/config/config.go` | `runtimeSignals.services` (a list, joined with commas) |
 
-warehouse-infra's `terraform/ops-agent.tf` (origin/develop) sets neither
-`PROMETHEUS_URL` nor `LOKI_URL`. In the kind cluster `/runtime-signals`
-therefore reports zeros and lists `loki` as unavailable until the chart
-values `prometheus.url` and `runtimeSignals.lokiUrl` are set.
+warehouse-infra's `helm-values/warehouse-ops-agent.yaml` (origin/develop) sets
+both: `prometheus.url` is `http://prometheus-server.observability.svc.cluster.local:9090`
+and `runtimeSignals.lokiUrl` is `http://loki.observability.svc.cluster.local:3100`
+(the live Deployment's `PROMETHEUS_URL` and the ConfigMap's `LOKI_URL` carry the
+same values, read with `kubectl` on 2026-11-10). A deployment that leaves them
+empty gets zeros and a `loki` entry in `unavailableSources`.
 
 ### LLM reasoner (ADR 0004)
 
@@ -174,9 +176,10 @@ see [ADR 0004](../adr/0004-llm-reasoner-behind-the-policy-layer.md) and
 | `LLM_TIMEOUT` | `8s` | no | Go duration bounding one whole reasoning call (every tool-use turn). An unparseable or non-positive value means `8s`. | `internal/config/config.go` | `llm.timeout` |
 | `LLM_TOOL_ALLOWLIST` | `wes-work-planning/get_backlog_telemetry,wes-work-planning/get_rebalance_recommendation,workforce-management/get_staffing_gap,fulfillment-execution/get_queue_status,fulfillment-execution/diagnose_stuck_tasks` | no | Comma-separated `<upstream>/<tool>` MCP read tools the model may call. Only five upstream names have a session in the reasoner: `wes-work-planning`, `fulfillment-execution`, `workforce-management`, `inventory-storage`, `facility-layout`. An entry for any other upstream is accepted but never offered to the model. | `internal/config/config.go`, `cmd/agent/reasoner.go` | `llm.toolAllowList` (a list) |
 
-warehouse-infra runs the kind cluster with `llm.mode = "shadow"` and the
+warehouse-infra runs the k3s cluster with `llm.mode: shadow` and the
 key in the Secret `warehouse-ops-agent-anthropic`
-(`terraform/ops-agent.tf`).
+(`helm-values/warehouse-ops-agent.yaml`; the Secret is created by Terraform from
+`var.anthropic_api_key`).
 
 ### Act slice (ADR 0027)
 

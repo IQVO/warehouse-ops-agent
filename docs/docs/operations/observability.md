@@ -19,7 +19,7 @@ rule and were not observed live.
 |---|---|---|
 | Traces | OTLP/gRPC, insecure, batch span processor, to `OTEL_EXPORTER_OTLP_ENDPOINT` (default `localhost:4317`; a bare `host:port` gets `http://` prepended) | `internal/observability/telemetry.go` (`Setup`) |
 | Metrics | OTLP/gRPC, periodic reader, same endpoint | `internal/observability/telemetry.go` |
-| Logs | JSON (`log/slog` `JSONHandler`) on stdout; Alloy tails pod stdout into Loki in the kind cluster | `cmd/agent/main.go` (`newLogger`) |
+| Logs | JSON (`log/slog` `JSONHandler`) on stdout; Alloy tails pod stdout into Loki in the k3s cluster | `cmd/agent/main.go` (`newLogger`) |
 
 Resource attributes on every span and metric: `service.name`
 (`OTEL_SERVICE_NAME`, default `warehouse-ops-agent`), `service.version`

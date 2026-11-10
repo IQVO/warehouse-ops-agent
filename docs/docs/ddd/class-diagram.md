@@ -444,12 +444,12 @@ classDiagram
     class HTTPRouter {
         <<InboundAdapter>>
         inbound/http NewRouter
-        8 GET routes + /mcp mount
+        13 GET routes, 5 POST routes + /mcp mount
     }
     class MCPServer {
         <<InboundAdapter>>
         inbound/mcp NewServer
-        5 read-only tools
+        up to 13 read-only tools
     }
     class DailyBriefUC {
         <<UseCase>>

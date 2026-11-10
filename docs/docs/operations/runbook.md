@@ -45,26 +45,43 @@ listed so nobody goes looking for them:
 | Resources | requests `100m` / `128Mi`, limits `500m` / `256Mi` | `values.yaml` |
 | Security context | non-root user `1000`, all capabilities dropped, no privilege escalation | `values.yaml` |
 
-### In the kind cluster (warehouse-infra)
+### In the k3s cluster (warehouse-infra)
 
-warehouse-infra's `terraform/ops-agent.tf` computes the Helm values and
-ArgoCD owns the release (`terraform/argocd-apps.tf`); there is no
-`helm_release` for it any more. That overlay:
+warehouse-infra deploys the agent onto its k3s cluster (kube context
+`k3s-multipass`; kind is banned there, its ADR 0011). ArgoCD owns the release;
+the Helm values are the file `helm-values/warehouse-ops-agent.yaml` of
+warehouse-infra (no `terraform/ops-agent.tf` any more), and Terraform
+(`terraform/20-apps/main.tf`) adds only the image repository and tag and the
+Anthropic Secret. That values file:
 
-- pulls `ghcr.io/iqvo/warehouse-ops-agent:latest` with `pullPolicy: Always`;
-- sets every MCP endpoint from `terraform/mcp.tf` when `deploy_mcp_servers`
-  is true, and every `restUrls.*` and `reportsUrls.*` to the in-cluster
-  Services;
-- runs `llm.mode = "shadow"` with `credentials.existingSecret =
-  "warehouse-ops-agent-anthropic"`, a Terraform-managed Secret filled from
+- sets every one of the 28 upstream MCP endpoints (`upstreams.<name>.endpoint`)
+  and every `restUrls.*` and `reportsUrls.*` to the in-cluster Services, and
+  `upstreams.workforceManagement.a2aEndpoint` for the labor-reallocation act
+  slice;
+- sets `WES_WORK_PLANNING_A2A_URL` and `EXCEPTION_MANAGEMENT_A2A_URL` through
+  `extraEnv`, which switches the release act slice on (and the advisory
+  exception context, ADR 0028);
+- runs `llm.mode: shadow` with `credentials.existingSecret:
+  warehouse-ops-agent-anthropic`, a Terraform-managed Secret filled from
   `var.anthropic_api_key`;
-- routes `/api/warehouse-ops-agent` through Kong with the prefix stripped,
-  so `http://localhost:8000/api/warehouse-ops-agent/daily-brief` reaches the
-  router as `/daily-brief`.
+- sets `prometheus.url` (`http://prometheus-server.observability.svc.cluster.local:9090`)
+  and `runtimeSignals.lokiUrl` (`http://loki.observability.svc.cluster.local:3100`),
+  so `GET /runtime-signals` reads real telemetry there (see
+  [Troubleshooting](./troubleshooting.md));
+- enables `gatewayApi` with `stripPath: true`: the `HTTPRoute`
+  `warehouse-ops-agent` routes `/api/warehouse-ops-agent` through Kong with the
+  prefix stripped, so `http://localhost:8000/api/warehouse-ops-agent/daily-brief`
+  reaches the router as `/daily-brief`, and the chart's second route
+  `warehouse-ops-agent-act` carries `/api/warehouse-ops-agent/act` and
+  `/api/warehouse-ops-agent/labor-reallocation` with the GET/OPTIONS-only
+  `cors-readonly` plugin.
 
-It sets neither `prometheus.url` nor `runtimeSignals.lokiUrl`, so
-`GET /runtime-signals` reports zeros there (see
-[Troubleshooting](./troubleshooting.md)).
+The image is `ghcr.io/iqvo/warehouse-infra/warehouse-ops-agent:<sha>-arm64`
+from the lock file `terraform/targets/k3s.images.yaml`.
+Read on the live cluster on 2026-11-10 with read-only `kubectl`: the Deployment
+runs `ghcr.io/iqvo/warehouse-infra/warehouse-ops-agent:e33eb99-arm64`, its
+`PROMETHEUS_URL` and `LOKI_URL` are the two URLs above, and the two
+`HTTPRoute`s above exist.
 
 ## Probes and startup
 
@@ -181,8 +198,8 @@ should read `true`, and `GET /master-data-gaps` should stop answering
 
 Update the key in the Secret the chart reads: `credentials.anthropicApiKey`
 (chart-managed Secret) or the external Secret named by
-`credentials.existingSecret` (in the kind cluster, `TF_VAR_anthropic_api_key`
-then `terraform apply` rewrites `warehouse-ops-agent-anthropic`). The key is
+`credentials.existingSecret` (in the k3s cluster, `TF_VAR_anthropic_api_key`
+then `terraform apply` of warehouse-infra's `terraform/20-apps` rewrites `warehouse-ops-agent-anthropic`). The key is
 read once at startup, so restart the Deployment afterwards. A chart-managed
 Secret change rolls the pod by itself through `checksum/secret`; an
 external Secret does not.

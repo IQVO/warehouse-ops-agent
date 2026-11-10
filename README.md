@@ -13,7 +13,7 @@ and persists no domain state; its "domain" layer is decision **policy**
 (correlation rules over facts read from the upstream contexts, plus a
 runtime-signals classifier over Prometheus/Loki telemetry).
 
-It holds an outbound MCP client for twenty-six contexts: the five original ones
+It holds an outbound MCP client for twenty-eight contexts: the five original ones
 (`wes-work-planning`, `fulfillment-execution`, `workforce-management`,
 `facility-layout`, `inventory-storage`) and two second-wave ones
 (`labor-performance`, `order-management`,
@@ -31,7 +31,7 @@ daily brief and has three more read tools wired but unconsumed
 `product-master` (read+write server, eight tools, contract pinned to its published tool
 registry; only the read tool `list_products` is called) feeds the master-data gaps report
 ([ADR 0020](./docs/docs/adr/0020-product-master-mcp-client-and-master-data-gaps.md));
-in the kind cluster warehouse-infra sets `PRODUCT_MASTER_MCP_ENDPOINT` to
+in the k3s cluster warehouse-infra (`helm-values/warehouse-ops-agent.yaml`) sets `PRODUCT_MASTER_MCP_ENDPOINT` to
 `product-master-mcp:8090/mcp`, so the report is live there.
 `inbound-receiving` (read-only server, contract pinned to its published tool
 registry) feeds the inbound outlook
@@ -131,9 +131,9 @@ internal/
     inbound/
       http/                           chi router (13 GET routes, see below)
       mcp/                            this agent's own MCP server (up
-                                        to 10 read-only tools)
+                                        to 13 read-only tools)
     outbound/mcpclient/             one thin, schema-typed MCP client per
-                                     upstream context (12), Streamable HTTP
+                                     upstream context (28), Streamable HTTP
     outbound/httpclient/            the otelhttp-instrumented http.Client
                                      every outbound adapter uses
     outbound/restclient/            console-bff REST clients: 4 OLTP APIs
@@ -307,7 +307,7 @@ is a startup error, never a silent `off`.
 ## Helm chart
 
 `charts/warehouse-ops-agent` deploys the agent image
-(`ghcr.io/iqvo/warehouse-ops-agent`) to the `warehouse` kind cluster: one
+(`ghcr.io/iqvo/warehouse-ops-agent`) to the k3s cluster (kube context `k3s-multipass`; kind is banned in warehouse-infra, its ADR 0011): one
 replica, a dedicated service account, and a non-root pod (`runAsNonRoot`,
 `runAsUser` 1000, no privilege escalation). Two CI jobs gate it: `helm-lint`
 runs `ct lint --charts charts/warehouse-ops-agent` and `chart-tests` runs the
@@ -370,7 +370,7 @@ Shipped on `develop` (read-only recommendations, plus the two opt-in, human-gate
   whose declared and measured dimensions disagree (product-master's own
   discrepancy flag), read through `list_products`. Off (503 / tool absent)
   unless `PRODUCT_MASTER_MCP_ENDPOINT` is set; warehouse-infra sets it in the
-  kind cluster.
+  k3s cluster.
 - **Inbound outlook** (ADR 0021) — `GET /inbound-outlook` /
   `get_inbound_outlook` (no arguments): ASNs awaiting arrival (Registered;
   `overdue` once their own expected arrival has passed), dock appointments in
