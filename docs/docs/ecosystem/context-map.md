@@ -21,7 +21,7 @@ of the fleet, added in different phases and never merged into one:
    daily-brief, flow-balance-exception, explain-travel-factor and
    stranded-reservation use cases read each context's published MCP Open
    Host Service, synchronously, at request time. Clients exist for
-   twenty-six contexts: the five original ones plus `labor-performance` (consumed by
+   twenty-eight contexts: the five original ones plus `labor-performance` (consumed by
    the [ADR 0008](../adr/0008-labor-utilization-advisory-correlation.md)
    utilization overlay), `order-management` and `process-path-management`
    (wired, not yet consumed by any use case), and `warehouse-planning`
@@ -33,7 +33,7 @@ of the fleet, added in different phases and never merged into one:
    read+write server (eight tools); `list_products` feeds the master-data gaps
    report, the other five read tools are unwired and the two pack-level write
    tools are never called; deployed and switched on
-   in the kind cluster), `inbound-receiving`
+   in the k3s cluster), `inbound-receiving`
    ([ADR 0021](../adr/0021-inbound-receiving-mcp-client-and-inbound-outlook.md):
    read-only server; `list_asns`, `list_appointments` and `list_receipts` feed
    the inbound outlook, the other four read tools are wired but unconsumed;
@@ -162,7 +162,7 @@ context.
 | Downstream | Pattern | Technology | Status | Evidence |
 |---|---|---|---|---|
 | `warehouse-console` | Customer/Supplier (this agent is the BFF supplier; DTOs hand-kept in sync with the console's types) | REST `/console/orders/{id}/lifecycle`, `/console/reports/wms`, `/console/reports/wes`, plus `/daily-brief` | live | `inbound/http/router.go` |
-| Agentic / LLM hosts | OHS / Published Language (MCP tool schemas) | MCP `/mcp`: up to 10 read-only tools (7 registered in `tools.go`, of which `find_master_data_gaps` and `get_inbound_outlook` only when their upstream is configured; 3 transfer-watch tools in `transfer_watch.go` only when network-inventory-planning is configured) | live | `inbound/mcp/tools.go`, `inbound/mcp/transfer_watch.go` |
+| Agentic / LLM hosts | OHS / Published Language (MCP tool schemas) | MCP `/mcp`: up to 13 read-only tools (10 registered in `tools.go`: `get_daily_brief` and `list_open_exceptions` always, the other eight only when their use case or upstream is wired, `labor_reallocation_outlook` being the one L2 tool; 3 transfer-watch tools in `transfer_watch.go` only when network-inventory-planning is configured) | live | `inbound/mcp/tools.go`, `inbound/mcp/transfer_watch.go`, [MCP tools](../mcp/tools.md) |
 
 Every `*-reports` read also calls that report's `/freshness` endpoint. MCP
 and REST calls carry no credentials — the fleet's auth was removed

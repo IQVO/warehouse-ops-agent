@@ -56,6 +56,20 @@ every field without `omitempty` as required.
 | `labor_reallocation_outlook` | yes | `WORKFORCE_MANAGEMENT_MCP_ENDPOINT` is set ([ADR 0029](../adr/0029-labor-reallocation-act-slice.md)) | `siteCode`, `shiftId`, `toPathId`, `candidates` (1-20 of `associateId`, optional `fromPathId`) | none | the ranking behind `POST /labor-reallocation/proposals`, **without** a token, proposal id or expiry |
 
 All thirteen carry `ReadOnlyHint: true`. The agent has no write tool.
+
+The count is verified against the registration code: `registerTools` in
+`internal/adapters/inbound/mcp/tools.go` adds ten (`get_daily_brief`,
+`list_open_exceptions`, `get_flow_balance_exception`, `explain_travel_factor`,
+`detect_stranded_reservation`, `find_master_data_gaps`, `get_inbound_outlook`,
+`get_network_order_outlook`, `get_network_node_outlook` and, through
+`registerLaborReallocationTool`, `labor_reallocation_outlook`),
+`registerTransferWatchTools` in `transfer_watch.go` adds three
+(`triage_stuck_transfers`, `get_transfer_status`, `explain_network_imbalance`),
+and the `toolAuthority` table in `authority.go` has exactly those thirteen
+entries (twelve `L1`, one `L2`). This server has no registry golden file of its
+own: the `testdata/*_tools.golden.json` files under
+`internal/adapters/outbound/mcpclient` pin the *upstream* servers' registries,
+not this one.
 `internal/architecture/zerowrite/zerowrite_test.go`
 (`TestNoMutatingToolAnnotationInMCPServer`) fails the build if a tool is
 registered without the read-only hint. See the

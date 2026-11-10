@@ -21,7 +21,7 @@ disagrees with the router, the router is correct.
 | Topic | Behaviour (source) |
 |---|---|
 | Listener | One `net/http` server on `AGENT_ADDR` (default `:8095`) serves every REST route and the MCP endpoint (`cmd/agent/main.go`, `serveAgent`). In the Helm chart the Service listens on port 80 and forwards to the container's `http` port 8095. |
-| Edge | warehouse-infra exposes the agent through Kong at `http://localhost:8000/api/warehouse-ops-agent`. Kong strips the prefix (`konghq.com/strip-path: "true"`, warehouse-infra `terraform/ops-agent.tf`), so `/api/warehouse-ops-agent/daily-brief` reaches the router as `/daily-brief`. |
+| Edge | warehouse-infra exposes the agent through Kong at `http://localhost:8000/api/warehouse-ops-agent` (Gateway API `HTTPRoute`, rendered by the chart from `gatewayApi` in warehouse-infra's `helm-values/warehouse-ops-agent.yaml`). Kong strips the prefix (`stripPath: true`, a `URLRewrite` filter), so `/api/warehouse-ops-agent/daily-brief` reaches the router as `/daily-brief`. A second route, `warehouse-ops-agent-act`, carries `/api/warehouse-ops-agent/act` and `/api/warehouse-ops-agent/labor-reallocation` with a GET/OPTIONS-only CORS plugin (chart `httproute-act.yaml`). |
 | Methods | Every REST route is `GET` except the four opt-in act-slice routes, which are `POST` (two pairs: [ADR 0027](../adr/0027-act-slice-human-confirmed-work-release.md) and [ADR 0029](../adr/0029-labor-reallocation-act-slice.md)). `/mcp` accepts every method (chi `Handle`), because Streamable HTTP uses `POST` for messages and `GET` for the event stream. |
 | Authentication | None. REST and MCP are unauthenticated fleet-wide ([ADR 0006](../adr/0006-fleet-wide-auth-removal.md)). |
 | CORS | `go-chi/cors`. Allowed origins come from `CORS_ALLOWED_ORIGINS` (comma-separated, default `http://localhost:5173`). Allowed methods `GET` and `OPTIONS` — deliberately *not* `POST`, so a browser fails the preflight for the act-slice routes. Behind Kong the gateway's own CORS plugin answers the preflight instead, so the chart gives `/act` a dedicated route with a `GET`/`OPTIONS`-only plugin (the rest of the agent, including `POST /mcp`, keeps the all-methods plugin). Allowed headers `Content-Type` and `Authorization`. No credentials, preflight cached for 300 s (`corsMiddleware`). |
@@ -625,6 +625,18 @@ and delegates the release to the wes-work-planning agent:
 The release itself is a delegation, not a data write: planning keeps every
 release decision, and the authoritative fact still comes back as the
 `WorkReleased` CloudEvent on Kafka.
+
+**Verified behaviour of the `404` (code, not spec).** `404` is real. The
+router maps `ports.ErrUnknownWorkPlanningPath` to `404` in `writeActErrorFor`
+(`internal/adapters/inbound/http/act_release_work.go`); the A2A client raises it
+when wes-work-planning answers an in-band problem with status 404
+(`mapProblem` in `internal/adapters/outbound/a2a/client.go`), and the router
+test `TestApproveStatusMapping` pins `unknown path is 404`
+(`act_release_work_test.go`). It is the only `404` this route returns: a
+missing, forged or unknown token is `400`, and an unwired act slice is `503`. **Spec gap:** `apis/openapi.yaml` declares
+`400, 409, 410, 413, 415, 502, 503` for `postReleaseApproval` but no `404`, while the sibling `POST /labor-reallocation/proposals/{proposalId}/approvals`
+declares it. The spec lags the code here; it is out of scope for a docs change,
+so it is reported rather than edited.
 
 ## Labor reallocation — `POST /labor-reallocation/*`
 
