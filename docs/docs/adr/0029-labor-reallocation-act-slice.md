@@ -20,6 +20,13 @@ context never gates). Peer contract: workforce-management's A2A skill
 `assign_labor` (its ADR 0039), which gains the optional attribution arguments
 `proposalId`, `approvedBy` and `agentId` (fleet contract G4).
 
+> **Amended by [ADR 0030](./0030-act-slice-idempotency-key-store.md) and
+> [ADR 0031](./0031-approvals-route-replaces-the-approve-verb.md):** both act
+> POSTs now take an `Idempotency-Key`, and the approval route is
+> `POST .../{proposalId}/approvals`; `.../approve` is a deprecated alias until
+> 2027-02-10. Where this ADR names `/approve`, it describes the state at the
+> time of writing.
+
 > Numbering: this repo already has two files numbered 0027. Nothing is renamed;
 > this is simply the next free number.
 
@@ -79,7 +86,7 @@ The policy is deterministic. The LLM is **not** in this loop (see 6).
 | Call | Effect |
 |---|---|
 | `POST /labor-reallocation/proposals` `{siteCode, shiftId, toPathId, candidates[{associateId, fromPathId?}]}` | Reads `get_staffing_gap` (by `siteCode`) for the target and each distinct origin, applies the policy, and returns `proposals[]`: each ranked move with its own `proposalId` (`lrp-<nonce>`), short-lived HMAC `token` bound to **that exact move** (associate, from, to), `expiresAt`, `reasonCodes`, `evidence`, `nextCheck`; plus the `target` reading and the `skipped` candidates. **Writes nothing.** |
-| `POST /labor-reallocation/proposals/{proposalId}/approve` `{token, approvedBy}` | Verifies the token, checks it is the proposal named in the URL, consumes it, and delegates ONE move. |
+| `POST /labor-reallocation/proposals/{proposalId}/approve` `{token, approvedBy}` (now `.../approvals`, [ADR 0031](./0031-approvals-route-replaces-the-approve-verb.md)) | Verifies the token, checks it is the proposal named in the URL, consumes it, and delegates ONE move. |
 
 The token reuses the ADR 0027 signer and its guarantees (HMAC-SHA256,
 positional strict payload, `APPROVAL_TTL`, `APPROVAL_SIGNING_KEY`) with its own

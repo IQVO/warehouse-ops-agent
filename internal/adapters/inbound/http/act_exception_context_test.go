@@ -42,7 +42,7 @@ func newExceptionRig(t *testing.T, d policy.Decision, port ports.ExceptionContex
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := &inboundhttp.Handlers{DailyBrief: newTestDailyBrief(), ReleaseWork: uc}
+	h := &inboundhttp.Handlers{DailyBrief: newTestDailyBrief(), ReleaseWork: uc, Idempotency: newIdempotencyStore(t)}
 	return &actRig{router: inboundhttp.NewRouter(h, "warehouse-ops-agent-test"), releaser: rel, now: &now}
 }
 

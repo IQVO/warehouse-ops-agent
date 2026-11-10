@@ -69,10 +69,13 @@ it never changes the minting decision and is not an MCP tool either.
 The agent's **second** human-gated write
 ([ADR 0029](./adr/0029-labor-reallocation-act-slice.md)) follows the same
 rules: opt-in REST routes `POST /labor-reallocation/proposals` and
-`POST /labor-reallocation/proposals/{proposalId}/approve` (a ranked list of at
+`POST /labor-reallocation/proposals/{proposalId}/approvals` (a ranked list of at
 most three moves, each with its own token; approving delegates ONE move to
 workforce-management's `assign_labor` A2A skill), deliberately unreachable from
-MCP and from the LLM. The read side **is** an MCP tool,
+MCP and from the LLM. The old `.../approve` verb route is a deprecated alias
+until 2027-02-10 ([ADR 0031](./adr/0031-approvals-route-replaces-the-approve-verb.md)).
+Every act POST takes an `Idempotency-Key`
+([ADR 0030](./adr/0030-act-slice-idempotency-key-store.md)). The read side **is** an MCP tool,
 `labor_reallocation_outlook` (authority L2): the same ranking with no token and
 no write path.
 

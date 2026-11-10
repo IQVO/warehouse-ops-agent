@@ -89,7 +89,7 @@ still governs every other surface; the "v1 scope" section above is now true
 [ADR 0029](../adr/0029-labor-reallocation-act-slice.md) adds a second,
 equally gated write: a pure policy ranks at most three moves that cover an
 understaffed path from workforce-management's own readings, and
-`POST /labor-reallocation/proposals` / `.../{proposalId}/approve` delegate ONE
+`POST /labor-reallocation/proposals` / `.../{proposalId}/approvals` delegate ONE
 human-approved move to workforce-management's `assign_labor` A2A skill with
 `proposalId`, `approvedBy` and `agentId`. The guardrails are the same: a token
 bound to the exact move, REST-only, never an MCP tool, never reachable by the

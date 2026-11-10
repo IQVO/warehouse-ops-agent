@@ -41,7 +41,7 @@ Two rules run through every use case:
 | Console report dashboards | `ConsoleReports.ExecuteWMS`, `ExecuteWES` | `GET /console/reports/wms`, `/wes` | none | always wired |
 | Runtime signals | `RuntimeSignals.Execute` | `GET /runtime-signals` | none | always wired |
 | Act slice: release the next work unit (ADR 0027) | `ReleaseWork.Propose`, `ReleaseWork.Approve` | `POST /act/release-next-work/proposals`, `POST /act/release-next-work/approvals` | none (never an MCP tool) | only with `WES_WORK_PLANNING_A2A_URL` (otherwise `503`) |
-| Act slice: labor reallocation (ADR 0029) | `LaborReallocation.Propose`, `LaborReallocation.Approve` | `POST /labor-reallocation/proposals`, `POST /labor-reallocation/proposals/{proposalId}/approve` | none (never an MCP tool) | only with `WORKFORCE_MANAGEMENT_A2A_URL` and `WORKFORCE_MANAGEMENT_MCP_ENDPOINT` (otherwise `503`) |
+| Act slice: labor reallocation (ADR 0029) | `LaborReallocation.Propose`, `LaborReallocation.Approve` | `POST /labor-reallocation/proposals`, `POST /labor-reallocation/proposals/{proposalId}/approvals` (deprecated alias `.../approve`, ADR 0031) | none (never an MCP tool) | only with `WORKFORCE_MANAGEMENT_A2A_URL` and `WORKFORCE_MANAGEMENT_MCP_ENDPOINT` (otherwise `503`) |
 | Labor reallocation outlook | `LaborReallocationOutlook.Execute` | none | `labor_reallocation_outlook` (the same ranking, no token, read-only) | only with `WORKFORCE_MANAGEMENT_MCP_ENDPOINT` |
 
 Request and response shapes are on [HTTP routes](../api/http-routes.md)

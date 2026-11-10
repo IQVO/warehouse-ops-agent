@@ -52,6 +52,19 @@ func problemSpec(status int) (typ, title string) {
 // detail must already be caller-safe (see callerDetail and upstreamDetail).
 func writeProblem(w http.ResponseWriter, r *http.Request, status int, detail string) {
 	typ, title := problemSpec(status)
+	writeProblemBody(w, r, status, typ, title, detail)
+}
+
+// writeTypedProblem answers a problem whose type is more specific than its
+// status: the fleet guideline's idempotency-key-required / -invalid / -reused.
+func writeTypedProblem(w http.ResponseWriter, r *http.Request, status int, slug, title, detail string) {
+	writeProblemBody(w, r, status, problemTypeBase+slug, title, detail)
+}
+
+// problemTypeBase is the namespace of this adapter's problem type URIs.
+const problemTypeBase = "https://problems.warehouse-ops-agent.io/"
+
+func writeProblemBody(w http.ResponseWriter, r *http.Request, status int, typ, title, detail string) {
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(problem{

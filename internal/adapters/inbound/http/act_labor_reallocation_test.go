@@ -31,9 +31,15 @@ type reallocAssigner struct {
 	calls atomic.Int32
 	last  ports.AssignLaborRequest
 	err   error
+	// gate, when set, holds every delegation until it is closed, so
+	// concurrent requests genuinely overlap.
+	gate chan struct{}
 }
 
 func (a *reallocAssigner) AssignLabor(_ context.Context, req ports.AssignLaborRequest) (ports.LaborAssignment, error) {
+	if a.gate != nil {
+		<-a.gate
+	}
 	a.calls.Add(1)
 	a.last = req
 	return ports.LaborAssignment{AssociateId: req.AssociateId, PathId: req.PathId, AssignmentId: req.AssociateId + "@" + req.PathId}, a.err
@@ -67,12 +73,21 @@ func newReallocRig(t *testing.T) *reallocRig {
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := &inboundhttp.Handlers{DailyBrief: newTestDailyBrief(), LaborReallocation: uc}
+	h := &inboundhttp.Handlers{DailyBrief: newTestDailyBrief(), LaborReallocation: uc, Idempotency: newIdempotencyStore(t)}
 	return &reallocRig{router: inboundhttp.NewRouter(h, "warehouse-ops-agent-test"), assigner: asg, staffing: st, now: &now}
 }
 
+// post sends one new logical submit: a fresh Idempotency-Key per call.
 func (r *reallocRig) post(path, contentType, body string) *httptest.ResponseRecorder {
+	return r.postKeyed(path, contentType, freshKey(), body)
+}
+
+// postKeyed sends body with the given Idempotency-Key ("" sends none).
+func (r *reallocRig) postKeyed(path, contentType, key, body string) *httptest.ResponseRecorder {
 	req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
+	if key != "" {
+		req.Header.Set("Idempotency-Key", key)
+	}
 	if contentType != "" {
 		req.Header.Set("Content-Type", contentType)
 	}
@@ -121,13 +136,20 @@ func proposeOK(t *testing.T, r *reallocRig, body string) proposalBody {
 	return out
 }
 
-func approvePath(id string) string { return "/labor-reallocation/proposals/" + id + "/approve" }
+// approvePath is the guideline route (ADR 0031); deprecatedApprovePath is the
+// verb route it replaces, still served until its Sunset date.
+func approvePath(id string) string { return "/labor-reallocation/proposals/" + id + "/approvals" }
+
+func deprecatedApprovePath(id string) string {
+	return "/labor-reallocation/proposals/" + id + "/approve"
+}
 
 func TestReallocationRoutes503WhenNotConfigured(t *testing.T) {
-	router := inboundhttp.NewRouter(&inboundhttp.Handlers{DailyBrief: newTestDailyBrief()}, "t")
-	for _, p := range []string{reallocProposePath, approvePath("lrp-x")} {
+	router := inboundhttp.NewRouter(&inboundhttp.Handlers{DailyBrief: newTestDailyBrief(), Idempotency: newIdempotencyStore(t)}, "t")
+	for _, p := range []string{reallocProposePath, approvePath("lrp-x"), deprecatedApprovePath("lrp-x")} {
 		req := httptest.NewRequest(http.MethodPost, p, strings.NewReader(`{}`))
 		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Idempotency-Key", freshKey())
 		rec := httptest.NewRecorder()
 		router.ServeHTTP(rec, req)
 		if rec.Code != http.StatusServiceUnavailable || !strings.Contains(rec.Body.String(), "WORKFORCE_MANAGEMENT_A2A_URL") {
@@ -297,7 +319,7 @@ func TestReallocationApproveStatusMapping(t *testing.T) {
 func TestReallocationRoutesRejectNonJSONContentTypes(t *testing.T) {
 	rig := newReallocRig(t)
 	for _, ct := range []string{"", "text/plain", "application/x-www-form-urlencoded", "multipart/form-data; boundary=x"} {
-		for _, p := range []string{reallocProposePath, approvePath("lrp-x")} {
+		for _, p := range []string{reallocProposePath, approvePath("lrp-x"), deprecatedApprovePath("lrp-x")} {
 			if rec := rig.post(p, ct, reallocPropose); rec.Code != http.StatusUnsupportedMediaType {
 				t.Errorf("%s with Content-Type %q = %d, want 415", p, ct, rec.Code)
 			}
@@ -328,7 +350,7 @@ func TestReallocationRoutesRejectMalformedBodies(t *testing.T) {
 func TestReallocationRoutesStayBehindTheGETOnlyCORSPolicy(t *testing.T) {
 	t.Setenv("CORS_ALLOWED_ORIGINS", "")
 	rig := newReallocRig(t)
-	for _, p := range []string{reallocProposePath, approvePath("lrp-x")} {
+	for _, p := range []string{reallocProposePath, approvePath("lrp-x"), deprecatedApprovePath("lrp-x")} {
 		req := httptest.NewRequest(http.MethodOptions, p, nil)
 		req.Header.Set("Origin", "http://localhost:5173")
 		req.Header.Set("Access-Control-Request-Method", http.MethodPost)
@@ -343,7 +365,7 @@ func TestReallocationRoutesStayBehindTheGETOnlyCORSPolicy(t *testing.T) {
 
 func TestReallocationRoutesAreNotServedForOtherMethods(t *testing.T) {
 	rig := newReallocRig(t)
-	for _, p := range []string{reallocProposePath, approvePath("lrp-x")} {
+	for _, p := range []string{reallocProposePath, approvePath("lrp-x"), deprecatedApprovePath("lrp-x")} {
 		req := httptest.NewRequest(http.MethodGet, p, nil)
 		rec := httptest.NewRecorder()
 		rig.router.ServeHTTP(rec, req)

@@ -11,8 +11,10 @@
 // (act_release_work.go) POST /act/release-next-work/proposals and
 // /approvals — the human-confirmed release of the next work unit — and ADR
 // 0029 (act_labor_reallocation.go) POST /labor-reallocation/proposals and
-// /labor-reallocation/proposals/{proposalId}/approve — the human-confirmed
-// placement of one associate on an understaffed path.
+// /labor-reallocation/proposals/{proposalId}/approvals — the human-confirmed
+// placement of one associate on an understaffed path. All four take an
+// Idempotency-Key (ADR 0030); the old verb route .../{proposalId}/approve is
+// a deprecated alias until its Sunset date (ADR 0031).
 package http
 
 import (
@@ -29,6 +31,7 @@ import (
 	otelchimetric "github.com/riandyrn/otelchi/metric"
 
 	"github.com/claudioed/warehouse-ops-agent/internal/application/usecases"
+	"github.com/claudioed/warehouse-ops-agent/internal/ports"
 )
 
 // Handlers holds every use case the inbound HTTP adapter depends on.
@@ -99,6 +102,9 @@ type Handlers struct {
 	// registered (e.g. in tests that only exercise REST routes).
 	MCPHandler http.Handler
 
+	// Idempotency is the act slice's Idempotency-Key store (ADR 0030).
+	Idempotency ports.IdempotencyStore
+
 	// Logger receives the RequestLogger middleware's structured
 	// "http request" line for every call, including /mcp. Defaults to
 	// slog.Default() when nil.
@@ -140,12 +146,17 @@ func NewRouter(h *Handlers, serviceName string) *chi.Mux {
 	r.Get("/transfer-watch/transfers/{id}", h.getTransferStatus)
 	r.Get("/transfer-watch/imbalance", h.getNetworkImbalance)
 
-	// The act slices (ADR 0027, ADR 0029): the only POST routes on this agent.
-	r.Post("/act/release-next-work/proposals", h.postReleaseProposal)
-	r.Post("/act/release-next-work/approvals", h.postReleaseApproval)
+	// The act slices (ADR 0027, ADR 0029): the only POST routes on this agent,
+	// each behind the route-scoped Idempotency-Key middleware (ADR 0030).
+	keyed := r.With(requireIdempotencyKey(h.Idempotency))
+	keyed.Post("/act/release-next-work/proposals", h.postReleaseProposal)
+	keyed.Post("/act/release-next-work/approvals", h.postReleaseApproval)
 	// The labor-reallocation act slice (ADR 0029): the second pair.
-	r.Post("/labor-reallocation/proposals", h.postReallocationProposal)
-	r.Post("/labor-reallocation/proposals/{proposalId}/approve", h.postReallocationApproval)
+	keyed.Post("/labor-reallocation/proposals", h.postReallocationProposal)
+	keyed.Post("/labor-reallocation/proposals/{proposalId}/approvals", h.postReallocationApproval)
+	// DEPRECATED verb route (ADR 0031): the same handler, keyless as before,
+	// announcing its Sunset date on every answer. Not in apis/openapi.yaml.
+	r.With(deprecatedRoute).Post("/labor-reallocation/proposals/{proposalId}/approve", h.postReallocationApproval)
 
 	// /mcp: same router, same middleware chain as every REST route above
 	// (ADR-0010) — NOT a second handler mounted outside it on a raw

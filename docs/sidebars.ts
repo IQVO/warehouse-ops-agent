@@ -134,6 +134,8 @@ const sidebars: SidebarsConfig = {
         'adr/0025-network-fleet-mcp-clients',
         'adr/0028-advisory-exception-context-on-release-proposals',
         'adr/0029-labor-reallocation-act-slice',
+        'adr/0030-act-slice-idempotency-key-store',
+        'adr/0031-approvals-route-replaces-the-approve-verb',
       ],
     },
   ],

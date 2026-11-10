@@ -1,7 +1,7 @@
 ---
 id: warehouse-ops-agent-rest-console
 title: "warehouse-ops-agent REST console"
-description: "Thirteen GET routes (health, daily brief, flow-balance, travel-factor explanation, the console-bff order-lifecycle and WMS/WES dashboards, runtime signals, master-data gaps, inbound outlook, transfer watch) and the two ADR 0027 POST routes of the act slice. Optional capabilities that the composition root has not wired answer 503 with problem type not-configured rather than panicking."
+description: "Thirteen GET routes (health, daily brief, flow-balance, travel-factor explanation, the console-bff order-lifecycle and WMS/WES dashboards, runtime signals, master-data gaps, inbound outlook, transfer watch) and the four POST routes of the two human-gated act slices (ADR 0027, ADR 0029). Every POST takes an Idempotency-Key (ADR 0030, fleet REST guideline section 2). Optional capabilities that the composition root has not wired answer 503 with problem type not-configured rather than panicking."
 sidebar_label: Introduction
 sidebar_position: 0
 hide_title: true
@@ -29,7 +29,7 @@ import Export from "@theme/ApiExplorer/Export";
 
 
 
-Thirteen GET routes (health, daily brief, flow-balance, travel-factor explanation, the console-bff order-lifecycle and WMS/WES dashboards, runtime signals, master-data gaps, inbound outlook, transfer watch) and the two ADR 0027 POST routes of the act slice. Optional capabilities that the composition root has not wired answer 503 with problem type not-configured rather than panicking.
+Thirteen GET routes (health, daily brief, flow-balance, travel-factor explanation, the console-bff order-lifecycle and WMS/WES dashboards, runtime signals, master-data gaps, inbound outlook, transfer watch) and the four POST routes of the two human-gated act slices (ADR 0027, ADR 0029). Every POST takes an Idempotency-Key (ADR 0030, fleet REST guideline section 2). Optional capabilities that the composition root has not wired answer 503 with problem type not-configured rather than panicking.
 
 
 <div

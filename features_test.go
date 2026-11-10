@@ -23,6 +23,7 @@ import (
 	"github.com/cucumber/godog"
 
 	inboundhttp "github.com/claudioed/warehouse-ops-agent/internal/adapters/inbound/http"
+	"github.com/claudioed/warehouse-ops-agent/internal/adapters/outbound/memory"
 	"github.com/claudioed/warehouse-ops-agent/internal/application/usecases"
 	"github.com/claudioed/warehouse-ops-agent/internal/domain/policy"
 	"github.com/claudioed/warehouse-ops-agent/internal/ports"
@@ -108,6 +109,12 @@ type world struct {
 	laborPeer       *fakeLaborPeer
 	firstProposalId string
 	firstToken      string
+	// idempotencyKey, when set, is sent on every POST (a retry of one logical
+	// submit); noIdempotencyKey sends none. Otherwise each POST gets a fresh
+	// key, as a well-behaved client does for each new submit (ADR 0030).
+	idempotencyKey   string
+	noIdempotencyKey bool
+	keySeq           int
 
 	targets  []usecases.PathTarget
 	bindings map[string]string
@@ -188,6 +195,11 @@ func (w *world) start() error {
 		}
 		h.LaborReallocation = lr
 	}
+	store, err := memory.NewIdempotencyStore(24*time.Hour, 64, clock)
+	if err != nil {
+		return err
+	}
+	h.Idempotency = store
 	w.server = httptest.NewServer(inboundhttp.NewRouter(h, "warehouse-ops-agent"))
 	return nil
 }

@@ -110,6 +110,11 @@ func run() error {
 	}
 	mcpHandler := inboundmcp.Handler(inboundmcp.NewServer(mcpDeps))
 
+	idempotency, err := newIdempotencyStore()
+	if err != nil {
+		return err
+	}
+
 	handlers := &inboundhttp.Handlers{
 		DailyBrief:          decision.dailyBrief,
 		FlowBalanceAdvisory: decision.flowBalance,
@@ -125,6 +130,8 @@ func run() error {
 		ReleaseWork: releaseWork,
 		// LaborReallocation is the ADR-0029 act slice #2, REST-only as well.
 		LaborReallocation: laborReallocation,
+		// Idempotency backs the Idempotency-Key on every act POST (ADR 0030).
+		Idempotency: idempotency,
 		// MCPHandler mounts /mcp on the SAME chi router as every REST
 		// route (ADR-0010): otelchi trace, otelchimetric RED duration,
 		// and RequestLogger all apply to MCP traffic too, not just REST.

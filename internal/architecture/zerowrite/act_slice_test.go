@@ -45,12 +45,15 @@ const (
 var scanRoots = []string{"../..", "../../../cmd"}
 
 // allowedWriteRoutes is the complete set of non-GET routes this agent may
-// register: the two act slices' propose/approve pairs. Anything else
-// registering a Post/Put/Patch/Delete route fails.
+// register: the two act slices' propose/approve pairs, plus the deprecated
+// verb alias of the second approve route (ADR 0031: the same handler and use
+// case, served until its Sunset date; delete the entry with the route).
+// Anything else registering a Post/Put/Patch/Delete route fails.
 var allowedWriteRoutes = []string{
 	"/act/release-next-work/approvals",
 	"/act/release-next-work/proposals",
 	"/labor-reallocation/proposals",
+	"/labor-reallocation/proposals/{proposalId}/approvals",
 	"/labor-reallocation/proposals/{proposalId}/approve",
 }
 

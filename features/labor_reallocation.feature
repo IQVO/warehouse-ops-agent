@@ -1,5 +1,7 @@
 # Derived from: docs/docs/adr/0029-labor-reallocation-act-slice.md (act slice #2: propose then approve, HMAC token bound to one move, delegated over A2A assign_labor, REST-only),
-# docs/docs/api/http-routes.md (POST /labor-reallocation/proposals and POST /labor-reallocation/proposals/{proposalId}/approve: 200/400/404/409/410/415/502/503),
+# docs/docs/api/http-routes.md (POST /labor-reallocation/proposals and POST /labor-reallocation/proposals/{proposalId}/approvals: 200/400/404/409/410/415/502/503),
+# docs/docs/adr/0030-act-slice-idempotency-key-store.md (Idempotency-Key on every act POST: replay, 400 without a key),
+# docs/docs/adr/0031-approvals-route-replaces-the-approve-verb.md (the deprecated .../approve keeps working with Deprecation/Sunset),
 # internal/domain/policy/labor_reallocation.go (at most three ranked moves; no move off a path that is not above its plannedHeads),
 # internal/application/usecases/labor_reallocation.go (token consumed before delegating; a bad token never reaches the peer).
 @bdd
@@ -136,6 +138,37 @@ Feature: Labor reallocation (act slice #2)
     When I approve the first proposal as "supervisor-1"
     Then the response status is 409
 
+  Scenario: Retrying an approval with its Idempotency-Key replays the first answer and delegates once
+    Given I have proposed moving "a1" from "pick" to "pack"
+    And I use the Idempotency-Key "approve-a1-once"
+    When I approve the first proposal as "supervisor-1"
+    Then the response status is 200
+    And the response header "Idempotency-Replayed" is absent
+    When I approve the first proposal as "supervisor-1"
+    Then the response status is 200
+    And the response header "Idempotency-Replayed" equals "true"
+    And the JSON field "approvedBy" equals "supervisor-1"
+    And the workforce-management agent received 1 assignments
+
+  Scenario: A write without an Idempotency-Key is refused before anything runs
+    Given I send no Idempotency-Key
+    When I POST "/labor-reallocation/proposals" with JSON:
+      """
+      {"siteCode":"WH1","shiftId":"S1","toPathId":"pack","candidates":[{"associateId":"a1","fromPathId":"pick"}]}
+      """
+    Then the response status is 400
+    And the JSON field "type" equals "https://problems.warehouse-ops-agent.io/idempotency-key-required"
+
+  Scenario: The deprecated approve route still works, keyless, and announces its sunset
+    Given I have proposed moving "a1" from "pick" to "pack"
+    And I send no Idempotency-Key
+    When I approve the first proposal through the deprecated route as "supervisor-1"
+    Then the response status is 200
+    And the response header "Deprecation" equals "@1794268800"
+    And the response header "Sunset" equals "Wed, 10 Feb 2027 00:00:00 GMT"
+    And the response links its successor version "approvals"
+    And the workforce-management agent received 1 assignments
+
   Scenario Outline: With the A2A agent not configured the feature is off
     Given the "labor-reallocation" capability is not configured
     When I POST "<path>" with JSON:
@@ -148,6 +181,7 @@ Feature: Labor reallocation (act slice #2)
     Examples:
       | path                                                 |
       | /labor-reallocation/proposals                        |
+      | /labor-reallocation/proposals/lrp-abc/approvals      |
       | /labor-reallocation/proposals/lrp-abc/approve        |
 
   Scenario: A browser on another origin is not granted the write

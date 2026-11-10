@@ -99,7 +99,7 @@ context, which keeps every invariant:
 | Slice | Routes | Delegates to | Off (`503`) until |
 |---|---|---|---|
 | Release the next work unit ([ADR 0027](../adr/0027-act-slice-human-confirmed-work-release.md)) | `POST /act/release-next-work/proposals`, `POST /act/release-next-work/approvals` | `release_next_work` on wes-work-planning | `WES_WORK_PLANNING_A2A_URL` is set |
-| Labor reallocation ([ADR 0029](../adr/0029-labor-reallocation-act-slice.md)) | `POST /labor-reallocation/proposals`, `POST /labor-reallocation/proposals/{proposalId}/approve` | `assign_labor` on workforce-management | `WORKFORCE_MANAGEMENT_A2A_URL` and `WORKFORCE_MANAGEMENT_MCP_ENDPOINT` are set |
+| Labor reallocation ([ADR 0029](../adr/0029-labor-reallocation-act-slice.md)) | `POST /labor-reallocation/proposals`, `POST /labor-reallocation/proposals/{proposalId}/approvals` | `assign_labor` on workforce-management | `WORKFORCE_MANAGEMENT_A2A_URL` and `WORKFORCE_MANAGEMENT_MCP_ENDPOINT` are set |
 
 The gate is a short-lived HMAC confirmation token (`APPROVAL_TTL`, default 5
 minutes, maximum 1 hour), not caller authentication, which is removed
