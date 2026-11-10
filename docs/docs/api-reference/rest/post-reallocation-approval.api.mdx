@@ -1,0 +1,71 @@
+---
+id: post-reallocation-approval
+title: "Approve one move and delegate assign_labor (ADR 0029)."
+description: "Second step of the labor-reallocation act slice (ADR 0029): approves one proposed move with its confirmation token and approver, and delegates the assignment to workforce-management assign_labor. An expired token is a 410."
+sidebar_label: "Approve one move and delegate assign_labor (ADR 0029)."
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "post api-method"
+info_path: docs/api-reference/rest/warehouse-ops-agent-rest-console
+custom_edit_url: null
+hide_send_button: true
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Approve one move and delegate assign_labor (ADR 0029)."}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/labor-reallocation/proposals/{proposalId}/approve"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Second step of the labor-reallocation act slice (ADR 0029): approves one proposed move with its confirmation token and approver, and delegates the assignment to workforce-management assign_labor. An expired token is a 410.
+
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./post-reallocation-approval.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./post-reallocation-approval.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./post-reallocation-approval.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

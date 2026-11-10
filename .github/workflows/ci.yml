@@ -5,7 +5,7 @@ on:
   pull_request:
     branches: [main, develop]
   schedule:
-    - cron: "0 6 * * 1"   # weekly, Monday 6am UTC, for the drift job only
+    - cron: "0 6 * * 1"   # weekly, Monday 6am UTC, for the drift and mutation jobs only
   workflow_dispatch: {}
 
 permissions:
@@ -268,6 +268,86 @@ jobs:
         run: go install github.com/go-gremlins/gremlins/cmd/gremlins@v0.6.0
       - name: Mutation testing (whole domain — small enough to run every push/PR)
         run: gremlins unleash ./internal/domain --workers 1 --timeout-coefficient 30
+
+  # Weekly full-domain mutation run (fleet parity with product-master). The
+  # scope equals mutation-fast's here (see above); what this job adds is a
+  # scheduled run against develop that opens (and closes) a harness:red issue,
+  # catching a mutant that starts surviving with no PR touching the domain
+  # (dependency or toolchain bump).
+  mutation:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    timeout-minutes: 90
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: go.mod
+      - name: Install gremlins
+        run: go install github.com/go-gremlins/gremlins/cmd/gremlins@v0.6.0
+      - name: Mutation testing (domain layer)
+        run: gremlins unleash ./internal/domain --workers 1 --timeout-coefficient 30
+      - name: Open or refresh the harness:red issue on a scheduled failure
+        if: failure() && github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/harness/red_issue.py mutation "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+      - name: Close the harness:red issue when the scheduled run recovers
+        if: success() && github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/harness/red_issue.py mutation --close
+
+  # ============================================================
+  # CLASSIFICATION: CONTRACT LINT (Spectral over apis/openapi.yaml)
+  # Same ruleset as product-master (.spectral.yaml + the fleet REST
+  # guideline function in .spectral/functions/). This agent publishes no
+  # Kafka events, so there is no AsyncAPI document to lint.
+  # ============================================================
+  api-lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: "20"
+      - name: Install Spectral
+        run: npm install -g @stoplight/spectral-cli
+      - name: Lint OpenAPI spec
+        run: spectral lint apis/openapi.yaml --ruleset .spectral.yaml --fail-severity=warn
+
+  # ============================================================
+  # CLASSIFICATION: DOCS DRIFT (generated REST reference vs the spec)
+  # ============================================================
+  docs-api-drift:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: docs
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: docs/package-lock.json
+      - run: npm ci
+      - name: Regenerate REST API docs from apis/openapi.yaml
+        run: npm run clean-api-docs warehouse-ops-agent && npm run gen-api-docs warehouse-ops-agent
+      - name: Fail if generated docs differ from what's committed
+        run: |
+          set -euo pipefail
+          if ! git diff --exit-code -- docs/api-reference/rest || [ -n "$(git status --porcelain -- docs/api-reference/rest)" ]; then
+            echo "::error::docs/api-reference/rest is out of sync with apis/openapi.yaml." \
+                 "Run 'npm run gen-api-docs warehouse-ops-agent' inside docs/ and commit the result."
+            git status --porcelain -- docs/api-reference/rest
+            exit 1
+          fi
 
   # ============================================================
   # CLASSIFICATION: SECURITY SCANNER (dependency / stdlib CVEs)

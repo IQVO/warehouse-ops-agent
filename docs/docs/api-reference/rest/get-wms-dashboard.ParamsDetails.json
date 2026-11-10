@@ -1,0 +1,1 @@
+{"parameters":[{"name":"from","in":"query","required":false,"schema":{"type":"string","format":"date-time"},"description":"RFC 3339 window start; defaults to trailing 24h."},{"name":"to","in":"query","required":false,"schema":{"type":"string","format":"date-time"},"description":"RFC 3339 window end; must be after \"from\"."}]}

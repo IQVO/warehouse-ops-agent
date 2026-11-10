@@ -1,0 +1,71 @@
+---
+id: get-order-lifecycle
+title: "Order lifecycle read model for the console shell."
+description: "Order lifecycle read model for the console shell. An order order- management does not know is a 404; any other upstream failure degrades that one stage to null in a 200 response (partial- tolerant, ADR 0002), so there is no 502 branch. An unwired use case answers 503."
+sidebar_label: "Order lifecycle read model for the console shell."
+hide_title: true
+hide_table_of_contents: true
+api: eJztWM1yI8cNfhVUX6ytDDm0rC1v6NOWvdnalGMpkjY+bHQApzEz7e3pbjcwolgsVuUh8oR5khRmhj/WMknl4JsuFDndwKDxffga0NYINmyWn0wVA0dP5qEwMVFGcTF8sGZpGpLrbCn/6GqqNpUnUxhLXGWXdI9ZmmEZ/H4dMqGFLlryUMcM0hJM3oFb8n4ObwPEwWj4nEGHARvqKAjYSAwhCnwOcQ2OAeFqcfUdYNhAlJYy9IklE3ZQo/N9JrDUZLTEIC0KxEDAgg2BRAi99+ACIFwuFpCJUwxMcJEwi0M/A4meMgYp4O0Pt7BYLC5fFcBRg86krw8RXi8uYZUxVO0QeR/WLpOFngkqZAIMvKbM8HrxzfzvwRQmYcaOhLJmdmsCdmSWxllTGKcJSyitKUymX3v1ZJaSeyoMVy11aJZbI5ukFizZhcbsnif8+54ldvv0gbNzs3tQf+PxWF1cLhb657eG9y2NNl/xCV6PjtZzUygFhIKoGabkXTWQoPyF1Xb7ZXhx9QtVYgqD1jrdiv4mK3nEaQzjoX4bwO0egVW0G4j1QI6BLzn2QjyH+5EtVSYh+OH+GrjFRAyYCZILgSysNoNZE72lUGrUGSsBIRZWsF0QygF9iRaTolC6sIp9sGUrkuBCN1oUfAUY7OTKxga4d0LqoCaUPhOX34G0jsHGqh/ImVxgUPS4gCPIhfJNetYoJ4eUc8ywD21khTjxmrb3FCi76s931z+Z3W63K8zV4uo8VmhtJmayQEGcbI7VQU+O5b+AlnJceer+8L/BewbQn76HP169/hYmB2BJ0PkJmPEHdNStlHcMFXpPecZYk8KiZS65r9QZ/Osf/wTspY1aLEwaZkVcQMyAULunk6eQfM9D4vbF/RVPBfn1G2DfN3P4uC/7lCMTBHqkDJgSYeYxwcd6+jSecp/zwowAqbilE4buk/G84J4n5U5w5emQEmcVjdpRho+3HxQEesIueRqEVDnGy3KPAM/XmKmNPdMsJp5hQ0HmLpb7k876gI/ovL7CPOwOPDmjAtMpjkvK9IbyqBAKzVkzF1gwVOd8Hl9nbsZ4J0q+Picfg/jRU6JKyB7KbK/DL2x8YePvxsZvzgtkhQlXzqs0rqh1g/o6Hi+T8fYWGG9rFyYtp+TjRtX8ha8vfP1d+LorTEfSxql7HhpCac3SlFMbXA49GJdbZ3elP+mrmfLjvmvsszfLIR/LsvSxQt9GluWbxZvFFyn+UZcPTfZFilmgjt7HNcPN9e39q7FBdKGOwzGmoM/kFm7f3d3vPZnCaDjjO76eL+b6Zu67DvNmaObQzmLwGzhMDCdRvL35cCRm23cYZg3qvaG9GntXHS4MrIYCnNrkc0F16IKgC5qb4iQzypTGSduv5lXsyg9//dt1ecb+yw76vnVZiAK8f3c/tZ5w0RJ6aQuw6PwGVtlRXUDt43q2Qq8UKEAyPpKf1VhJzEBPyWMYDl6cjjmzVV1Po82xy9bW8Oe/3JU/v7sDi9yuImbLBeQ+iOsI2DUBPRfQIQvlmXao0GDiAqb2FWIvPsbPQxiBa8qwRqnaYx8r6zgV/uW3cHN9dzjb1GkfUw/XaY/XXkLdfoIaT9KlyENXDzlGgRZP1XQceXTigbWT9lDcWiC6bVbFULum170Zh7FNWgyQMLjqswuNas6uMCmydBhO4P+/h8nnxbA9ivrLZPp8Mp0ETOhJyuTRDSAM9bSdROr4n4DCjDJlCrMcZtejUj0URsVId2+3K2T6mP1up49/7Um14dNDYR4xu0GWVc2sY/1uzbJGz8/nwlPMLm6ni+gVnJlz/8MRpocYNqpZ6Hv9ZQrzmTbj5L3Tu6EltJSHeMaFt1VFSU5Mvph7VTYPYv7+3b3Z7f4NBF0HcA==
+sidebar_class_name: "get api-method"
+info_path: docs/api-reference/rest/warehouse-ops-agent-rest-console
+custom_edit_url: null
+hide_send_button: true
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Order lifecycle read model for the console shell."}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/console/orders/{id}/lifecycle"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Order lifecycle read model for the console shell. An order order- management does not know is a 404; any other upstream failure degrades that one stage to null in a 200 response (partial- tolerant, ADR 0002), so there is no 502 branch. An unwired use case answers 503.
+
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./get-order-lifecycle.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./get-order-lifecycle.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./get-order-lifecycle.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

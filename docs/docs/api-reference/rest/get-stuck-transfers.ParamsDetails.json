@@ -1,0 +1,1 @@
+{"parameters":[{"name":"olderThanMinutes","in":"query","required":true,"schema":{"type":"integer","minimum":1},"description":"Staleness threshold; the agent never picks one itself."},{"name":"state","in":"query","required":false,"schema":{"type":"string"}},{"name":"limit","in":"query","required":false,"schema":{"type":"integer"}}]}

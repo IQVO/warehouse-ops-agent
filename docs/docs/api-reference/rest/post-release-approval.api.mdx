@@ -1,0 +1,69 @@
+---
+id: post-release-approval
+title: "Confirm and execute a proposal with its token (ADR 0027)."
+description: "Second step of the human-gated release act slice (ADR 0027): the operator presents the confirmation token returned by /proposals and the agent executes that one release. An expired token is a 410."
+sidebar_label: "Confirm and execute a proposal with its token (ADR 0027)."
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "post api-method"
+info_path: docs/api-reference/rest/warehouse-ops-agent-rest-console
+custom_edit_url: null
+hide_send_button: true
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Confirm and execute a proposal with its token (ADR 0027)."}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/act/release-next-work/approvals"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Second step of the human-gated release act slice (ADR 0027): the operator presents the confirmation token returned by /proposals and the agent executes that one release. An expired token is a 410.
+
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./post-release-approval.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./post-release-approval.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

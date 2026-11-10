@@ -1,0 +1,61 @@
+---
+id: get-inbound-outlook
+title: "Inbound-receiving outlook (ADR 0021)."
+description: "The dock side near-term picture read from inbound-receiving (ADR 0021): ASNs awaiting arrival, appointments in the next 24 hours, open receipts older than INBOUND_STALE_RECEIPT_AGE and receipts closed with discrepancies today. Takes no parameters; each section carries its own omitted reason and complete flag. Every section unreachable is a 502; an unwired use case is a 503."
+sidebar_label: "Inbound-receiving outlook (ADR 0021)."
+hide_title: true
+hide_table_of_contents: true
+api: eJztV9tuGzcQ/ZUBX5Kgq0ucBk2VJzdRAxep7dpK+5AawYg7q2XMJVnOrBTBENCP6Bf2S4rZlWTVdpunoi950oXc4Zk5Zw5nb4zggs3kvQkkq5ivzVVhYqKM4mI4Kc3ELEhOwjy2oTxrxcd4bQpTEtvsku4xEzOrCcpor4FdSRAI80AoN5CclTYTZMISqhwbcH2gQSZLbunCAh4fv76A8fjo6ZMJHF+eMuAKnegK5uyW6AvAlKIL0lAQBhdAaj3kk8DR11DHNnMBMVGALmgShuhLyiA1Bjg5/e7s3enrD5ez47fTDxfTV9OT89mH4zdTwFDePmF9ZCph5aSG0rHNlDBYRwwSS1wPYYbXxBAiJMzYkFDml0Boa2CyWgawipcYnAJYBYiNEyE9AzmG7jgbm+RJCCqPiyFMl5TX++fbkDUezj2BY0B4Pj56CagLK5ephJYJLPJ+9dnw12AKk4lTDExsJjfmaDzWj/v0bAsPsafwM9h7zENTGBuDUBANiil5ZztdjD6yRr4xbGtqUL/JOpGZmDj/SFZMYbAsnW5Ff55VT+IUoeSW7qrnYpsAzGO5hlh1/HaSybEV4iFoAjYGm7V2r2dnwDUmYsBMkFwIVMJ83T22UOrDSFFntAJC3GvGBaEc0I+wxKTsjbYVGdUiCR7rxhIFn3RE9aHKuABunWj1oCJULfPoJUjtWPXeqiIVAENCqbk4EEcBLCgtK8ptQMo5ZthB68kTJ17L9oYCZWd/uDw7NZvNZlOY5+Oj+0weB2gTSyZsukDaBBU6TyXErLo4FNHjQMuuDVQ23lN+xFBh6+XJvxCbcpx7ar76PMF3SPz+FXz79fNvYBsAShJ0fkte/wMaaubU4ewBDRgrUupsDCy57cX45+9/ALZSRxU9k8K0pD2eAaFynw7+heRb7jLcleURQ28oT18A+3YxhHe7gqUcWY1Di4IpEWbeddBvrXaYumCX5Y6XwvQkqiemAxXvirEvCkt2YXGvKJfSEbEriSspiKscZXh3caIk0CdUR+j8V3XIk9GOAR6uMFMdW6ZBTDzABQUZujjaZTpoAy7ReT3CXG32WroLarPP4nZJu2FBWdd6ah58zAUWDPahmLfHmfMe7162zx42IIsJ5847WcOcatf1hOO+xVURIQr0Ptc5vHYYJR/X2mNf9PpFr/+JXjeFaUjquB1zTGHUyM3E7G6HQdyPPEx5SVlTvzFt9mbSVWAyGvlo0deRZfJi/GJ8r6hvdblTTFRTTjELVNH7uGI4P7uYPRmazZWCr2IHfAvzgWrCxfRytotkCqNw+jOeDsdDPZnbpsG87i5VLAcx+DXsh7kDFMfnJ7dSrNsGw2CBOqzoncneWdq1HNqu5QI2/wSqQRcEXdDaFAeVUW0snNTtfGhjMzr56eez0QPP95z+3S1cFqIAb6az7QgAj2tCL3UBJTq/hnl2VBVQ+bgazNEr6QVIxiX5QYVWYgb6lDyGLvGivwP73AfzqoKYS8oD7yqya+upu6J/+fFy9Mv0Ekrkeh4xl1xAboO4hoDdIqDnAhpkoTzQSQEWmLi4O1h1MAJXlGGFYuvbeUJWcdvqR9/A+dnlPrftxHNbejhLO752ptlNojXKNpMmRe6mK8gxCtR46J8YeEVZB8R+nt21s7aEbhvYGCq3aHVvRql3o3LC4Oy1Cwt1mU1hUmRpMBzQf3Jvet9mfTDFD+82wM2tdX95Ufg/XxS2lqhD4yh5dB3JXb/ebG3vvblre1eFUWfTpZubOTK9y36z0b9/a0mN5v1VYZaYXefqk/fq6zVhSbnzyWtSLzq2lpKa6xJ9qxDuvUmoAe6N+M10ZjabvwDHdCPW
+sidebar_class_name: "get api-method"
+info_path: docs/api-reference/rest/warehouse-ops-agent-rest-console
+custom_edit_url: null
+hide_send_button: true
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Inbound-receiving outlook (ADR 0021)."}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/inbound-outlook"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+The dock side near-term picture read from inbound-receiving (ADR 0021): ASNs awaiting arrival, appointments in the next 24 hours, open receipts older than INBOUND_STALE_RECEIPT_AGE and receipts closed with discrepancies today. Takes no parameters; each section carries its own omitted reason and complete flag. Every section unreachable is a 502; an unwired use case is a 503.
+
+
+<ParamsDetails>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./get-inbound-outlook.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./get-inbound-outlook.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      
