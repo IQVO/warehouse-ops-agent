@@ -229,8 +229,10 @@ Plus:
   `POST /labor-reallocation/...` answers 503. Set (it also needs
   `WORKFORCE_MANAGEMENT_MCP_ENDPOINT`, or startup aborts) =
   `POST /labor-reallocation/proposals` ranks at most three moves and
-  `POST /labor-reallocation/proposals/{proposalId}/approve` delegates ONE
-  human-approved move. The read-only MCP tool `labor_reallocation_outlook`
+  `POST /labor-reallocation/proposals/{proposalId}/approvals` delegates ONE
+  human-approved move (the old `.../approve` path is a deprecated alias until
+  2027-02-10, ADR 0031). Every act POST needs an `Idempotency-Key` header
+  (ADR 0030). The read-only MCP tool `labor_reallocation_outlook`
   (authority L2, no token) needs only the MCP endpoint. The same
   `APPROVAL_TTL` / `APPROVAL_SIGNING_KEY` apply.
 - **Advisory exception context (opt-in, ADR 0028):**
@@ -393,7 +395,7 @@ Shipped on `develop` (read-only recommendations, plus the two opt-in, human-gate
   `WES_WORK_PLANNING_A2A_URL` is set.
 - **Act slice 2: labor reallocation** (ADR 0029) —
   `POST /labor-reallocation/proposals` and
-  `POST /labor-reallocation/proposals/{proposalId}/approve` (delegates ONE move
+  `POST /labor-reallocation/proposals/{proposalId}/approvals` (delegates ONE move
   to workforce-management's `assign_labor` over A2A), plus the token-less
   `labor_reallocation_outlook` MCP tool. Off (503) unless
   `WORKFORCE_MANAGEMENT_A2A_URL` is set.

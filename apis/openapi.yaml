@@ -19,9 +19,11 @@ info:
     Thirteen GET routes (health, daily brief, flow-balance, travel-factor
     explanation, the console-bff order-lifecycle and WMS/WES dashboards,
     runtime signals, master-data gaps, inbound outlook, transfer watch)
-    and the two ADR 0027 POST routes of the act slice. Optional
-    capabilities that the composition root has not wired answer 503 with
-    problem type not-configured rather than panicking.
+    and the four POST routes of the two human-gated act slices (ADR 0027,
+    ADR 0029). Every POST takes an Idempotency-Key (ADR 0030, fleet REST
+    guideline section 2). Optional capabilities that the composition root
+    has not wired answer 503 with problem type not-configured rather than
+    panicking.
 servers:
   - url: http://localhost:8080
     description: Local console (port follows PORT).
@@ -367,6 +369,8 @@ paths:
       tags: [act]
       summary: Propose the release of the next work unit (ADR 0027).
       operationId: postReleaseProposal
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
       description: >
         The human-gated act slice: returns a confirmation token the
         operator must present to /approvals. This route — and its sibling
@@ -386,6 +390,9 @@ paths:
       responses:
         "200":
           description: The proposal with its confirmation token and expiry.
+          headers:
+            Idempotency-Replayed:
+              $ref: "#/components/headers/IdempotencyReplayed"
           content:
             application/json:
               schema:
@@ -401,6 +408,8 @@ paths:
       tags: [act]
       summary: Confirm and execute a proposal with its token (ADR 0027).
       operationId: postReleaseApproval
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
       description: >
         Second step of the human-gated release act slice (ADR 0027): the
         operator presents the confirmation token returned by /proposals
@@ -418,6 +427,9 @@ paths:
       responses:
         "200":
           description: The executed release.
+          headers:
+            Idempotency-Replayed:
+              $ref: "#/components/headers/IdempotencyReplayed"
           content:
             application/json:
               schema:
@@ -434,11 +446,13 @@ paths:
       tags: [act]
       summary: Propose labor reallocation moves (ADR 0029).
       operationId: postReallocationProposal
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
       description: >
         Second human-gated act slice. Ranks at most three moves of the
         caller-supplied candidates onto an understaffed path and returns one
         confirmation token per move. Nothing is executed until the matching
-        approve route is called with that token.
+        approvals route is called with that token.
       requestBody:
         required: true
         content:
@@ -461,6 +475,9 @@ paths:
       responses:
         "200":
           description: The ranked proposals, each with its token and expiry.
+          headers:
+            Idempotency-Replayed:
+              $ref: "#/components/headers/IdempotencyReplayed"
           content:
             application/json:
               schema:
@@ -471,21 +488,27 @@ paths:
         "415": { $ref: "#/components/responses/UnsupportedMediaType" }
         "502": { $ref: "#/components/responses/UpstreamUnavailable" }
         "503": { $ref: "#/components/responses/NotConfigured" }
-  /labor-reallocation/proposals/{proposalId}/approve:
+  /labor-reallocation/proposals/{proposalId}/approvals:
     post:
       tags: [act]
-      summary: Approve one move and delegate assign_labor (ADR 0029).
+      summary: Approve one move and delegate assign_labor (ADR 0029, ADR 0031).
       operationId: postReallocationApproval
       description: >
         Second step of the labor-reallocation act slice (ADR 0029):
-        approves one proposed move with its confirmation token and
-        approver, and delegates the assignment to workforce-management
-        assign_labor. An expired token is a 410.
+        records an approval of one proposed move with its confirmation
+        token and approver, and delegates the assignment to
+        workforce-management assign_labor. An expired token is a 410.
+        This route replaces POST .../{proposalId}/approve (ADR 0031): the
+        old verb route is not part of this contract; it still answers,
+        keyless and unchanged, with the headers Deprecation, Sunset
+        (Wed, 10 Feb 2027 00:00:00 GMT) and Link rel="successor-version"
+        until that date.
       parameters:
         - name: proposalId
           in: path
           required: true
           schema: { type: string }
+        - $ref: "#/components/parameters/IdempotencyKey"
       requestBody:
         required: true
         content:
@@ -499,6 +522,9 @@ paths:
       responses:
         "200":
           description: The executed assignment.
+          headers:
+            Idempotency-Replayed:
+              $ref: "#/components/headers/IdempotencyReplayed"
           content:
             application/json:
               schema:
@@ -519,9 +545,48 @@ components:
       required: true
       schema: { type: string }
       description: Canonical process-path id.
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: >-
+        Client-generated key (e.g. a UUID v4) that makes a retried act
+        request safe (ADR 0030). Required on every POST: the key store is
+        wired in every runtime mode, and a request without the header is a
+        400 idempotency-key-required. Reuse the SAME key for retries of one
+        logical submit (same body): the first answer, success or business
+        error, is stored for 24 hours and replayed byte for byte with
+        Idempotency-Replayed: true, without running the act again. Use a NEW
+        key for each new submit. Reusing a key with a different method, path
+        or body is a 409 idempotency-key-reused. A key that is not 1-128
+        printable ASCII characters starting and ending with a visible
+        character is a 400 idempotency-key-invalid. The pattern describes
+        the header as sent on the wire: the key, optionally followed by
+        spaces or tabs, which are HTTP optional whitespace that the HTTP
+        stack drops before the service reads the value (RFC 9110 section
+        5.5), so they are never part of the key. A 5xx answer is never
+        stored, so its retry runs again; the single-use confirmation token
+        still allows at most one delegation (ADR 0027).
+      schema:
+        type: string
+        minLength: 1
+        pattern: '^[!-~]([ -~]{0,126}[!-~])?[ \t]*$'
+      example: 3f1d6a4e-9c0b-4a39-8f0f-5b2d1c7e9a10
+  headers:
+    IdempotencyReplayed:
+      description: >-
+        "true" when this answer is the stored answer of an earlier request
+        with the same Idempotency-Key, method, path and body; absent on a
+        first execution.
+      schema:
+        type: string
+        enum: ["true"]
   responses:
     BadRequest:
-      description: The request itself is invalid (missing/invalid parameters).
+      description: >-
+        The request itself is invalid (missing/invalid parameters or body),
+        or, on a POST, the Idempotency-Key header is missing
+        (idempotency-key-required) or malformed (idempotency-key-invalid).
       content:
         application/problem+json:
           schema: { $ref: "#/components/schemas/Problem" }
@@ -531,7 +596,10 @@ components:
         application/problem+json:
           schema: { $ref: "#/components/schemas/Problem" }
     Conflict:
-      description: The act slice's precondition failed (already used, no pending work).
+      description: >-
+        The act slice's precondition failed (token already used, no pending
+        work, policy does not recommend), or the Idempotency-Key was already
+        used with a different request (problem type idempotency-key-reused).
       content:
         application/problem+json:
           schema: { $ref: "#/components/schemas/Problem" }

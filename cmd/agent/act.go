@@ -3,8 +3,10 @@ package main
 import (
 	"fmt"
 	"log/slog"
+	"time"
 
 	outbounda2a "github.com/claudioed/warehouse-ops-agent/internal/adapters/outbound/a2a"
+	"github.com/claudioed/warehouse-ops-agent/internal/adapters/outbound/memory"
 	"github.com/claudioed/warehouse-ops-agent/internal/application/usecases"
 	"github.com/claudioed/warehouse-ops-agent/internal/config"
 	"github.com/claudioed/warehouse-ops-agent/internal/domain/approval"
@@ -78,7 +80,7 @@ func newLaborReallocation(cfg config.Config, logger *slog.Logger, staffing ports
 	if err != nil {
 		return nil, nil, fmt.Errorf("labor reallocation: %w", err)
 	}
-	logger.Warn("labor reallocation act ENABLED: POST /labor-reallocation/proposals[/{proposalId}/approve] can place an associate through the workforce-management agent after explicit confirmation",
+	logger.Warn("labor reallocation act ENABLED: POST /labor-reallocation/proposals[/{proposalId}/approvals] can place an associate through the workforce-management agent after explicit confirmation",
 		"agent", cfg.WorkforceManagementA2AURL, "tokenTTL", cfg.Act.TokenTTL)
 	return outlook, uc, nil
 }
@@ -107,4 +109,19 @@ func exceptionContextOption(cfg config.Config, logger *slog.Logger) usecases.Rel
 	}
 	logger.Info("exception context enabled: proposals consult exception-management over A2A (read-only, advisory)", "agent", cfg.ExceptionManagementA2AURL)
 	return usecases.WithExceptionContext(outbounda2a.NewExceptionClient(cfg.ExceptionManagementA2AURL, nil), 0)
+}
+
+// Idempotency-Key retention and capacity of the act routes (ADR 0030): the
+// fleet guideline's 24 h minimum, and a bound that keeps the store small next
+// to the chart's 256Mi limit (an answer is a few KiB; the oldest goes first).
+const (
+	idempotencyRetention = 24 * time.Hour
+	idempotencyMaxKeys   = 2048
+)
+
+// newIdempotencyStore builds the process-local Idempotency-Key store every
+// act POST route sits behind. Like the confirmation token's used-nonce set
+// (ADR 0027) it lives in this one process: the chart keeps replicaCount 1.
+func newIdempotencyStore() (*memory.IdempotencyStore, error) {
+	return memory.NewIdempotencyStore(idempotencyRetention, idempotencyMaxKeys, time.Now)
 }

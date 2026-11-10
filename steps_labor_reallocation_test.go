@@ -98,6 +98,9 @@ func (w *world) postBody(ctx context.Context, target, contentType, body string) 
 	if contentType != "" {
 		req.Header.Set("Content-Type", contentType)
 	}
+	if key := w.nextIdempotencyKey(); key != "" {
+		req.Header.Set("Idempotency-Key", key)
+	}
 	started := time.Now()
 	resp, err := w.server.Client().Do(req)
 	if err != nil {
@@ -109,6 +112,38 @@ func (w *world) postBody(ctx context.Context, target, contentType, body string) 
 		return err
 	}
 	w.response = response{status: resp.StatusCode, body: buf.Bytes(), headers: resp.Header, sent: req.Header.Clone(), elapsed: time.Since(started)}
+	return nil
+}
+
+// nextIdempotencyKey is the key the next POST sends ("" = none).
+func (w *world) nextIdempotencyKey() string {
+	switch {
+	case w.noIdempotencyKey:
+		return ""
+	case w.idempotencyKey != "":
+		return w.idempotencyKey
+	}
+	w.keySeq++
+	return fmt.Sprintf("bdd-key-%d", w.keySeq)
+}
+
+func (w *world) iUseTheIdempotencyKey(key string) error {
+	w.idempotencyKey, w.noIdempotencyKey = key, false
+	return nil
+}
+
+func (w *world) iSendNoIdempotencyKey() error {
+	w.idempotencyKey, w.noIdempotencyKey = "", true
+	return nil
+}
+
+// theResponseLinksItsSuccessorVersion checks the RFC 8288 Link a deprecated
+// route answers with (ADR 0031).
+func (w *world) theResponseLinksItsSuccessorVersion(target string) error {
+	want := "<" + target + `>; rel="successor-version"`
+	if got := w.headers.Get("Link"); got != want {
+		return fmt.Errorf("Link = %q, want %q", got, want)
+	}
 	return nil
 }
 
@@ -131,15 +166,20 @@ func (w *world) approveBody(token, approvedBy string) string {
 }
 
 func (w *world) iApproveTheFirstProposalAs(ctx context.Context, approvedBy string) error {
+	return w.postJSON(ctx, "/labor-reallocation/proposals/"+w.firstProposalId+"/approvals", w.approveBody(w.firstToken, approvedBy))
+}
+
+// iApproveThroughTheDeprecatedRoute uses the verb route ADR 0031 replaced.
+func (w *world) iApproveThroughTheDeprecatedRoute(ctx context.Context, approvedBy string) error {
 	return w.postJSON(ctx, "/labor-reallocation/proposals/"+w.firstProposalId+"/approve", w.approveBody(w.firstToken, approvedBy))
 }
 
 func (w *world) iApproveWithAForgedToken(ctx context.Context, approvedBy string) error {
-	return w.postJSON(ctx, "/labor-reallocation/proposals/"+w.firstProposalId+"/approve", w.approveBody(w.firstToken+"x", approvedBy))
+	return w.postJSON(ctx, "/labor-reallocation/proposals/"+w.firstProposalId+"/approvals", w.approveBody(w.firstToken+"x", approvedBy))
 }
 
 func (w *world) iApproveAnotherProposalWithTheFirstToken(ctx context.Context, proposalId, approvedBy string) error {
-	return w.postJSON(ctx, "/labor-reallocation/proposals/"+proposalId+"/approve", w.approveBody(w.firstToken, approvedBy))
+	return w.postJSON(ctx, "/labor-reallocation/proposals/"+proposalId+"/approvals", w.approveBody(w.firstToken, approvedBy))
 }
 
 // ----------------------------------------------------------------- Then ----
@@ -199,6 +239,10 @@ func registerLaborReallocationSteps(sc *godog.ScenarioContext, w *world) {
 	sc.Step(`^I approve the first proposal as "([^"]*)"$`, w.iApproveTheFirstProposalAs)
 	sc.Step(`^I approve the first proposal with a forged token as "([^"]*)"$`, w.iApproveWithAForgedToken)
 	sc.Step(`^I approve the proposal "([^"]*)" with the first token as "([^"]*)"$`, w.iApproveAnotherProposalWithTheFirstToken)
+	sc.Step(`^I approve the first proposal through the deprecated route as "([^"]*)"$`, w.iApproveThroughTheDeprecatedRoute)
+	sc.Step(`^I use the Idempotency-Key "([^"]*)"$`, w.iUseTheIdempotencyKey)
+	sc.Step(`^I send no Idempotency-Key$`, w.iSendNoIdempotencyKey)
+	sc.Step(`^the response links its successor version "([^"]*)"$`, w.theResponseLinksItsSuccessorVersion)
 
 	sc.Step(`^the response carries a token and a proposal id for the first proposal$`, w.theResponseCarriesATokenAndAProposalId)
 	sc.Step(`^the response carries no token$`, w.theResponseCarriesNoToken)

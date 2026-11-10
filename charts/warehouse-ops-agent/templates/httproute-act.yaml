@@ -2,7 +2,8 @@
 The act slices' own HTTPRoute (ADR 0027, ADR 0029).
 
 The act routes (POST /act/release-next-work/{proposals,approvals} and POST
-/labor-reallocation/proposals[/{proposalId}/approve]) are the only writes this
+/labor-reallocation/proposals[/{proposalId}/approvals], plus the deprecated
+.../approve alias, ADR 0031) are the only writes this
 agent performs, and the endpoints are unauthenticated fleet-wide.
 Browsers are therefore kept off them at the EDGE as well as in the binary:
 this route carries a CORS plugin that allows only GET/OPTIONS, so a browser's

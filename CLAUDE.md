@@ -22,7 +22,7 @@ The act slice's propose response also carries an advisory, read-only `exceptionC
   widen it.** The two writes are `release_next_work`
   (`POST /act/release-next-work/{proposals,approvals}`, delegated to
   wes-work-planning, opt-in via `WES_WORK_PLANNING_A2A_URL`) and `assign_labor`
-  (`POST /labor-reallocation/proposals` and `.../{proposalId}/approve`,
+  (`POST /labor-reallocation/proposals` and `.../{proposalId}/approvals`,
   ADR-0029, delegated to workforce-management, opt-in via
   `WORKFORCE_MANAGEMENT_A2A_URL`, which also needs
   `WORKFORCE_MANAGEMENT_MCP_ENDPOINT`). Both are human-confirmed (HMAC
@@ -65,8 +65,9 @@ The act slice's propose response also carries an advisory, read-only `exceptionC
   `.claude/rules/events-cloudevents.md` — read it BEFORE adding any Kafka code.
 - **`apis/openapi.yaml` is the REST contract** (every router route, RFC 9457
   problem+json errors); no AsyncAPI, since there is no Kafka I/O. CI's
-  `api-lint` lints it with `.spectral.yaml` (fleet REST guideline; the four
-  act-slice POSTs are grandfathered under `overrides:`, issue #211) and
+  `api-lint` lints it with `.spectral.yaml` (fleet REST guideline, no
+  exemptions: every act POST takes an `Idempotency-Key`, ADR 0030; the
+  deprecated `.../approve` alias is served but kept out of the spec, ADR 0031) and
   `docs-api-drift` fails when the generated `docs/docs/api-reference/rest/`
   is stale. A route change updates router, spec and the regenerated reference
   (`npm run gen-api-docs warehouse-ops-agent` in `docs/`) in one PR. MCP tools

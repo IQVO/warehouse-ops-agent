@@ -49,6 +49,8 @@ accepted.
 | [0027](./0027-seller-inbound-mcp-client.md) | The fourteenth read-only MCP client (seller-inbound, four tools) golden-pinned and chart-rendered; wired, not yet consumed | Accepted |
 | [0028](./0028-advisory-exception-context-on-release-proposals.md) | Advisory exception context on release proposals: a second, read-only A2A client asks exception-management what is open before a human approves; never gates, alters or persists anything; `EXCEPTION_MANAGEMENT_A2A_URL`, opt-in | Accepted |
 | [0029](./0029-labor-reallocation-act-slice.md) | Labor reallocation act slice (act slice #2): a pure policy ranks at most three moves from workforce-management's own readings; propose → approve (HMAC token bound to one move) delegates ONE move to the workforce-management `assign_labor` A2A skill with `proposalId`, `approvedBy`, `agentId`; REST-only, never MCP, never the LLM; token-less `labor_reallocation_outlook` (authority L2); zero-write guarantee re-pinned for exactly two slices | Accepted |
+| [0030](./0030-act-slice-idempotency-key-store.md) | Idempotency-Key on every act POST (fleet REST guideline: 400 required/invalid, 409 reused, replay with `Idempotency-Replayed`, 2xx/4xx stored, 5xx never), kept in a process-local, 24 h, 2048-answer store beside the used-nonce set; removes the api-lint grandfathering | Accepted |
+| [0031](./0031-approvals-route-replaces-the-approve-verb.md) | `POST /labor-reallocation/proposals/{proposalId}/approvals` replaces the `/approve` verb route; the old path stays as a keyless deprecated alias (`Deprecation`, `Sunset` 2027-02-10, `Link` successor-version) outside the OpenAPI contract | Accepted |
 
 ## Proposing a new one
 

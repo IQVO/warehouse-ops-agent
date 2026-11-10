@@ -22,6 +22,10 @@ and the wes-work-planning A2A agent
 > beside this one, and the zero-write guarantee is re-pinned for exactly those
 > two slices. Where this ADR says `assign_labor` stays recommendation-only, it
 > describes the state at the time of writing.
+>
+> **Amended by [ADR 0030](./0030-act-slice-idempotency-key-store.md):** both
+> routes now take an `Idempotency-Key`; a retried approval with its key
+> replays the first answer instead of answering `409 token already used`.
 
 ## Context
 

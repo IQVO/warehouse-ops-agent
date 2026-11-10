@@ -51,10 +51,26 @@ disagrees with the router, the router is correct.
 | `POST /act/release-next-work/proposals` | `ReleaseWork.Propose` | the flow-balance policy (reads only); **writes nothing** | 200, 400, 409, 413, 415, 502, 503 |
 | `POST /act/release-next-work/approvals` | `ReleaseWork.Approve` | **wes-work-planning over A2A** (`release_next_work`) — the first of this agent's two writes | 200, 400, 404, 409, 410, 413, 415, 502, 503 |
 | `POST /labor-reallocation/proposals` | `LaborReallocation.Propose` | workforce-management `get_staffing_gap` over MCP (reads only); **writes nothing** | 200, 400, 409, 413, 415, 502, 503 |
-| `POST /labor-reallocation/proposals/{proposalId}/approve` | `LaborReallocation.Approve` | **workforce-management over A2A** (`assign_labor`) — this agent's second write | 200, 400, 404, 409, 410, 413, 415, 502, 503 |
+| `POST /labor-reallocation/proposals/{proposalId}/approvals` | `LaborReallocation.Approve` | **workforce-management over A2A** (`assign_labor`) — this agent's second write | 200, 400, 404, 409, 410, 413, 415, 502, 503 |
+| `POST /labor-reallocation/proposals/{proposalId}/approve` | `LaborReallocation.Approve` | **DEPRECATED** alias of the row above ([ADR 0031](../adr/0031-approvals-route-replaces-the-approve-verb.md)): keyless, `Deprecation`/`Sunset` headers, sunset 2027-02-10 | as above, minus the key `400`/`409` |
 | `/mcp` (any method) | this agent's own MCP server | see [MCP tools](../mcp/tools.md) | MCP protocol |
 
 `Recoverer` turns a panic into a `500` on any route.
+
+### Idempotency-Key on every POST
+
+Every act POST above (not the deprecated alias) takes an `Idempotency-Key`
+header ([ADR 0030](../adr/0030-act-slice-idempotency-key-store.md), fleet REST
+guideline section 2): a client-generated value (a UUID) per logical submit,
+reused on retry. A missing header is `400` `idempotency-key-required`; a value
+that is not 1-128 printable ASCII characters starting and ending with a
+visible character is `400` `idempotency-key-invalid`. A retry with the same key,
+method, path and body gets the stored answer back, byte for byte, with
+`Idempotency-Replayed: true`, and nothing runs again; the same key with
+another request is `409` `idempotency-key-reused`. `2xx` and `4xx` answers are
+kept for 24 hours; a `5xx` is never kept, so its retry runs again (an approval
+retry then answers `409 token already used`, never a second delegation). The
+store is in this one process (the chart keeps `replicaCount: 1`).
 
 ```mermaid
 flowchart LR
@@ -548,9 +564,9 @@ validation slug.
 The only write this agent performs ([ADR 0027](../adr/0027-act-slice-human-confirmed-work-release.md)),
 and only after an explicit two-call human confirmation. **Opt-in:** both routes
 answer `503` until `WES_WORK_PLANNING_A2A_URL` is set. REST only — there is no
-MCP tool for either, by design. Both require `Content-Type: application/json`
-(anything else is `415`), an 8 KiB body at most (`413`), and reject unknown
-fields and trailing data (`400`).
+MCP tool for either, by design. Both require an `Idempotency-Key` (see
+above), `Content-Type: application/json` (anything else is `415`), an 8 KiB
+body at most (`413`), and reject unknown fields and trailing data (`400`).
 
 ### `POST /act/release-next-work/proposals`
 
@@ -617,9 +633,9 @@ again only after an explicit two-call human confirmation. **Opt-in:** both
 routes answer `503` until `WORKFORCE_MANAGEMENT_A2A_URL` is set (and
 `WORKFORCE_MANAGEMENT_MCP_ENDPOINT`, for the staffing reads). REST only — the
 read side is the separate, token-less MCP tool `labor_reallocation_outlook`.
-Both routes share the act-slice transport rules: `Content-Type:
-application/json` (else `415`), an 8 KiB body at most (`413`), unknown fields
-and trailing data rejected (`400`), GET/OPTIONS-only CORS.
+Both routes share the act-slice transport rules: an `Idempotency-Key`,
+`Content-Type: application/json` (else `415`), an 8 KiB body at most (`413`),
+unknown fields and trailing data rejected (`400`), GET/OPTIONS-only CORS.
 
 ### `POST /labor-reallocation/proposals`
 
@@ -659,7 +675,7 @@ token: `400` invalid input (blank or over-long ids, no or more than 20
 candidates); `409` the target is not understaffed, or no offered associate can
 move; `502` the target reading failed (an unknown path surfaces here).
 
-### `POST /labor-reallocation/proposals/{proposalId}/approve`
+### `POST /labor-reallocation/proposals/{proposalId}/approvals`
 
 Body `{"token": "...", "approvedBy": "supervisor-1"}`. `approvedBy` is required
 (non-blank, no control characters, at most 128 characters). Verifies the token,
@@ -684,6 +700,21 @@ with `{associateId, pathId, proposalId, approvedBy, agentId:
 Nothing is persisted here. The authoritative fact is the `LaborAssigned`
 CloudEvent workforce-management publishes, carrying `initiated_by`
 (`via: "a2a"`, `proposal_id`, `approved_by`, `agent_id`).
+
+### `POST /labor-reallocation/proposals/{proposalId}/approve` (deprecated)
+
+The verb route this one replaced ([ADR 0031](../adr/0031-approvals-route-replaces-the-approve-verb.md)).
+It still answers exactly as before (same body, same statuses, no
+`Idempotency-Key`), and every answer, errors included, carries:
+
+```http
+Deprecation: @1794268800
+Sunset: Wed, 10 Feb 2027 00:00:00 GMT
+Link: <approvals>; rel="successor-version"
+```
+
+It may stop answering after the Sunset date. It is not in `apis/openapi.yaml`.
+Move to `.../approvals` and send an `Idempotency-Key`.
 
 ## MCP endpoint — `/mcp`
 

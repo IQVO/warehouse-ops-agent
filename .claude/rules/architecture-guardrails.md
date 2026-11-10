@@ -68,10 +68,11 @@ Source of truth: `internal/architecture/architecture_test.go`,
    rather than type-shared.
 8. **`apis/openapi.yaml` is the REST contract; there is no AsyncAPI.**
    The spec describes every route `internal/adapters/inbound/http/router.go`
-   registers (RFC 9457 problem+json errors). CI's `api-lint` job runs
-   Spectral with `.spectral.yaml` (the fleet REST guideline; the four
-   act-slice POST routes are grandfathered under `overrides:`, tracked in
-   IQVO/warehouse-ops-agent#211), and `docs-api-drift` fails when the REST
+   registers (RFC 9457 problem+json errors), except the deprecated
+   `.../{proposalId}/approve` alias, which is served until its Sunset date and
+   kept out of the contract (ADR 0031). CI's `api-lint` job runs
+   Spectral with `.spectral.yaml` (the fleet REST guideline, no exemptions:
+   every act POST takes an `Idempotency-Key`, ADR 0030), and `docs-api-drift` fails when the REST
    reference generated into `docs/docs/api-reference/rest/` is stale. A route
    change updates the router, the spec and the regenerated reference
    (`cd docs && npm run gen-api-docs warehouse-ops-agent`) in one PR. There is

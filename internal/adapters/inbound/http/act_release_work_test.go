@@ -60,12 +60,21 @@ func newActRig(t *testing.T, d policy.Decision) *actRig {
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := &inboundhttp.Handlers{DailyBrief: newTestDailyBrief(), ReleaseWork: uc}
+	h := &inboundhttp.Handlers{DailyBrief: newTestDailyBrief(), ReleaseWork: uc, Idempotency: newIdempotencyStore(t)}
 	return &actRig{router: inboundhttp.NewRouter(h, "warehouse-ops-agent-test"), releaser: rel, now: &now}
 }
 
+// post sends one new logical submit: a fresh Idempotency-Key per call.
 func (r *actRig) post(path, contentType, body string) *httptest.ResponseRecorder {
+	return r.postKeyed(path, contentType, freshKey(), body)
+}
+
+// postKeyed sends body with the given Idempotency-Key ("" sends none).
+func (r *actRig) postKeyed(path, contentType, key, body string) *httptest.ResponseRecorder {
 	req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
+	if key != "" {
+		req.Header.Set("Idempotency-Key", key)
+	}
 	if contentType != "" {
 		req.Header.Set("Content-Type", contentType)
 	}
@@ -106,10 +115,11 @@ func mintToken(t *testing.T, r *actRig) string {
 }
 
 func TestActRoutes503WhenNotConfigured(t *testing.T) {
-	router := inboundhttp.NewRouter(&inboundhttp.Handlers{DailyBrief: newTestDailyBrief()}, "t")
+	router := inboundhttp.NewRouter(&inboundhttp.Handlers{DailyBrief: newTestDailyBrief(), Idempotency: newIdempotencyStore(t)}, "t")
 	for _, p := range []string{proposalsPath, approvalsPath} {
 		req := httptest.NewRequest(http.MethodPost, p, strings.NewReader(`{}`))
 		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Idempotency-Key", freshKey())
 		rec := httptest.NewRecorder()
 		router.ServeHTTP(rec, req)
 		if rec.Code != http.StatusServiceUnavailable {
@@ -158,12 +168,13 @@ func TestProposeConflictsOnPartialEvidence(t *testing.T) {
 
 func TestProposeInvalidInputIs400(t *testing.T) {
 	rig := newActRig(t, recommendRelease)
-	h := &inboundhttp.Handlers{DailyBrief: newTestDailyBrief()}
+	h := &inboundhttp.Handlers{DailyBrief: newTestDailyBrief(), Idempotency: newIdempotencyStore(t)}
 	signer, _ := approval.NewEphemeralSigner(time.Minute, nil)
 	uc, _ := usecases.NewReleaseWork(&actDecider{err: usecases.ErrInvalidInput}, signer, rig.releaser, nil, nil)
 	h.ReleaseWork = uc
 	req := httptest.NewRequest(http.MethodPost, proposalsPath, strings.NewReader(`{"pathId":""}`))
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Idempotency-Key", freshKey())
 	rec := httptest.NewRecorder()
 	inboundhttp.NewRouter(h, "t").ServeHTTP(rec, req)
 	if rec.Code != http.StatusBadRequest {

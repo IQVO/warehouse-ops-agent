@@ -153,7 +153,7 @@ const sidebar: SidebarsConfig = {
         {
           type: "doc",
           id: "api-reference/rest/post-reallocation-approval",
-          label: "Approve one move and delegate assign_labor (ADR 0029).",
+          label: "Approve one move and delegate assign_labor (ADR 0029, ADR 0031).",
           className: "api-method post",
         },
       ],

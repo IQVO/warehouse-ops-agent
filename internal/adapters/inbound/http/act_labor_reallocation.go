@@ -13,8 +13,10 @@ import (
 // The labor-reallocation act slice routes (ADR 0029, act slice #2) -- the
 // second and last pair of POST routes on this agent:
 //
-//	POST /labor-reallocation/proposals                       {siteCode, shiftId, toPathId, candidates[]}
-//	POST /labor-reallocation/proposals/{proposalId}/approve  {token, approvedBy}
+//	POST /labor-reallocation/proposals                         {siteCode, shiftId, toPathId, candidates[]}
+//	POST /labor-reallocation/proposals/{proposalId}/approvals  {token, approvedBy}
+//
+// (.../{proposalId}/approve is the deprecated alias of the second, ADR 0031.)
 //
 // Propose writes nothing: it returns up to three ranked moves, each with its
 // own short-lived confirmation token bound to that exact move. Approve is
@@ -148,7 +150,8 @@ func (h *Handlers) postReallocationProposal(w nethttp.ResponseWriter, r *nethttp
 }
 
 // postReallocationApproval handles
-// POST /labor-reallocation/proposals/{proposalId}/approve.
+// POST /labor-reallocation/proposals/{proposalId}/approvals and its
+// deprecated alias .../approve (ADR 0031).
 func (h *Handlers) postReallocationApproval(w nethttp.ResponseWriter, r *nethttp.Request) {
 	if h.LaborReallocation == nil {
 		writeProblem(w, r, nethttp.StatusServiceUnavailable, laborReallocationNotConfigured)
