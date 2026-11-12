@@ -161,7 +161,9 @@ type NetworkRegionList struct {
 }
 
 // NetworkLane mirrors laneView (one list_lanes item): a directed lane
-// between two nodes and its nominal transit.
+// between two nodes, its nominal transit and the planner's declared
+// marginal cost of moving one package-unit across it on one departure
+// (integer cents; 0 means nothing declared yet).
 type NetworkLane struct {
 	LaneID                string `json:"laneId"`
 	OriginNodeID          string `json:"originNodeId"`
@@ -169,6 +171,7 @@ type NetworkLane struct {
 	Mode                  string `json:"mode"`
 	NominalTransitMinutes int    `json:"nominalTransitMinutes"`
 	Status                string `json:"status"`
+	CostPerUnitCents      int    `json:"costPerUnitCents"`
 	ClosedAt              string `json:"closedAt,omitempty"`
 }
 

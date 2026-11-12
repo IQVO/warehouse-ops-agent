@@ -52,7 +52,7 @@ func (c *OfferAvailability) BrowseCatalog(ctx context.Context, query ports.Catal
 // GetCatalogItem calls get_catalog_item for one catalogue item id.
 func (c *OfferAvailability) GetCatalogItem(ctx context.Context, catalogItemID string) (ports.CatalogItem, error) {
 	var out ports.CatalogItem
-	err := c.session.callTool(ctx, "get_catalog_item", map[string]any{"catalogItemId": catalogItemID}, &out)
+	err := c.session.callTool(ctx, "get_catalog_item", map[string]any{argCatalogItemID: catalogItemID}, &out)
 	return out, err
 }
 
@@ -65,7 +65,7 @@ func (c *OfferAvailability) ListListings(ctx context.Context, query ports.Listin
 		args["limit"] = query.Limit
 	}
 	setIfNotEmpty(args, "nodeId", query.NodeID)
-	setIfNotEmpty(args, "catalogItemId", query.CatalogItemID)
+	setIfNotEmpty(args, argCatalogItemID, query.CatalogItemID)
 	setIfNotEmpty(args, "after", query.After)
 	var out ports.ListingPage
 	err := c.session.callTool(ctx, "list_listings", args, &out)

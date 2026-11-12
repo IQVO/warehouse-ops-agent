@@ -64,7 +64,9 @@ func newCustomerOrderingTestUpstream(t *testing.T) *goldenUpstream {
 	tracking := goldenJSON(t, `{"orderId":"ord-3f9c","status":"IN_FULFILLMENT",
 	  "groups":[{"groupNo":1,"promiseId":"prm-1","status":"SHIPPED","deliverByEarliest":"2026-10-26T08:00:00Z",
 	    "deliverByLatest":"2026-10-27T20:00:00Z","promiseVerdict":"ON_TIME","lateByMinutes":null,
-	    "packages":[{"trackingNumber":"RN001","state":"IN_TRANSIT","carrier":"FLEET","lastScanAt":"2026-10-25T06:00:00Z","lastScanNodeId":"node-1"}]}]}`)
+	    "packages":[{"trackingNumber":"RN001","state":"OUT_FOR_DELIVERY","carrier":"FLEET","etaStart":"2026-10-26T08:00:00Z",
+	      "etaEnd":"2026-10-26T20:00:00Z","deliveryPointAdvisory":{"reason":"GATE_CODE_REQUIRED","flaggedAt":"2026-10-25T06:00:00Z"},
+	      "lastScanAt":"2026-10-25T06:00:00Z","lastScanNodeId":"node-1"}]}]}`)
 	shipTo := goldenJSON(t, `{"name":"A. Shopper","line1":"1 Main St","line2":"Suite 2","city":"Austin",
 	  "region":"TX","postalCode":"01310","countryCode":"US","phone":"+1-555-0100"}`)
 	return newGoldenUpstream(t, "customer-ordering-test", golden, map[string]goldenFixture{
@@ -135,9 +137,17 @@ func TestCustomerOrdering_GetOrderTracking_DecodesGroupsAndPackages(t *testing.T
 	if g.Status != "SHIPPED" || g.PromiseVerdict != "ON_TIME" || g.LateByMinutes != nil || len(g.Packages) != 1 {
 		t.Fatalf("unexpected tracked group: %+v", g)
 	}
-	if p := g.Packages[0]; p.TrackingNumber != "RN001" || p.State != "IN_TRANSIT" || p.Carrier != "FLEET" || p.LastScanNodeID != "node-1" {
+	p := g.Packages[0]
+	if p.TrackingNumber != "RN001" || p.State != "OUT_FOR_DELIVERY" || p.Carrier != "FLEET" || p.LastScanNodeID != "node-1" {
 		t.Fatalf("unexpected tracked package: %+v", p)
 	}
+	wantEq(t, "etaStart", p.ETAStart, "2026-10-26T08:00:00Z")
+	wantEq(t, "etaEnd", p.ETAEnd, "2026-10-26T20:00:00Z")
+	if p.DeliveryPointAdvisory == nil {
+		t.Fatalf("the delivery-point advisory must decode: %+v", p)
+	}
+	wantEq(t, "deliveryPointAdvisory.reason", p.DeliveryPointAdvisory.Reason, "GATE_CODE_REQUIRED")
+	wantEq(t, "deliveryPointAdvisory.flaggedAt", p.DeliveryPointAdvisory.FlaggedAt, "2026-10-25T06:00:00Z")
 }
 
 func TestCustomerOrdering_GetShipTo_DecodesAddress(t *testing.T) {

@@ -50,35 +50,40 @@ type AssignmentListQuery struct {
 // testdata/order_sourcing_tools.golden.json.
 
 // AssignmentPromise mirrors the promise constraint an assignment must
-// keep: the promise id, tier, deliver-by-latest, the witness node it was
-// quoted against and the revision at quote time.
+// keep: the promise id, tier, the deliver-by window, the witness node it
+// was quoted against and the revision at quote time.
 type AssignmentPromise struct {
-	PromiseID       string `json:"promiseId"`
-	Tier            string `json:"tier"`
-	DeliverByLatest string `json:"deliverByLatest"`
-	WitnessNodeID   string `json:"witnessNodeId"`
-	RevisionNo      int    `json:"revisionNo"`
+	PromiseID         string `json:"promiseId"`
+	Tier              string `json:"tier"`
+	DeliverByEarliest string `json:"deliverByEarliest,omitempty"`
+	DeliverByLatest   string `json:"deliverByLatest"`
+	WitnessNodeID     string `json:"witnessNodeId"`
+	RevisionNo        int    `json:"revisionNo"`
 }
 
-// AssignmentLine mirrors one line of an assignment.
+// AssignmentLine mirrors one line of an assignment, with the owning
+// seller's listing reference when the line is owned by a seller.
 type AssignmentLine struct {
 	LineNo        int    `json:"lineNo"`
 	CatalogItemID string `json:"catalogItemId"`
 	Quantity      int    `json:"quantity"`
 	ListingID     string `json:"listingId,omitempty"`
+	OwnerRef      string `json:"ownerRef,omitempty"`
 }
 
 // AssignmentCandidate mirrors the current candidate node and path: the
 // node, the pickup departure and its cutoff, the leg ids, the delivery
-// wave, the ETA and the cost.
+// wave, the ETA, the cost in cost points and the planner's declared
+// marginal cost in integer cents (nil until declared).
 type AssignmentCandidate struct {
-	NodeID            string   `json:"nodeId"`
-	PickupDepartureID string   `json:"pickupDepartureId"`
-	PickupCutoffAt    string   `json:"pickupCutoffAt"`
-	Legs              []string `json:"legs"`
-	DeliveryWaveID    string   `json:"deliveryWaveId"`
-	ETA               string   `json:"eta"`
-	Cost              int      `json:"cost"`
+	NodeID             string   `json:"nodeId"`
+	PickupDepartureID  string   `json:"pickupDepartureId"`
+	PickupCutoffAt     string   `json:"pickupCutoffAt"`
+	Legs               []string `json:"legs"`
+	DeliveryWaveID     string   `json:"deliveryWaveId"`
+	ETA                string   `json:"eta"`
+	Cost               int      `json:"cost"`
+	EstimatedCostCents *int     `json:"estimatedCostCents,omitempty"`
 }
 
 // AssignmentExclusion mirrors one node excluded from candidacy, with the
@@ -103,7 +108,9 @@ type AssignmentRelease struct {
 // FulfillmentAssignment mirrors assignmentView (get_assignment and each
 // list_assignments item). State is QUEUED, RELEASED, LOCKED, SHIPPED,
 // DELIVERED, UNSOURCEABLE or CANCELLED; Candidate is null once the
-// assignment has left QUEUED.
+// assignment has left QUEUED. ConsolidatedInto names the consolidated
+// assignment this one was merged into, and ConsolidatedWith lists the
+// assignments merged into this one, while consolidation is in play.
 type FulfillmentAssignment struct {
 	AssignmentID            string                `json:"assignmentId"`
 	OrderID                 string                `json:"orderId"`
@@ -117,6 +124,8 @@ type FulfillmentAssignment struct {
 	ExcludedNodes           []AssignmentExclusion `json:"excludedNodes"`
 	TrackingNumbers         []string              `json:"trackingNumbers"`
 	Candidate               *AssignmentCandidate  `json:"candidate,omitempty"`
+	ConsolidatedInto        string                `json:"consolidatedInto,omitempty"`
+	ConsolidatedWith        []string              `json:"consolidatedWith,omitempty"`
 	PickupDepartureID       string                `json:"pickupDepartureId,omitempty"`
 	LockedAt                string                `json:"lockedAt,omitempty"`
 	LockReason              string                `json:"lockReason,omitempty"`

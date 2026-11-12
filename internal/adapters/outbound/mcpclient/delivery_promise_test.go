@@ -23,12 +23,12 @@ import (
 const deliveryPromiseGoldenPath = "testdata/delivery_promise_tools.golden.json"
 
 // wantDeliveryPromiseTools is every tool delivery-promise publishes
-// (five, the verbatim golden); the client calls all five.
-var wantDeliveryPromiseTools = []string{"get_current_policy", "get_delivery_offer", "get_promise", "list_promise_books", "list_promises_by_order"}
+// (six, the verbatim golden); the client calls all six.
+var wantDeliveryPromiseTools = []string{"estimate_delivery", "get_current_policy", "get_delivery_offer", "get_promise", "list_promise_books", "list_promises_by_order"}
 
 // --- the published contract ------------------------------------------------
 
-func TestDeliveryPromise_GoldenPinsExactlyTheFiveReadOnlyTools(t *testing.T) {
+func TestDeliveryPromise_GoldenPinsExactlyTheSixReadOnlyTools(t *testing.T) {
 	assertPinnedGoldenSet(t, loadGoldenTools(t, deliveryPromiseGoldenPath), "delivery-promise", wantDeliveryPromiseTools)
 }
 
@@ -37,6 +37,7 @@ func TestDeliveryPromise_GoldenPinsExactlyTheFiveReadOnlyTools(t *testing.T) {
 func TestDeliveryPromise_PortDTOsMatchPublishedOutputSchemas(t *testing.T) {
 	golden := loadGoldenTools(t, deliveryPromiseGoldenPath)
 	cases := map[string]reflect.Type{
+		"estimate_delivery":      reflect.TypeFor[ports.DeliveryEstimates](),
 		"get_current_policy":     reflect.TypeFor[ports.PromisePolicy](),
 		"get_delivery_offer":     reflect.TypeFor[ports.DeliveryOffer](),
 		"get_promise":            reflect.TypeFor[ports.DeliveryPromise](),
@@ -57,18 +58,25 @@ func newDeliveryPromiseTestUpstream(t *testing.T) *goldenUpstream {
 	golden := loadGoldenTools(t, deliveryPromiseGoldenPath)
 	policy := goldenJSON(t, `{"policyVersion":"v3","version":3,"offerTtlMinutes":15,"holdTtlMinutes":30,
 	  "packagesPerOrder":4,"capacitySharePercent":60,"transitWindowDays":21,"transitServiceLevelPercent":85,"minTransitObservations":15,
+	  "targetOnTimeProbabilityPercent":95,"minCalibrationObservations":20,"calibrationWindowDays":14,"maxCalibrationBufferMinutes":240,
 	  "orderDeadlines":[{"tier":"STANDARD","localTime":"20:00"},{"tier":"EXPRESS","localTime":"22:00","regionId":"region-1"}],
 	  "publishedAt":"2026-10-01T00:00:00Z"}`)
+	estimate := goldenJSON(t, `{"computedAt":"2026-10-24T08:00:00Z","destinationPostalPrefix":"013",
+	  "estimates":[{"catalogItemId":"item-1","quantity":2,
+	    "options":[{"tier":"STANDARD","window":{"start":"2026-10-26T08:00:00Z","end":"2026-10-27T20:00:00Z","timeZone":"America/Chicago"},
+	      "basis":"SCHEDULED","confidence":0.97,"orderByAt":"2026-10-24T11:00:00Z","capacityBand":"AMPLE"},
+	      {"tier":"EXPRESS","window":{"start":"2026-10-25T08:00:00Z","end":"2026-10-25T20:00:00Z","timeZone":"America/Chicago"},"basis":"NOMINAL"}],
+	    "constraints":[{"code":"PAST_ORDER_DEADLINE","tier":"SAME_DAY"}]}]}`)
 	offer := goldenJSON(t, `{"offerId":"off-1","state":"QUOTED","groupNo":1,"destinationPostalPrefix":"013","tier":"STANDARD",
-	  "lines":[{"catalogItemId":"item-1","quantity":2}],
+	  "lines":[{"catalogItemId":"item-1","quantity":2,"ownerRef":"seller-77/lst-9"}],
 	  "window":{"earliest":"2026-10-26T08:00:00Z","latest":"2026-10-27T20:00:00Z"},
 	  "witnessPath":{"nodeId":"node-1","legs":["lane-1","lane-2"],"deliveryWaveId":"wave-1","pickupDepartureId":"dep-1"},
-	  "basis":"NETWORK","policyVersion":"v3","quotedAt":"2026-10-24T08:00:00Z","expiresAt":"2026-10-24T08:15:00Z","orderByAt":"2026-10-24T11:00:00Z"}`)
+	  "basis":"NETWORK","confidence":0.97,"policyVersion":"v3","quotedAt":"2026-10-24T08:00:00Z","expiresAt":"2026-10-24T08:15:00Z","orderByAt":"2026-10-24T11:00:00Z"}`)
 	promise := goldenJSON(t, `{"promiseId":"prm-1","orderId":"ord-3f9c","offerId":"off-1","state":"KEPT",
 	  "groupNo":1,"destinationPostalPrefix":"013","holdExpiresAt":"2026-10-24T09:00:00Z",
 	  "lines":[{"catalogItemId":"item-1","quantity":2}],
 	  "terms":{"tier":"STANDARD","shipBy":"2026-10-25T10:00:00Z","deliverByEarliest":"2026-10-26T08:00:00Z",
-	    "deliverByLatest":"2026-10-27T20:00:00Z","basis":"NETWORK","policyVersion":"v3"},
+	    "deliverByLatest":"2026-10-27T20:00:00Z","basis":"NETWORK","confidence":0.97,"policyVersion":"v3"},
 	  "witnessPath":{"nodeId":"node-1","legs":[]},
 	  "revisions":[{"revisionNo":1,"previousTerms":{"tier":"STANDARD","shipBy":"2026-10-25T08:00:00Z",
 	    "deliverByEarliest":"2026-10-26T08:00:00Z","deliverByLatest":"2026-10-27T18:00:00Z","basis":"NETWORK","policyVersion":"v2"},
@@ -78,6 +86,12 @@ func newDeliveryPromiseTestUpstream(t *testing.T) *goldenUpstream {
 	books := goldenJSON(t, `{"items":[{"bookId":"book-1","nodeId":"node-1","pickupDepartureId":"dep-1",
 	  "cutoffAt":"2026-10-25T08:00:00Z","state":"OPEN","capacity":{"share":60,"provisional":1,"confirmed":2},"version":3}]}`)
 	return newGoldenUpstream(t, "delivery-promise-test", golden, map[string]goldenFixture{
+		"estimate_delivery": func(args map[string]any) (any, *mcp.CallToolResult) {
+			if p, _ := args["destinationPostalPrefix"].(string); p != "013" {
+				return nil, goldenToolError("estimate-invalid: bad prefix " + p)
+			}
+			return estimate, nil
+		},
 		"get_current_policy": goldenResult(policy),
 		"get_delivery_offer": func(args map[string]any) (any, *mcp.CallToolResult) {
 			if id, _ := args["offerId"].(string); id != "off-1" {
@@ -115,6 +129,10 @@ func TestDeliveryPromise_GetCurrentPolicy_Decodes(t *testing.T) {
 		out.PackagesPerOrder != 4 || out.CapacitySharePercent != 60 || out.PublishedAt != "2026-10-01T00:00:00Z" {
 		t.Fatalf("unexpected policy: %+v", out)
 	}
+	wantEq(t, "targetOnTimeProbabilityPercent", out.TargetOnTimeProbabilityPercent, 95)
+	wantEq(t, "minCalibrationObservations", out.MinCalibrationObservations, 20)
+	wantEq(t, "calibrationWindowDays", out.CalibrationWindowDays, 14)
+	wantEq(t, "maxCalibrationBufferMinutes", out.MaxCalibrationBufferMinutes, 240)
 	if len(out.OrderDeadlines) != 2 || out.OrderDeadlines[0].Tier != "STANDARD" || out.OrderDeadlines[0].RegionID != "" ||
 		out.OrderDeadlines[1].RegionID != "region-1" {
 		t.Fatalf("unexpected order deadlines: %+v", out.OrderDeadlines)
@@ -135,9 +153,74 @@ func TestDeliveryPromise_GetDeliveryOffer_DecodesWitnessPath(t *testing.T) {
 	if len(out.WitnessPath.Legs) != 2 || out.WitnessPath.NodeID != "node-1" || out.WitnessPath.DeliveryWaveID != "wave-1" {
 		t.Fatalf("unexpected witness path: %+v", out.WitnessPath)
 	}
+	if out.Confidence == nil || *out.Confidence != 0.97 || out.Lines[0].OwnerRef != "seller-77/lst-9" || out.CapacityBand != "" {
+		t.Fatalf("optional confidence, ownerRef and capacityBand must decode tolerantly: %+v", out)
+	}
 	if got := up.lastArgs(); got["offerId"] != "off-1" || len(got) != 1 {
 		t.Fatalf("the offer id must be sent under its published name and nothing else, sent %v", got)
 	}
+}
+
+// TestDeliveryPromise_EstimateDelivery_Decodes: the advisory estimate
+// decodes per item and tier, and an absent confidence stays nil
+// (unknown, not zero).
+func TestDeliveryPromise_EstimateDelivery_Decodes(t *testing.T) {
+	up := newDeliveryPromiseTestUpstream(t)
+	c := NewDeliveryPromise(Config{Endpoint: up.URL})
+
+	out, err := c.EstimateDelivery(context.Background(), ports.EstimateDeliveryQuery{
+		DestinationPostalPrefix: "013",
+		Items:                   []ports.EstimateDeliveryItem{{CatalogItemID: "item-1", Quantity: 2}},
+	})
+	if err != nil {
+		t.Fatalf("EstimateDelivery: %v", err)
+	}
+	wantEq(t, "computedAt", out.ComputedAt, "2026-10-24T08:00:00Z")
+	wantEq(t, "destinationPostalPrefix", out.DestinationPostalPrefix, "013")
+	wantEq(t, "len(estimates)", len(out.Estimates), 1)
+	first := out.Estimates[0]
+	wantEq(t, "estimates[0].catalogItemId", first.CatalogItemID, "item-1")
+	wantEq(t, "estimates[0].quantity", first.Quantity, 2)
+	wantEq(t, "len(options)", len(first.Options), 2)
+	wantEq(t, "len(constraints)", len(first.Constraints), 1)
+	wantEq(t, "options[0].tier", first.Options[0].Tier, "STANDARD")
+	wantEq(t, "options[0].window.timeZone", first.Options[0].Window.TimeZone, "America/Chicago")
+	wantEq(t, "options[0].capacityBand", first.Options[0].CapacityBand, "AMPLE")
+	wantEq(t, "options[0].orderByAt", first.Options[0].OrderByAt, "2026-10-24T11:00:00Z")
+	if first.Options[0].Confidence == nil || *first.Options[0].Confidence != 0.97 {
+		t.Fatalf("confidence must decode, got %+v", first.Options[0].Confidence)
+	}
+	if first.Options[1].Confidence != nil {
+		t.Fatalf("an absent confidence stays nil (unknown, not zero), got %+v", first.Options[1].Confidence)
+	}
+	wantEq(t, "constraints[0].code", first.Constraints[0].Code, "PAST_ORDER_DEADLINE")
+	wantEq(t, "constraints[0].tier", first.Constraints[0].Tier, "SAME_DAY")
+}
+
+// TestDeliveryPromise_EstimateDelivery_SendsExactArgs: the arguments are
+// sent under their published names only (tiers omitted when empty).
+func TestDeliveryPromise_EstimateDelivery_SendsExactArgs(t *testing.T) {
+	up := newDeliveryPromiseTestUpstream(t)
+	c := NewDeliveryPromise(Config{Endpoint: up.URL})
+
+	_, err := c.EstimateDelivery(context.Background(), ports.EstimateDeliveryQuery{
+		DestinationPostalPrefix: "013",
+		Items:                   []ports.EstimateDeliveryItem{{CatalogItemID: "item-1", Quantity: 2}},
+	})
+	if err != nil {
+		t.Fatalf("EstimateDelivery: %v", err)
+	}
+	got := up.lastArgs()
+	prefix, _ := got["destinationPostalPrefix"].(string)
+	wantEq(t, "destinationPostalPrefix", prefix, "013")
+	wantEq(t, "len(args)", len(got), 2)
+	items, _ := got["items"].([]any)
+	wantEq(t, "len(items)", len(items), 1)
+	item, _ := items[0].(map[string]any)
+	id, _ := item[argCatalogItemID].(string)
+	wantEq(t, "items[0].catalogItemId", id, "item-1")
+	qty, _ := item["quantity"].(float64)
+	wantEq(t, "items[0].quantity", qty, 2.0)
 }
 
 func TestDeliveryPromise_GetPromise_DecodesTermsRevisionsAndJudgement(t *testing.T) {
@@ -206,6 +289,8 @@ func TestDeliveryPromise_OnlyThePinnedReadToolsAreCalled(t *testing.T) {
 	up := newDeliveryPromiseTestUpstream(t)
 	c := NewDeliveryPromise(Config{Endpoint: up.URL})
 	ctx := context.Background()
+	_, _ = c.EstimateDelivery(ctx, ports.EstimateDeliveryQuery{DestinationPostalPrefix: "013",
+		Items: []ports.EstimateDeliveryItem{{CatalogItemID: "item-1", Quantity: 2}}})
 	_, _ = c.GetCurrentPolicy(ctx)
 	_, _ = c.GetDeliveryOffer(ctx, "off-1")
 	_, _ = c.GetPromise(ctx, "prm-1")

@@ -56,8 +56,9 @@ func newShippingAndTrackingTestUpstream(t *testing.T) *goldenUpstream {
 			if tn, _ := args["trackingNumber"].(string); tn != "RN0123456789ABCDEF" {
 				return nil, goldenToolError("tracking-not-found: no package " + tn)
 			}
-			return goldenJSON(t, `{"trackingNumber":"RN0123456789ABCDEF","state":"IN_TRANSIT","poNumber":"PO-1",
+			return goldenJSON(t, `{"trackingNumber":"RN0123456789ABCDEF","state":"OUT_FOR_DELIVERY","poNumber":"PO-1",
 			  "assignmentId":"fa-1","orderId":"ord-3f9c","tier":"STANDARD",
+			  "etaStart":"2026-10-26T08:00:00Z","etaEnd":"2026-10-26T20:00:00Z",
 			  "scans":[{"scanId":"scan-1","nodeId":"node-1","scanType":"DEPART","at":"2026-10-25T06:00:00Z","applied":true},
 			           {"scanId":"scan-2","nodeId":"node-2","scanType":"ARRIVE","at":"2026-10-25T12:00:00Z","applied":false}],
 			  "handedOverAt":"2026-10-24T20:00:00Z"}`), nil
@@ -75,11 +76,13 @@ func TestShippingAndTracking_GetJourney_DecodesScans(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetJourney: %v", err)
 	}
-	if out.TrackingNumber != "RN0123456789ABCDEF" || out.State != "IN_TRANSIT" || out.PoNumber != "PO-1" ||
+	if out.TrackingNumber != "RN0123456789ABCDEF" || out.State != "OUT_FOR_DELIVERY" || out.PoNumber != "PO-1" ||
 		out.AssignmentID != "fa-1" || out.OrderID != "ord-3f9c" || out.Tier != "STANDARD" ||
 		out.HandedOverAt != "2026-10-24T20:00:00Z" || out.DeliveredAt != "" {
 		t.Fatalf("unexpected journey: %+v", out)
 	}
+	wantEq(t, "etaStart", out.ETAStart, "2026-10-26T08:00:00Z")
+	wantEq(t, "etaEnd", out.ETAEnd, "2026-10-26T20:00:00Z")
 	if len(out.Scans) != 2 || !out.Scans[0].Applied || out.Scans[1].Applied {
 		t.Fatalf("unexpected scans: %+v", out.Scans)
 	}

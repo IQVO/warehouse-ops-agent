@@ -57,7 +57,7 @@ func TestVendorConnectivity_PortDTOsMatchPublishedOutputSchemas(t *testing.T) {
 
 const vendorPOFixture = `{"poNumber":"PO-1","vendorId":"vend-1","nodeId":"node-1","state":"ACCEPTED",
   "issuedAt":"2026-10-20T08:00:00Z","requiredShipBy":"2026-10-24T17:00:00Z","ackBy":"2026-10-21T08:00:00Z",
-  "lines":[{"lineNo":1,"listingId":"list-1","quantity":10,
+  "lines":[{"lineNo":1,"listingId":"list-1","quantity":10,"ownerRef":"seller-1/lst-4",
     "packaging":[{"level":"CASE","gtin":"10614141000000","unitsPerPack":12,"childGtin":"00614141000000"}]}],
   "labels":[{"labelRef":"lbl-1","trackingNumber":"RN001","carrier":"FLEET","packageNo":1}],
   "trackingNumbers":["RN001"],
@@ -153,6 +153,7 @@ func TestVendorConnectivity_GetPurchaseOrder_DecodesLinesLabelsAndAcknowledgemen
 	wantEq(t, "shippedAt (unset)", po.ShippedAt, "")
 	wantEq(t, "len(lines)", len(po.Lines), 1)
 	wantEq(t, "lines[0].quantity", po.Lines[0].Quantity, 10)
+	wantEq(t, "lines[0].ownerRef", po.Lines[0].OwnerRef, "seller-1/lst-4")
 	wantEq(t, "len(lines[0].packaging)", len(po.Lines[0].Packaging), 1)
 	wantEq(t, "lines[0].packaging[0].childGtin", po.Lines[0].Packaging[0].ChildGtin, "00614141000000")
 	wantEq(t, "len(labels)", len(po.Labels), 1)

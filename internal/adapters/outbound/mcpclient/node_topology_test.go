@@ -88,7 +88,7 @@ func newNodeTopologyTestUpstream(t *testing.T) *goldenUpstream {
 				return nil, goldenToolError("invalid-lane-filter: only origin and destination are published filters")
 			}
 			return goldenJSON(t, `{"lanes":[{"laneId":"lane-1","originNodeId":"node-1","destinationNodeId":"node-2",
-			  "mode":"ROAD","nominalTransitMinutes":240,"status":"OPEN"}]}`), nil
+			  "mode":"ROAD","nominalTransitMinutes":240,"status":"OPEN","costPerUnitCents":35}]}`), nil
 		},
 		"resolve_service_area": func(args map[string]any) (any, *mcp.CallToolResult) {
 			if p, _ := args["postalPrefix"].(string); p != "013" {
@@ -196,6 +196,7 @@ func TestNodeTopology_ListLanes_SendsOnlySetFilters(t *testing.T) {
 	if len(out.Lanes) != 1 || out.Lanes[0].LaneID != "lane-1" || out.Lanes[0].NominalTransitMinutes != 240 || out.Lanes[0].ClosedAt != "" {
 		t.Fatalf("unexpected lanes: %+v", out.Lanes)
 	}
+	wantEq(t, "lanes[0].costPerUnitCents", out.Lanes[0].CostPerUnitCents, 35)
 	if got := up.lastArgs(); len(got) != 0 {
 		t.Fatalf("empty filters must be omitted so node-topology answers every lane, sent %v", got)
 	}

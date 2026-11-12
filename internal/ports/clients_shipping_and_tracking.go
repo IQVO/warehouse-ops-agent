@@ -46,7 +46,8 @@ type JourneyScan struct {
 
 // PackageJourney mirrors journeyView (get_journey). State is LABELLED,
 // HANDED_OVER, IN_TRANSIT, AT_STATION, OUT_FOR_DELIVERY, DELIVERED,
-// RETURNED, LOST or VOIDED.
+// RETURNED, LOST or VOIDED. ETAStart/ETAEnd carry the day-of ETA window
+// while the package is out for delivery and are omitted otherwise.
 type PackageJourney struct {
 	TrackingNumber string        `json:"trackingNumber"`
 	State          string        `json:"state"`
@@ -55,6 +56,8 @@ type PackageJourney struct {
 	OrderID        string        `json:"orderId"`
 	Tier           string        `json:"tier"`
 	Scans          []JourneyScan `json:"scans"`
+	ETAStart       string        `json:"etaStart,omitempty"`
+	ETAEnd         string        `json:"etaEnd,omitempty"`
 	HandedOverAt   string        `json:"handedOverAt,omitempty"`
 	DeliveredAt    string        `json:"deliveredAt,omitempty"`
 }
