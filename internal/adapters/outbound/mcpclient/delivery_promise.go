@@ -7,16 +7,16 @@ import (
 )
 
 // DeliveryPromise implements ports.DeliveryPromiseClient by calling
-// delivery-promise's five published READ tools get_current_policy,
-// get_delivery_offer, get_promise, list_promise_books and
-// list_promises_by_order.
+// delivery-promise's six published READ tools estimate_delivery,
+// get_current_policy, get_delivery_offer, get_promise,
+// list_promise_books and list_promises_by_order.
 //
 // delivery-promise's MCP server is read-only by its own governance test;
 // this client is additionally held read-only from this side: the
 // zero-write fitness test (internal/architecture/zerowrite) scans this
 // package's tool-name literals, and
 // TestDeliveryPromiseClientCallsOnlyPinnedTools allows exactly these
-// five names. The argument keys and result shapes are pinned against
+// six names. The argument keys and result shapes are pinned against
 // delivery-promise's published registry in
 // testdata/delivery_promise_tools.golden.json.
 //
@@ -35,6 +35,24 @@ type DeliveryPromise struct {
 func NewDeliveryPromise(cfg Config) *DeliveryPromise {
 	cfg.Name = "delivery-promise"
 	return &DeliveryPromise{session: New(cfg)}
+}
+
+// EstimateDelivery calls estimate_delivery: the advisory delivery
+// options of the query's items for one destination postal prefix, per
+// item and tier. An empty Tiers slice is omitted so delivery-promise
+// quotes all four tiers; nothing is stored and no capacity is reserved.
+func (c *DeliveryPromise) EstimateDelivery(ctx context.Context, query ports.EstimateDeliveryQuery) (ports.DeliveryEstimates, error) {
+	items := make([]map[string]any, 0, len(query.Items))
+	for _, item := range query.Items {
+		items = append(items, map[string]any{argCatalogItemID: item.CatalogItemID, "quantity": item.Quantity})
+	}
+	args := map[string]any{"destinationPostalPrefix": query.DestinationPostalPrefix, "items": items}
+	if len(query.Tiers) > 0 {
+		args["tiers"] = query.Tiers
+	}
+	var out ports.DeliveryEstimates
+	err := c.session.callTool(ctx, "estimate_delivery", args, &out)
+	return out, err
 }
 
 // GetCurrentPolicy calls get_current_policy. It takes no arguments;

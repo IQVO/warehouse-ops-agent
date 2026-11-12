@@ -22,13 +22,13 @@ import (
 // say exactly which consumer-side assumption broke.
 const sellerInboundGoldenPath = "testdata/seller_inbound_tools.golden.json"
 
-// wantSellerInboundTools is every tool seller-inbound publishes (four, the
-// verbatim golden); the client calls all four.
-var wantSellerInboundTools = []string{"get_inbound_plan", "get_inbound_shipment", "get_seller_scorecard", "get_shipment_labels"}
+// wantSellerInboundTools is every tool seller-inbound publishes (six, the
+// verbatim golden); the client calls all six.
+var wantSellerInboundTools = []string{"get_inbound_plan", "get_inbound_shipment", "get_placement_plan", "get_seller_scorecard", "get_shipment_labels", "list_placement_plans"}
 
 // --- the published contract ------------------------------------------------
 
-func TestSellerInbound_GoldenPinsExactlyTheFourReadOnlyTools(t *testing.T) {
+func TestSellerInbound_GoldenPinsExactlyTheSixReadOnlyTools(t *testing.T) {
 	assertPinnedGoldenSet(t, loadGoldenTools(t, sellerInboundGoldenPath), "seller-inbound", wantSellerInboundTools)
 }
 
@@ -41,6 +41,8 @@ func TestSellerInbound_PortDTOsMatchPublishedOutputSchemas(t *testing.T) {
 		"get_inbound_plan":     reflect.TypeFor[ports.InboundPlan](),
 		"get_shipment_labels":  reflect.TypeFor[ports.ShipmentLabels](),
 		"get_inbound_shipment": reflect.TypeFor[ports.InboundShipment](),
+		"get_placement_plan":   reflect.TypeFor[ports.PlacementPlan](),
+		"list_placement_plans": reflect.TypeFor[ports.PlacementPlans](),
 	}
 	for tool, typ := range cases {
 		for _, problem := range compareStructToSchema(typ, golden[tool].OutputSchema, tool) {
@@ -69,6 +71,12 @@ const labelFixture = `{"labelRef":"lbl-1","sscc":"006141410000000017","gs1128":"
   "contents":[{"catalogItemId":"cat-1","gtin":"00614141000001","qtyEaches":6}],
   "contentSummary":"6 x cat-1","totalEaches":6,"destinationNodeId":"node-7"}`
 
+const placementPlanFixture = `{"planId":"pl-0f3a91","sellerId":"seller-77","catalogItemId":"cat-1",
+  "coverDays":14,"windowDays":28,"basis":"demand-heat-v1","state":"ACCEPTED",
+  "suggestions":[{"nodeId":"node-7","regionId":"region-1","suggestedUnits":120,"regionDemandUnits":400,
+    "nodeAvailabilityUnits":80,"coverDays":14}],
+  "createdAt":"2026-10-20T10:00:00Z","acceptedAt":"2026-10-20T11:00:00Z"}`
+
 func newSellerInboundTestUpstream(t *testing.T) *goldenUpstream {
 	t.Helper()
 	golden := loadGoldenTools(t, sellerInboundGoldenPath)
@@ -78,6 +86,18 @@ func newSellerInboundTestUpstream(t *testing.T) *goldenUpstream {
 				return nil, goldenToolError("seller-not-found: no seller " + id)
 			}
 			return goldenJSON(t, sellerScorecardFixture), nil
+		},
+		"get_placement_plan": func(args map[string]any) (any, *mcp.CallToolResult) {
+			if id, _ := args["planId"].(string); id != "pl-0f3a91" {
+				return nil, goldenToolError("placement-plan-not-found: no plan " + id)
+			}
+			return goldenJSON(t, placementPlanFixture), nil
+		},
+		"list_placement_plans": func(args map[string]any) (any, *mcp.CallToolResult) {
+			if args["sellerId"] != "seller-77" || args["catalogItemId"] != "cat-1" {
+				return nil, goldenToolError("invalid-placement-query: sellerId and catalogItemId must name the plans' owner")
+			}
+			return goldenJSON(t, `{"items":[`+placementPlanFixture+`]}`), nil
 		},
 		"get_inbound_plan": func(args map[string]any) (any, *mcp.CallToolResult) {
 			if id, _ := args["planId"].(string); id != "pln-0f3a91" {
@@ -123,6 +143,12 @@ func TestSellerInbound_CallsOnlyPinnedTools(t *testing.T) {
 	}
 	if _, err := c.GetInboundShipment(ctx, "shp-0f3a91"); err != nil {
 		t.Fatalf("shipment: %v", err)
+	}
+	if _, err := c.GetPlacementPlan(ctx, "pl-0f3a91"); err != nil {
+		t.Fatalf("placement plan: %v", err)
+	}
+	if _, err := c.ListPlacementPlans(ctx, "seller-77", "cat-1", 0); err != nil {
+		t.Fatalf("placement plans: %v", err)
 	}
 	assertOnlyPinnedToolsCalled(t, up, wantSellerInboundTools)
 }
@@ -187,6 +213,40 @@ func TestSellerInbound_DecodesScorecardPlanLabelsAndShipment(t *testing.T) {
 	wantEq(t, "cartons[0].dimsMm.l", shipment.Cartons[0].DimsMm.L, 600)
 	if shipment.ReceivedAt == nil {
 		t.Fatal("receivedAt must decode")
+	}
+}
+
+// TestSellerInbound_DecodesPlacementPlanAndPlans: the ADR 0012 placement
+// views decode, and a zero limit is omitted so seller-inbound applies
+// its own default page size.
+func TestSellerInbound_DecodesPlacementPlanAndPlans(t *testing.T) {
+	up := newSellerInboundTestUpstream(t)
+	c := NewSellerInbound(Config{Endpoint: up.URL})
+	ctx := context.Background()
+
+	plan, err := c.GetPlacementPlan(ctx, "pl-0f3a91")
+	if err != nil {
+		t.Fatalf("placement plan: %v", err)
+	}
+	wantEq(t, "state", plan.State, "ACCEPTED")
+	wantEq(t, "basis", plan.Basis, "demand-heat-v1")
+	wantEq(t, "coverDays", plan.CoverDays, 14)
+	if len(plan.Suggestions) != 1 || plan.Suggestions[0].NodeID != "node-7" || plan.Suggestions[0].SuggestedUnits != 120 ||
+		plan.Suggestions[0].RegionDemandUnits != 400 || plan.Suggestions[0].NodeAvailabilityUnits != 80 {
+		t.Fatalf("unexpected suggestions: %+v", plan.Suggestions)
+	}
+	if plan.AcceptedAt == nil || plan.SupersededAt != nil {
+		t.Fatalf("optional instants decoded wrong: accepted=%v superseded=%v", plan.AcceptedAt, plan.SupersededAt)
+	}
+
+	plans, err := c.ListPlacementPlans(ctx, "seller-77", "cat-1", 0)
+	if err != nil {
+		t.Fatalf("placement plans: %v", err)
+	}
+	wantEq(t, "len(items)", len(plans.Items), 1)
+	wantEq(t, "items[0].planId", plans.Items[0].PlanID, "pl-0f3a91")
+	if got := up.lastArgs(); got["sellerId"] != "seller-77" || got["catalogItemId"] != "cat-1" || len(got) != 2 {
+		t.Fatalf("the seller and catalogue item must be sent under their published names and a zero limit omitted, sent %v", got)
 	}
 }
 

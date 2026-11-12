@@ -167,7 +167,7 @@ func TestExceptionManagementClientCallsOnlyPinnedTools(t *testing.T) {
 
 var networkFleetReadTools = map[string][]string{
 	"customer_ordering.go":       {"get_order", "get_order_tracking", "get_ship_to"},
-	"delivery_promise.go":        {"get_current_policy", "get_delivery_offer", "get_promise", "list_promise_books", "list_promises_by_order"},
+	"delivery_promise.go":        {"estimate_delivery", "get_current_policy", "get_delivery_offer", "get_promise", "list_promise_books", "list_promises_by_order"},
 	"last_mile_delivery.go":      {"get_route", "get_wave_stops", "list_waves"},
 	"linehaul_transportation.go": {"get_departure", "list_departures"},
 	"node_performance.go":        {"get_scorecard", "list_scorecards_by_grade"},

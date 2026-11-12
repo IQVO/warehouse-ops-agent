@@ -51,13 +51,14 @@ func TestOrderSourcing_PortDTOsMatchPublishedOutputSchemas(t *testing.T) {
 
 const assignmentFixture = `{"assignmentId":"fa-1","orderId":"ord-3f9c","groupNo":1,"destinationPostalPrefix":"013",
   "state":"QUEUED","assignmentVersion":1,
-  "promise":{"promiseId":"prm-1","tier":"STANDARD","deliverByLatest":"2026-10-27T20:00:00Z","witnessNodeId":"node-1","revisionNo":2},
-  "lines":[{"lineNo":1,"catalogItemId":"item-1","quantity":2,"listingId":"list-1"}],
+  "promise":{"promiseId":"prm-1","tier":"STANDARD","deliverByEarliest":"2026-10-26T08:00:00Z","deliverByLatest":"2026-10-27T20:00:00Z","witnessNodeId":"node-1","revisionNo":2},
+  "lines":[{"lineNo":1,"catalogItemId":"item-1","quantity":2,"listingId":"list-1","ownerRef":"seller-77/lst-9"}],
   "excludedNodes":[{"nodeId":"node-9","reason":"NO_CAPACITY"}],
   "candidate":{"nodeId":"node-1","pickupDepartureId":"dep-1","pickupCutoffAt":"2026-10-25T08:00:00Z",
-    "legs":["lane-1"],"deliveryWaveId":"wave-1","eta":"2026-10-26T08:00:00Z","cost":120},
+    "legs":["lane-1"],"deliveryWaveId":"wave-1","eta":"2026-10-26T08:00:00Z","cost":120,"estimatedCostCents":1250},
   "releases":[{"releaseNo":1,"nodeId":"node-2","releasedAt":"2026-10-24T12:00:00Z",
     "requiredShipBy":"2026-10-25T10:00:00Z","outcome":"DECLINED","reasonCode":"NO_CAPACITY"}],
+  "consolidatedWith":["fa-2"],
   "trackingNumbers":[]}`
 
 func newOrderSourcingTestUpstream(t *testing.T) *goldenUpstream {
@@ -97,11 +98,18 @@ func TestOrderSourcing_GetAssignment_DecodesCandidatePromiseAndReleases(t *testi
 	wantEq(t, "promise.tier", out.Promise.Tier, "STANDARD")
 	wantEq(t, "promise.witnessNodeId", out.Promise.WitnessNodeID, "node-1")
 	wantEq(t, "promise.revisionNo", out.Promise.RevisionNo, 2)
+	wantEq(t, "promise.deliverByEarliest", out.Promise.DeliverByEarliest, "2026-10-26T08:00:00Z")
+	wantEq(t, "lines[0].ownerRef", out.Lines[0].OwnerRef, "seller-77/lst-9")
 	if out.Candidate == nil {
 		t.Fatal("candidate must decode")
 	}
 	wantEq(t, "candidate.nodeId", out.Candidate.NodeID, "node-1")
 	wantEq(t, "candidate.cost", out.Candidate.Cost, 120)
+	if out.Candidate.EstimatedCostCents == nil || *out.Candidate.EstimatedCostCents != 1250 {
+		t.Fatalf("candidate.estimatedCostCents must decode, got %+v", out.Candidate.EstimatedCostCents)
+	}
+	wantEq(t, "len(consolidatedWith)", len(out.ConsolidatedWith), 1)
+	wantEq(t, "consolidatedWith[0]", out.ConsolidatedWith[0], "fa-2")
 	wantEq(t, "len(candidate.legs)", len(out.Candidate.Legs), 1)
 	wantEq(t, "len(releases)", len(out.Releases), 1)
 	wantEq(t, "releases[0].outcome", out.Releases[0].Outcome, "DECLINED")

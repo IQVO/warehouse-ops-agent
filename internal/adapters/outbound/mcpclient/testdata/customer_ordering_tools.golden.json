@@ -1,5 +1,8 @@
 [
   {
+    "_meta": {
+      "com.warehouse/authority": "L1"
+    },
     "annotations": {
       "idempotentHint": true,
       "openWorldHint": false,
@@ -145,6 +148,9 @@
     }
   },
   {
+    "_meta": {
+      "com.warehouse/authority": "L1"
+    },
     "annotations": {
       "idempotentHint": true,
       "openWorldHint": false,
@@ -210,6 +216,31 @@
                       "type": "string"
                     },
                     "deliveredAt": {
+                      "type": "string"
+                    },
+                    "deliveryPointAdvisory": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "flaggedAt": {
+                          "type": "string"
+                        },
+                        "reason": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "reason",
+                        "flaggedAt"
+                      ],
+                      "type": [
+                        "null",
+                        "object"
+                      ]
+                    },
+                    "etaEnd": {
+                      "type": "string"
+                    },
+                    "etaStart": {
                       "type": "string"
                     },
                     "exceptionReason": {
@@ -288,6 +319,9 @@
     }
   },
   {
+    "_meta": {
+      "com.warehouse/authority": "L1"
+    },
     "annotations": {
       "idempotentHint": true,
       "openWorldHint": false,

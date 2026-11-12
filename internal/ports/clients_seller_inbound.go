@@ -7,9 +7,10 @@ import (
 
 // SellerInboundClient is the outbound port for seller-inbound's published
 // read tools (get_seller_scorecard, get_inbound_plan, get_shipment_labels,
-// get_inbound_shipment). Wired but not yet consumed by any use case
-// (ADR 0027): it exists so the partner-inbound read surface is reachable
-// the moment a decision-support use case needs it.
+// get_inbound_shipment, get_placement_plan, list_placement_plans).
+// Wired but not yet consumed by any use case (ADR 0027): it exists so the
+// partner-inbound read surface is reachable the moment a decision-support
+// use case needs it.
 type SellerInboundClient interface {
 	// GetSellerScorecard answers a seller's rolling-window compliance
 	// scorecard; an empty window means seller-inbound's own default (30d).
@@ -21,6 +22,13 @@ type SellerInboundClient interface {
 	GetShipmentLabels(ctx context.Context, shipmentID string) (ShipmentLabels, error)
 	// GetInboundShipment reads one inbound shipment with its cartons.
 	GetInboundShipment(ctx context.Context, shipmentID string) (InboundShipment, error)
+	// GetPlacementPlan reads one placement plan (ADR 0012): the per-node
+	// inbound placement suggestions of one seller's catalogue item.
+	GetPlacementPlan(ctx context.Context, planID string) (PlacementPlan, error)
+	// ListPlacementPlans lists the placement plans of one seller and
+	// catalogue item, newest first; a zero limit is omitted so
+	// seller-inbound applies its own default page size.
+	ListPlacementPlans(ctx context.Context, sellerID, catalogItemID string, limit int) (PlacementPlans, error)
 }
 
 // SellerScorecard mirrors seller-inbound's get_seller_scorecard result
@@ -127,4 +135,40 @@ type ShipmentLabels struct {
 	State             string       `json:"state"`
 	DestinationNodeID string       `json:"destinationNodeId"`
 	Labels            []LabelEntry `json:"labels"`
+}
+
+// PlacementSuggestion mirrors one per-node suggestion of a placement
+// plan (ADR 0012): the units to place at a node and the evidence behind
+// them (the region's demand and the node's availability over the same
+// cover days).
+type PlacementSuggestion struct {
+	NodeID                string `json:"nodeId"`
+	RegionID              string `json:"regionId"`
+	SuggestedUnits        int    `json:"suggestedUnits"`
+	RegionDemandUnits     int    `json:"regionDemandUnits"`
+	NodeAvailabilityUnits int    `json:"nodeAvailabilityUnits"`
+	CoverDays             int    `json:"coverDays"`
+}
+
+// PlacementPlan mirrors seller-inbound's get_placement_plan result and
+// each list_placement_plans item (ADR 0012). State is SUGGESTED,
+// ACCEPTED or SUPERSEDED; AcceptedAt and SupersededAt are nil until the
+// state change happens.
+type PlacementPlan struct {
+	PlanID        string                `json:"planId"`
+	SellerID      string                `json:"sellerId"`
+	CatalogItemID string                `json:"catalogItemId"`
+	CoverDays     int                   `json:"coverDays"`
+	WindowDays    int                   `json:"windowDays"`
+	Basis         string                `json:"basis"`
+	State         string                `json:"state"`
+	Suggestions   []PlacementSuggestion `json:"suggestions"`
+	CreatedAt     time.Time             `json:"createdAt"`
+	AcceptedAt    *time.Time            `json:"acceptedAt,omitempty"`
+	SupersededAt  *time.Time            `json:"supersededAt,omitempty"`
+}
+
+// PlacementPlans mirrors seller-inbound's list_placement_plans result.
+type PlacementPlans struct {
+	Items []PlacementPlan `json:"items"`
 }
