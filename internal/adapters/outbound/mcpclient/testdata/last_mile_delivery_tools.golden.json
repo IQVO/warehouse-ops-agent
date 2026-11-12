@@ -5,7 +5,7 @@
       "openWorldHint": false,
       "readOnlyHint": true
     },
-    "description": "Read one route of a delivery service partner: its state (PLANNED, OUT_FOR_DELIVERY or COMPLETED), its numbered stops with the trackingNumbers of each and the outcome derived from the per-package attempts (omitted until every package of the stop has one), and every recorded attempt (trackingNumber, DELIVERED or FAILED, failureReason, at). Read-only; an unknown route fails with not-found.",
+    "description": "Read one route of a delivery service partner: its state (PLANNED, OUT_FOR_DELIVERY or COMPLETED), its numbered stops with the trackingNumbers of each and the outcome derived from the per-package attempts (omitted until every package of the stop has one), and every recorded attempt (trackingNumber, DELIVERED or FAILED, the optional outcomeDetail, failureReason, at). Read-only; an unknown route fails with not-found.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -34,6 +34,9 @@
                 "type": "string"
               },
               "outcome": {
+                "type": "string"
+              },
+              "outcomeDetail": {
                 "type": "string"
               },
               "routeId": {
@@ -187,7 +190,7 @@
       "openWorldHint": false,
       "readOnlyHint": true
     },
-    "description": "List the delivery waves of one station for one service date, ordered by inductCutoffAt: state (OPEN, INDUCTION_CLOSED, DISPATCHED, COMPLETED or CANCELLED), the induct cutoff and delivery window, the stop capacity with assignedStops and remainingStops, and cancelReason on a cancelled wave. A station and date with no wave is an empty list. Read-only; a malformed station or a serviceDate that is not YYYY-MM-DD fails with validation-failed.",
+    "description": "List the delivery waves of one station for one service date, ordered by inductCutoffAt: state (OPEN, INDUCTION_CLOSED, DISPATCHED, COMPLETED or CANCELLED), the induct cutoff and delivery window, the stop capacity with assignedStops and remainingStops, costPerStopCents (the planner's declared marginal cost of one stop, integer cents, 0 until declared), and cancelReason on a cancelled wave. A station and date with no wave is an empty list. Read-only; a malformed station or a serviceDate that is not YYYY-MM-DD fails with validation-failed.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -219,6 +222,9 @@
               },
               "cancelReason": {
                 "type": "string"
+              },
+              "costPerStopCents": {
+                "type": "integer"
               },
               "inductCutoffAt": {
                 "type": "string"
@@ -258,7 +264,8 @@
               "stopCapacity",
               "assignedStops",
               "remainingStops",
-              "state"
+              "state",
+              "costPerStopCents"
             ],
             "type": "object"
           },

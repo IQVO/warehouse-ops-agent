@@ -43,18 +43,21 @@ type LastMileDeliveryClient interface {
 
 // DeliveryWave mirrors waveView (one list_waves item). State is OPEN,
 // INDUCTION_CLOSED, DISPATCHED, COMPLETED or CANCELLED.
+// CostPerStopCents is the planner's declared marginal cost of one stop
+// (integer cents, 0 until declared).
 type DeliveryWave struct {
-	WaveID         string `json:"waveId"`
-	StationNodeID  string `json:"stationNodeId"`
-	ServiceDate    string `json:"serviceDate"`
-	InductCutoffAt string `json:"inductCutoffAt"`
-	WindowStart    string `json:"windowStart"`
-	WindowEnd      string `json:"windowEnd"`
-	StopCapacity   int    `json:"stopCapacity"`
-	AssignedStops  int    `json:"assignedStops"`
-	RemainingStops int    `json:"remainingStops"`
-	State          string `json:"state"`
-	CancelReason   string `json:"cancelReason,omitempty"`
+	WaveID           string `json:"waveId"`
+	StationNodeID    string `json:"stationNodeId"`
+	ServiceDate      string `json:"serviceDate"`
+	InductCutoffAt   string `json:"inductCutoffAt"`
+	WindowStart      string `json:"windowStart"`
+	WindowEnd        string `json:"windowEnd"`
+	StopCapacity     int    `json:"stopCapacity"`
+	AssignedStops    int    `json:"assignedStops"`
+	RemainingStops   int    `json:"remainingStops"`
+	State            string `json:"state"`
+	CostPerStopCents int    `json:"costPerStopCents"`
+	CancelReason     string `json:"cancelReason,omitempty"`
 }
 
 // DeliveryWaves mirrors the list_waves result.
@@ -98,11 +101,13 @@ type RouteStop struct {
 	Outcome         string   `json:"outcome,omitempty"`
 }
 
-// RouteAttempt mirrors one delivery attempt of one package on a route.
+// RouteAttempt mirrors one delivery attempt of one package on a route,
+// with the free-text outcome detail when the DSP recorded one.
 type RouteAttempt struct {
 	RouteID        string `json:"routeId"`
 	TrackingNumber string `json:"trackingNumber"`
 	Outcome        string `json:"outcome"`
+	OutcomeDetail  string `json:"outcomeDetail,omitempty"`
 	At             string `json:"at"`
 	FailureReason  string `json:"failureReason,omitempty"`
 }

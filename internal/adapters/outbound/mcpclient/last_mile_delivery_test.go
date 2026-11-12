@@ -55,14 +55,14 @@ func newLastMileDeliveryTestUpstream(t *testing.T) *goldenUpstream {
 	golden := loadGoldenTools(t, lastMileDeliveryGoldenPath)
 	waves := goldenJSON(t, `{"items":[{"waveId":"wave-1","stationNodeId":"node-42","serviceDate":"2026-10-24",
 	  "inductCutoffAt":"2026-10-24T12:00:00Z","windowStart":"2026-10-24T12:00:00Z","windowEnd":"2026-10-24T20:00:00Z",
-	  "stopCapacity":80,"assignedStops":3,"remainingStops":77,"state":"OPEN"}]}`)
+	  "stopCapacity":80,"assignedStops":3,"remainingStops":77,"state":"OPEN","costPerStopCents":150}]}`)
 	stops := goldenJSON(t, `{"items":[{"stopKey":"pkg:RN001","trackingNumbers":["RN001"],"destinationPostalPrefix":"013"},
 	  {"stopKey":"stop-9f2c","trackingNumbers":["RN002","RN003"]}]}`)
 	route := goldenJSON(t, `{"routeId":"route-9f2c","waveId":"wave-1","dspId":"dsp-1","stationNodeId":"node-42",
 	  "state":"OUT_FOR_DELIVERY","stopCount":2,
 	  "stops":[{"stopNo":1,"trackingNumbers":["RN001"],"outcome":"DELIVERED"},{"stopNo":2,"trackingNumbers":["RN002","RN003"]}],
 	  "attempts":[{"routeId":"route-9f2c","trackingNumber":"RN001","outcome":"DELIVERED","at":"2026-10-24T18:30:00Z"},
-	             {"routeId":"route-9f2c","trackingNumber":"RN002","outcome":"FAILED","at":"2026-10-24T18:45:00Z","failureReason":"NO_ACCESS"}]}`)
+	             {"routeId":"route-9f2c","trackingNumber":"RN002","outcome":"FAILED","outcomeDetail":"gate code refused","at":"2026-10-24T18:45:00Z","failureReason":"NO_ACCESS"}]}`)
 	return newGoldenUpstream(t, "last-mile-delivery-test", golden, map[string]goldenFixture{
 		"list_waves": func(args map[string]any) (any, *mcp.CallToolResult) {
 			if args["stationNodeId"] != "node-42" || args["serviceDate"] != "2026-10-24" {
@@ -100,6 +100,7 @@ func TestLastMileDelivery_ListWaves_DecodesAndSendsExactArgs(t *testing.T) {
 		out.Items[0].InductCutoffAt != "2026-10-24T12:00:00Z" || out.Items[0].CancelReason != "" {
 		t.Fatalf("unexpected waves: %+v", out.Items)
 	}
+	wantEq(t, "items[0].costPerStopCents", out.Items[0].CostPerStopCents, 150)
 	if got := up.lastArgs(); got["stationNodeId"] != "node-42" || got["serviceDate"] != "2026-10-24" || len(got) != 2 {
 		t.Fatalf("the station and service date must be sent under their published names and nothing else, sent %v", got)
 	}

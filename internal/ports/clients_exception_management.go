@@ -102,8 +102,11 @@ type ExceptionCase struct {
 }
 
 // ExceptionCaseList mirrors exceptionListView (list_open_exceptions).
+// NextCursor is the opaque cursor of the next page, empty on the last
+// one (the client still lists the first page only).
 type ExceptionCaseList struct {
-	Items []ExceptionCase `json:"items"`
+	Items      []ExceptionCase `json:"items"`
+	NextCursor string          `json:"next_cursor,omitempty"`
 }
 
 // ExceptionAutoResolveRule mirrors autoResolveView: the correlated

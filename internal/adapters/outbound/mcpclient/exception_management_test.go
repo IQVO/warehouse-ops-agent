@@ -166,7 +166,7 @@ func emListOpenExceptions(_ context.Context, _ *mcp.CallToolRequest, in map[stri
 	if in["status"] == "RESOLVED" {
 		return nil, map[string]any{"items": []any{emFixture(emCaseAutoResolved)}}, nil
 	}
-	return nil, map[string]any{"items": []any{emFixture(emCaseOpen)}}, nil
+	return nil, map[string]any{"items": []any{emFixture(emCaseOpen)}, "next_cursor": "cursor-2"}, nil
 }
 
 func emGetException(_ context.Context, _ *mcp.CallToolRequest, in map[string]any) (*mcp.CallToolResult, any, error) {
@@ -236,6 +236,7 @@ func TestExceptionManagement_ListOpenExceptions_DecodesAndSendsFilters(t *testin
 	if len(open.Items) != 1 || open.Items[0].CaseID != "case-8f21" {
 		t.Fatalf("unexpected case list: %+v", open.Items)
 	}
+	wantEq(t, "next_cursor", open.NextCursor, "cursor-2")
 	if len(up.args()) != 0 {
 		t.Fatalf("a zero query must send no argument at all (every status, queue, site and source type alike), sent %v", up.args())
 	}

@@ -111,15 +111,26 @@ type TrackedOrderGroup struct {
 }
 
 // TrackedPackage mirrors one package of a tracked group: its carrier,
-// state and last scan.
+// state, last scan and, while the package is out for delivery, the
+// day-of ETA window and the delivery-point advisory flagged for it.
 type TrackedPackage struct {
-	TrackingNumber  string `json:"trackingNumber"`
-	State           string `json:"state,omitempty"`
-	Carrier         string `json:"carrier,omitempty"`
-	DeliveredAt     string `json:"deliveredAt,omitempty"`
-	LastScanAt      string `json:"lastScanAt,omitempty"`
-	LastScanNodeID  string `json:"lastScanNodeId,omitempty"`
-	ExceptionReason string `json:"exceptionReason,omitempty"`
+	TrackingNumber        string                 `json:"trackingNumber"`
+	State                 string                 `json:"state,omitempty"`
+	Carrier               string                 `json:"carrier,omitempty"`
+	ETAStart              string                 `json:"etaStart,omitempty"`
+	ETAEnd                string                 `json:"etaEnd,omitempty"`
+	DeliveryPointAdvisory *DeliveryPointAdvisory `json:"deliveryPointAdvisory,omitempty"`
+	DeliveredAt           string                 `json:"deliveredAt,omitempty"`
+	LastScanAt            string                 `json:"lastScanAt,omitempty"`
+	LastScanNodeID        string                 `json:"lastScanNodeId,omitempty"`
+	ExceptionReason       string                 `json:"exceptionReason,omitempty"`
+}
+
+// DeliveryPointAdvisory mirrors one advisory customer-ordering flagged
+// for a package's delivery point: why it was flagged and when.
+type DeliveryPointAdvisory struct {
+	Reason    string `json:"reason"`
+	FlaggedAt string `json:"flaggedAt"`
 }
 
 // ShipToAddress mirrors shipToView (get_ship_to): the delivery address of

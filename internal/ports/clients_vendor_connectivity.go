@@ -122,11 +122,13 @@ type VendorPackLevel struct {
 }
 
 // VendorPOLine mirrors one purchase-order line: the listing it was
-// released against, the quantity, and the packaging hierarchy.
+// released against, the quantity, the packaging hierarchy and the
+// owning seller's listing reference when the line is owned by a seller.
 type VendorPOLine struct {
 	LineNo    int               `json:"lineNo"`
 	ListingID string            `json:"listingId"`
 	Quantity  int               `json:"quantity"`
+	OwnerRef  string            `json:"ownerRef,omitempty"`
 	Packaging []VendorPackLevel `json:"packaging"`
 }
 

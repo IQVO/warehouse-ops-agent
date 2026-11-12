@@ -3,9 +3,10 @@
 // offers, promises and the per-cutoff capacity ledger books.
 //
 // delivery-promise's MCP server is READ-ONLY (its own governance test
-// pins its five tools, every one annotated readOnlyHint). This port
-// mirrors all five: get_current_policy, get_delivery_offer, get_promise,
-// list_promise_books and list_promises_by_order. delivery-promise's
+// pins its six tools, every one annotated readOnlyHint). This port
+// mirrors all six: estimate_delivery, get_current_policy,
+// get_delivery_offer, get_promise, list_promise_books and
+// list_promises_by_order. delivery-promise's
 // writes (quote an offer, confirm/revise/release a promise, publish a
 // policy) are upstream of it and have no method here. The zero-write
 // fitness test (internal/architecture/zerowrite) fails the build if the
@@ -18,9 +19,31 @@ import (
 	"context"
 )
 
-// DeliveryPromiseClient is the outbound port for delivery-promise's five
+// EstimateDeliveryQuery is the argument set of estimate_delivery: one
+// destination postal prefix, up to 50 items (each catalogue item once)
+// and an optional subset of tiers. An empty Tiers slice is omitted so
+// delivery-promise quotes all four of SAME_DAY, NEXT_DAY, TWO_DAY and
+// STANDARD (CONSOLIDATED is quoted on REST and refused by the tool).
+type EstimateDeliveryQuery struct {
+	DestinationPostalPrefix string
+	Items                   []EstimateDeliveryItem
+	Tiers                   []string
+}
+
+// EstimateDeliveryItem is one item of an estimate: a catalogue item and
+// the quantity to estimate (1 to 999).
+type EstimateDeliveryItem struct {
+	CatalogItemID string
+	Quantity      int
+}
+
+// DeliveryPromiseClient is the outbound port for delivery-promise's six
 // published read tools.
 type DeliveryPromiseClient interface {
+	// EstimateDelivery calls estimate_delivery: the advisory delivery
+	// options of up to 50 catalogue items for one destination postal
+	// prefix, per item and tier. Nothing is stored: no offer, no hold.
+	EstimateDelivery(ctx context.Context, query EstimateDeliveryQuery) (DeliveryEstimates, error)
 	// GetCurrentPolicy calls get_current_policy: the promise policy in
 	// force (v0 is the built-in default when nothing was published).
 	GetCurrentPolicy(ctx context.Context) (PromisePolicy, error)
@@ -47,20 +70,24 @@ type DeliveryPromiseClient interface {
 // testdata/delivery_promise_tools.golden.json.
 
 // PromisePolicy mirrors policyView (get_current_policy): offer and hold
-// TTLs, the package cap, the network's capacity share and the order
-// deadlines per tier and region.
+// TTLs, the package cap, the network's capacity share, the calibration
+// buffer parameters and the order deadlines per tier and region.
 type PromisePolicy struct {
-	PolicyVersion              string                 `json:"policyVersion"`
-	Version                    int                    `json:"version"`
-	OfferTtlMinutes            int                    `json:"offerTtlMinutes"`
-	HoldTtlMinutes             int                    `json:"holdTtlMinutes"`
-	PackagesPerOrder           int                    `json:"packagesPerOrder"`
-	CapacitySharePercent       int                    `json:"capacitySharePercent"`
-	TransitWindowDays          int                    `json:"transitWindowDays"`
-	TransitServiceLevelPercent int                    `json:"transitServiceLevelPercent"`
-	MinTransitObservations     int                    `json:"minTransitObservations"`
-	OrderDeadlines             []PromiseOrderDeadline `json:"orderDeadlines"`
-	PublishedAt                string                 `json:"publishedAt"`
+	PolicyVersion                  string                 `json:"policyVersion"`
+	Version                        int                    `json:"version"`
+	OfferTtlMinutes                int                    `json:"offerTtlMinutes"`
+	HoldTtlMinutes                 int                    `json:"holdTtlMinutes"`
+	PackagesPerOrder               int                    `json:"packagesPerOrder"`
+	CapacitySharePercent           int                    `json:"capacitySharePercent"`
+	TransitWindowDays              int                    `json:"transitWindowDays"`
+	TransitServiceLevelPercent     int                    `json:"transitServiceLevelPercent"`
+	MinTransitObservations         int                    `json:"minTransitObservations"`
+	TargetOnTimeProbabilityPercent int                    `json:"targetOnTimeProbabilityPercent"`
+	MinCalibrationObservations     int                    `json:"minCalibrationObservations"`
+	CalibrationWindowDays          int                    `json:"calibrationWindowDays"`
+	MaxCalibrationBufferMinutes    int                    `json:"maxCalibrationBufferMinutes"`
+	OrderDeadlines                 []PromiseOrderDeadline `json:"orderDeadlines"`
+	PublishedAt                    string                 `json:"publishedAt"`
 }
 
 // PromiseOrderDeadline mirrors one tier's order deadline: the local
@@ -71,11 +98,13 @@ type PromiseOrderDeadline struct {
 	RegionID  string `json:"regionId,omitempty"`
 }
 
-// PromiseLine mirrors one line of an offer or promise: a catalogue item
-// and the quantity promised.
+// PromiseLine mirrors one line of an offer or promise: a catalogue item,
+// the quantity promised and the owning seller's listing reference when
+// the line is owned by a seller.
 type PromiseLine struct {
 	CatalogItemID string `json:"catalogItemId"`
 	Quantity      int    `json:"quantity"`
+	OwnerRef      string `json:"ownerRef,omitempty"`
 }
 
 // DeliveryWindow mirrors the promised delivery window.
@@ -95,7 +124,10 @@ type PromiseWitnessPath struct {
 }
 
 // DeliveryOffer mirrors offerView (get_delivery_offer). State is QUOTED,
-// EXPIRED or CONSUMED.
+// EXPIRED or CONSUMED. Confidence is nil while delivery-promise has too
+// few judgements of the segment to calibrate (unknown, not zero), and
+// ConsolidationEligible is nil unless the tier is CONSOLIDATED;
+// capacityBand is a quote-time reading and is never stored.
 type DeliveryOffer struct {
 	OfferID                 string             `json:"offerId"`
 	State                   string             `json:"state"`
@@ -106,6 +138,9 @@ type DeliveryOffer struct {
 	Window                  DeliveryWindow     `json:"window"`
 	WitnessPath             PromiseWitnessPath `json:"witnessPath"`
 	Basis                   string             `json:"basis"`
+	Confidence              *float64           `json:"confidence,omitempty"`
+	ConsolidationEligible   *bool              `json:"consolidationEligible,omitempty"`
+	CapacityBand            string             `json:"capacityBand,omitempty"`
 	PolicyVersion           string             `json:"policyVersion"`
 	QuotedAt                string             `json:"quotedAt"`
 	ExpiresAt               string             `json:"expiresAt"`
@@ -113,15 +148,19 @@ type DeliveryOffer struct {
 }
 
 // PromiseTerms mirrors the terms of a promise: tier, shipBy, the
-// deliver-by window, basis and the policy version they were quoted
-// under.
+// deliver-by window, basis, the policy version they were quoted under,
+// and the optional calibrated confidence and consolidation flag.
+// Confidence is nil while unknown (not zero); ConsolidationEligible is
+// nil unless the tier is CONSOLIDATED.
 type PromiseTerms struct {
-	Tier              string `json:"tier"`
-	ShipBy            string `json:"shipBy"`
-	DeliverByEarliest string `json:"deliverByEarliest"`
-	DeliverByLatest   string `json:"deliverByLatest"`
-	Basis             string `json:"basis"`
-	PolicyVersion     string `json:"policyVersion"`
+	Tier                  string   `json:"tier"`
+	ShipBy                string   `json:"shipBy"`
+	DeliverByEarliest     string   `json:"deliverByEarliest"`
+	DeliverByLatest       string   `json:"deliverByLatest"`
+	Basis                 string   `json:"basis"`
+	Confidence            *float64 `json:"confidence,omitempty"`
+	ConsolidationEligible *bool    `json:"consolidationEligible,omitempty"`
+	PolicyVersion         string   `json:"policyVersion"`
 }
 
 // PromiseRevision mirrors one revision of a promise: the previous terms,
@@ -193,4 +232,52 @@ type PromiseBooks struct {
 // PromisesByOrder mirrors the list_promises_by_order result.
 type PromisesByOrder struct {
 	Items []DeliveryPromise `json:"items"`
+}
+
+// DeliveryEstimateWindow mirrors one estimate option's delivery window:
+// the start and end instants and the delivery station's IANA time zone.
+type DeliveryEstimateWindow struct {
+	Start    string `json:"start"`
+	End      string `json:"end"`
+	TimeZone string `json:"timeZone"`
+}
+
+// DeliveryEstimateOption mirrors one tier's best option of an estimate:
+// the tier, its window, the basis, the optional calibrated confidence
+// (nil means unknown, not zero), the latest order-by instant and the
+// optional capacityBand (AMPLE, TIGHT or SCARCE; omitted when unknown).
+type DeliveryEstimateOption struct {
+	Tier         string                 `json:"tier"`
+	Window       DeliveryEstimateWindow `json:"window"`
+	Basis        string                 `json:"basis"`
+	Confidence   *float64               `json:"confidence,omitempty"`
+	OrderByAt    string                 `json:"orderByAt,omitempty"`
+	CapacityBand string                 `json:"capacityBand,omitempty"`
+}
+
+// DeliveryEstimateConstraint mirrors one tier without an option: the
+// constraint code (DESTINATION_NOT_SERVED, ITEM_QUANTITY_NOT_AVAILABLE,
+// DELIVERY_SLA_UNAVAILABLE, NODE_CAPACITY_EXHAUSTED or
+// PAST_ORDER_DEADLINE) and the tier it applies to when it is per-tier.
+type DeliveryEstimateConstraint struct {
+	Code string `json:"code"`
+	Tier string `json:"tier,omitempty"`
+}
+
+// DeliveryEstimate mirrors one item's estimate (estimate_delivery), in
+// request order: the best option of every requested tier and the
+// constraints of the tiers without one.
+type DeliveryEstimate struct {
+	CatalogItemID string                       `json:"catalogItemId"`
+	Quantity      int                          `json:"quantity"`
+	Options       []DeliveryEstimateOption     `json:"options"`
+	Constraints   []DeliveryEstimateConstraint `json:"constraints"`
+}
+
+// DeliveryEstimates mirrors the estimate_delivery result: advisory
+// only — nothing was stored and no capacity was reserved.
+type DeliveryEstimates struct {
+	ComputedAt              string             `json:"computedAt"`
+	DestinationPostalPrefix string             `json:"destinationPostalPrefix"`
+	Estimates               []DeliveryEstimate `json:"estimates"`
 }

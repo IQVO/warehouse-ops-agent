@@ -1,5 +1,8 @@
 [
   {
+    "_meta": {
+      "com.warehouse/authority": "L1"
+    },
     "annotations": {
       "idempotentHint": true,
       "openWorldHint": false,
@@ -241,6 +244,9 @@
     }
   },
   {
+    "_meta": {
+      "com.warehouse/authority": "L1"
+    },
     "annotations": {
       "idempotentHint": true,
       "openWorldHint": false,
@@ -347,6 +353,9 @@
     }
   },
   {
+    "_meta": {
+      "com.warehouse/authority": "L1"
+    },
     "annotations": {
       "idempotentHint": true,
       "openWorldHint": false,
@@ -442,6 +451,9 @@
               "listingId": {
                 "type": "string"
               },
+              "ownerRef": {
+                "type": "string"
+              },
               "packaging": {
                 "items": {
                   "additionalProperties": false,
@@ -535,6 +547,9 @@
     }
   },
   {
+    "_meta": {
+      "com.warehouse/authority": "L1"
+    },
     "annotations": {
       "idempotentHint": true,
       "openWorldHint": false,
@@ -628,6 +643,9 @@
     }
   },
   {
+    "_meta": {
+      "com.warehouse/authority": "L1"
+    },
     "annotations": {
       "idempotentHint": true,
       "openWorldHint": false,
@@ -674,6 +692,9 @@
     }
   },
   {
+    "_meta": {
+      "com.warehouse/authority": "L1"
+    },
     "annotations": {
       "idempotentHint": true,
       "openWorldHint": false,
@@ -744,6 +765,9 @@
     }
   },
   {
+    "_meta": {
+      "com.warehouse/authority": "L1"
+    },
     "annotations": {
       "idempotentHint": true,
       "openWorldHint": false,
@@ -824,6 +848,9 @@
     }
   },
   {
+    "_meta": {
+      "com.warehouse/authority": "L1"
+    },
     "annotations": {
       "idempotentHint": true,
       "openWorldHint": false,
@@ -838,7 +865,7 @@
           "type": "string"
         },
         "limit": {
-          "description": "page size, 1..200; omitted or 0 means the service default of 50",
+          "description": "page size, 1..500; omitted or 0 means the service default of 50",
           "type": "integer"
         },
         "nextToken": {
@@ -1094,6 +1121,9 @@
     }
   },
   {
+    "_meta": {
+      "com.warehouse/authority": "L1"
+    },
     "annotations": {
       "idempotentHint": true,
       "openWorldHint": false,
@@ -1108,7 +1138,7 @@
           "type": "string"
         },
         "limit": {
-          "description": "page size, 1..200; omitted or 0 means the service default of 50",
+          "description": "page size, 1..500; omitted or 0 means the service default of 50",
           "type": "integer"
         },
         "nextToken": {
@@ -1205,6 +1235,9 @@
                       "type": "integer"
                     },
                     "listingId": {
+                      "type": "string"
+                    },
+                    "ownerRef": {
                       "type": "string"
                     },
                     "packaging": {
