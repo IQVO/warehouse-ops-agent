@@ -114,6 +114,19 @@ Feature: The agent's MCP surface
       | 5      | revoke_reservation | true     |
       | 6      | hold               | false    |
 
+  Scenario Outline: The bin is read only when both a reservation and a bin are named
+    Given fulfillment-execution reports 1 stuck task of type "PICK"
+    And inventory-storage reports 2 usable units of SKU "SKU-4711"
+    And inventory-storage bin "BIN-A07" holds 4 reserved units of SKU "SKU-4711" and 9 reserved units of SKU "SKU-0815"
+    When I ask for a stranded-reservation check on task type "PICK" for SKU "SKU-4711" with shortfall threshold 5, reservation "<reservation>" in bin "<bin>"
+    Then inventory-storage was <asked> for the bin occupancy
+
+    Examples:
+      | reservation | bin     | asked |
+      | RSV-9001    |         | not asked |
+      |             | BIN-A07 | not asked |
+      | RSV-9001    | BIN-A07 | asked     |
+
   Scenario: A task type outside PICK, PACK and SLAM is rejected, never defaulted
     Given fulfillment-execution reports 2 stuck tasks of type "PICK"
     When I ask for a stranded-reservation check on task type "BOX" for SKU "SKU-4711" with shortfall threshold 5, reservation "RSV-9001" in bin "BIN-A07"

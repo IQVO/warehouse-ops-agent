@@ -98,6 +98,11 @@ Feature: Thresholds and bounds of the signal, dock and catalogue reports
       | Completed | 2026-01-01T07:00:00Z | 2026-01-01T09:00:00Z | 0      |
       | Cancelled | 2026-01-01T09:00:00Z | 2026-01-01T10:00:00Z | 0      |
 
+  Scenario: The appointment lookup asks inbound-receiving for exactly the next 24 hours
+    When I request the inbound outlook
+    Then inbound-receiving was asked for appointments from "2026-01-01T08:00:00Z" to "2026-01-02T08:00:00Z"
+    And the JSON field "appointmentsUntil" equals "2026-01-02T08:00:00Z"
+
   Scenario Outline: A receipt is stale only when it has been open strictly longer than the configured age
     Given the stale receipt age is 4 hours
     And inbound-receiving holds an Open receipt "R-1" for ASN "ASN-1" opened at "<opened>"
@@ -118,6 +123,7 @@ Feature: Thresholds and bounds of the signal, dock and catalogue reports
       | closed               | reported |
       | 2026-01-01T00:00:00Z | 1        |
       | 2025-12-31T23:59:59Z | 0        |
+      | 2026-01-02T00:00:00Z | 0        |
 
   Scenario: A receipt closed today without a discrepancy is not reported
     Given inbound-receiving holds a Closed receipt "R-10" for ASN "ASN-10" closed at "2026-01-01T07:00:00Z" with no discrepancy

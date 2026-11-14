@@ -77,6 +77,13 @@ Feature: Transfer watch rules
       | 0        | covered | false      |
       | -1       | short   | true       |
 
+  Scenario: A site with exactly zero headroom is covered but has nothing to give, so it is not named as a donor
+    Given network-inventory-planning simulates site "SITE-A" with demand 60 against capacity 60 and headroom 0
+    And network-inventory-planning simulates site "SITE-B" with demand 100 against capacity 40 and headroom -60
+    When I ask for the network imbalance
+    Then the JSON field "imbalanced" is true
+    And the JSON field "summary" contains "no site with headroom is enabled to originate transfers"
+
   Scenario: The imbalance names the sites and proposes no quantity or route
     Given network-inventory-planning simulates site "SITE-A" with demand 20 against capacity 60 and headroom 40
     And network-inventory-planning simulates site "SITE-B" with demand 100 against capacity 40 and headroom -60

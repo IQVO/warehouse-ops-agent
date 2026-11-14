@@ -122,7 +122,9 @@ type fakeInbound struct {
 	asns         []ports.InboundAsn
 	// asnPages, when set, serves that many pages of one Registered ASN each,
 	// chained by "page-N" cursors, to drive a scan past its per-request bound.
-	asnPages     int
+	asnPages int
+	// apptQuery is the last list_appointments query the agent made.
+	apptQuery    ports.InboundAppointmentListQuery
 	appointments []ports.InboundAppointment
 	receipts     []ports.InboundReceipt
 }
@@ -143,7 +145,8 @@ func (f *fakeInbound) ListAsns(_ context.Context, q ports.InboundAsnListQuery) (
 	return ports.InboundAsnPage{Items: out}, nil
 }
 
-func (f *fakeInbound) ListAppointments(context.Context, ports.InboundAppointmentListQuery) (ports.InboundAppointmentPage, error) {
+func (f *fakeInbound) ListAppointments(_ context.Context, q ports.InboundAppointmentListQuery) (ports.InboundAppointmentPage, error) {
+	f.apptQuery = q
 	if f.down {
 		return ports.InboundAppointmentPage{}, errUnreachable
 	}

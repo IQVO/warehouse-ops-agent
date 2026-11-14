@@ -142,6 +142,20 @@ Feature: Decision rules of the daily brief, the flow-balance advisory and its ar
     And the decision is not partial
     And the rationale mentions "2 stuck task(s)"
 
+  Scenario Outline: A single stuck task is already enough to hold instead of pulling a lever
+    Given wes-work-planning recommends "<wes>" for path "pick-zone-a" with backlog depth 120 and WIP 30
+    And workforce-management reports 4 planned and 4 active heads for path "pick-zone-a"
+    And fulfillment-execution reports 1 stuck task
+    When I request the flow-balance advisory for path "pick-zone-a"
+    Then the recommended action is "hold" with 0 proposed heads
+    And the decision is not partial
+    And the rationale mentions "<rationale>"
+
+    Examples:
+      | wes            | rationale                          |
+      | ReassignLabor  | blocked claims, not a labor gap    |
+      | NoActionNeeded | 1 stuck task(s)                    |
+
   Scenario: An understaffed flag always proposes at least one head
     Given wes-work-planning recommends "ReassignLabor" for path "pick-zone-a" with backlog depth 120 and WIP 30
     And workforce-management flags path "pick-zone-a" understaffed although 4 planned and 4 active heads

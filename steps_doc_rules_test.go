@@ -54,6 +54,8 @@ type fakeInventory struct {
 	down   bool
 	usable map[string]int
 	bins   map[string]ports.BinOccupancy
+	// binAsks records every get_bin_occupancy call.
+	binAsks []string
 }
 
 func (f *fakeInventory) CheckAvailability(_ context.Context, sku string) (ports.Availability, error) {
@@ -68,6 +70,7 @@ func (f *fakeInventory) CheckAvailability(_ context.Context, sku string) (ports.
 }
 
 func (f *fakeInventory) GetBinOccupancy(_ context.Context, binID string) (ports.BinOccupancy, error) {
+	f.binAsks = append(f.binAsks, binID)
 	if f.down {
 		return ports.BinOccupancy{}, errUnreachable
 	}
@@ -471,6 +474,32 @@ func (w *world) productMasterWasAskedForEveryProduct() error {
 	return nil
 }
 
+func (w *world) inboundWasAskedForAppointmentsFromTo(from, to string) error {
+	q := w.inbound.apptQuery
+	if got := q.From.UTC().Format(time.RFC3339); got != from {
+		return fmt.Errorf("expected the appointment lookup to start at %s, got %s", from, got)
+	}
+	if got := q.To.UTC().Format(time.RFC3339); got != to {
+		return fmt.Errorf("expected the appointment lookup to end at %s, got %s", to, got)
+	}
+	return nil
+}
+
+func (w *world) inventoryWasAskedForBinOccupancy(state string) error {
+	negation := ""
+	if state == "not asked" {
+		negation = "not"
+	}
+	asked := len(w.doc().inv.binAsks) > 0
+	if negation == "" && !asked {
+		return errors.New("expected inventory-storage to be asked for the bin occupancy, it was not")
+	}
+	if negation != "" && asked {
+		return fmt.Errorf("expected inventory-storage not to be asked for the bin occupancy, got %v", w.doc().inv.binAsks)
+	}
+	return nil
+}
+
 func (w *world) fulfillmentWasNotAskedForTasks() error {
 	if len(w.orders.taskAsks) != 0 {
 		return fmt.Errorf("expected fulfillment-execution not to be asked for tasks, got %v", w.orders.taskAsks)
@@ -557,6 +586,8 @@ func registerDocRulesSteps(sc *godog.ScenarioContext, w *world) {
 	sc.Step(`^Loki was asked for at most (\d+) lines$`, w.lokiWasAskedForAtMost)
 	sc.Step(`^product-master was asked for every product$`, w.productMasterWasAskedForEveryProduct)
 	sc.Step(`^fulfillment-execution was not asked for any tasks$`, w.fulfillmentWasNotAskedForTasks)
+	sc.Step(`^inventory-storage was (asked|not asked) for the bin occupancy$`, w.inventoryWasAskedForBinOccupancy)
+	sc.Step(`^inbound-receiving was asked for appointments from "([^"]*)" to "([^"]*)"$`, w.inboundWasAskedForAppointmentsFromTo)
 	sc.Step(`^wes-work-planning's release agent received (\d+) requests?$`, w.theReleaseAgentReceived)
 	sc.Step(`^wes-work-planning's release agent was asked to release the next work for path "([^"]*)"$`, w.theReleaseAgentWasAskedFor)
 	sc.Step(`^the response carries (a|no) confirmation token$`, func(article string) error {
