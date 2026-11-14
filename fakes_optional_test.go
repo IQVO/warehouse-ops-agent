@@ -19,7 +19,10 @@ type fakeProductMaster struct {
 	products     []ports.Product
 	generated    int
 	rejectCursor string
-	calls        int
+	// failCursor makes the page reached through this cursor fail, as a
+	// product-master that dies in the middle of a scan.
+	failCursor string
+	calls      int
 	lastQuery    ports.ProductListQuery
 }
 
@@ -31,6 +34,9 @@ func (f *fakeProductMaster) ListProducts(_ context.Context, q ports.ProductListQ
 	}
 	if f.rejectCursor != "" && q.Cursor == f.rejectCursor {
 		return ports.ProductPage{}, fmt.Errorf("malformed-request: cursor %q is not a cursor this server issued: %w", q.Cursor, ports.ErrUpstreamInvalidInput)
+	}
+	if f.failCursor != "" && q.Cursor == f.failCursor {
+		return ports.ProductPage{}, errUnreachable
 	}
 	if f.generated > 0 {
 		return f.generatedPage(q.Cursor), nil
@@ -114,6 +120,9 @@ type fakeInbound struct {
 	down         bool
 	receiptsDown bool
 	asns         []ports.InboundAsn
+	// asnPages, when set, serves that many pages of one Registered ASN each,
+	// chained by "page-N" cursors, to drive a scan past its per-request bound.
+	asnPages     int
 	appointments []ports.InboundAppointment
 	receipts     []ports.InboundReceipt
 }
@@ -121,6 +130,9 @@ type fakeInbound struct {
 func (f *fakeInbound) ListAsns(_ context.Context, q ports.InboundAsnListQuery) (ports.InboundAsnPage, error) {
 	if f.down {
 		return ports.InboundAsnPage{}, errUnreachable
+	}
+	if f.asnPages > 0 {
+		return f.generatedAsnPage(q.Cursor), nil
 	}
 	var out []ports.InboundAsn
 	for _, a := range f.asns {
@@ -149,4 +161,18 @@ func (f *fakeInbound) ListReceipts(_ context.Context, q ports.InboundReceiptList
 		}
 	}
 	return ports.InboundReceiptPage{Items: out}, nil
+}
+
+func (f *fakeInbound) generatedAsnPage(cursor string) ports.InboundAsnPage {
+	idx := 0
+	if n, ok := strings.CutPrefix(cursor, "page-"); ok {
+		idx, _ = strconv.Atoi(n)
+	}
+	page := ports.InboundAsnPage{Items: []ports.InboundAsn{{
+		AsnNumber: fmt.Sprintf("ASN-%02d", idx+1), SupplierRef: "SUP-GEN", ExpectedArrival: "2026-01-02T09:00:00Z", State: "Registered", Version: 1,
+	}}}
+	if idx+1 < f.asnPages {
+		page.NextCursor = fmt.Sprintf("page-%d", idx+1)
+	}
+	return page
 }
