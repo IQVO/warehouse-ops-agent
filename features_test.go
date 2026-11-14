@@ -215,10 +215,8 @@ func (w *world) start() error {
 		return err
 	}
 	h.Idempotency = store
-	for _, hook := range w.hooks {
-		if err := hook(h); err != nil {
-			return err
-		}
+	if err := w.applyHooks(h); err != nil {
+		return err
 	}
 	w.server = httptest.NewServer(inboundhttp.NewRouter(h, "warehouse-ops-agent"))
 	return nil

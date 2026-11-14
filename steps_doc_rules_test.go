@@ -39,6 +39,16 @@ type docState struct {
 	releaseToken string
 }
 
+// applyHooks lets steps add wiring to the handlers start() has built.
+func (w *world) applyHooks(h *inboundhttp.Handlers) error {
+	for _, hook := range w.hooks {
+		if err := hook(h); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (w *world) doc() *docState {
 	if w.docs == nil {
 		w.docs = &docState{inv: &fakeInventory{usable: map[string]int{}, bins: map[string]ports.BinOccupancy{}}}
