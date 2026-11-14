@@ -23,7 +23,7 @@ type fakeProductMaster struct {
 	// product-master that dies in the middle of a scan.
 	failCursor string
 	calls      int
-	lastQuery    ports.ProductListQuery
+	lastQuery  ports.ProductListQuery
 }
 
 func (f *fakeProductMaster) ListProducts(_ context.Context, q ports.ProductListQuery) (ports.ProductPage, error) {
