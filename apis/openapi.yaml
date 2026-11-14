@@ -414,7 +414,7 @@ paths:
         Second step of the human-gated release act slice (ADR 0027): the
         operator presents the confirmation token returned by /proposals
         and the agent executes that one release. An expired token is a
-        410.
+        410; an unknown work-planning path or assignment id is a 404.
       requestBody:
         required: true
         content:
@@ -435,6 +435,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/GenericJSON"
         "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
         "409": { $ref: "#/components/responses/Conflict" }
         "410": { $ref: "#/components/responses/Gone" }
         "413": { $ref: "#/components/responses/PayloadTooLarge" }
