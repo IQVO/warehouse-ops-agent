@@ -217,9 +217,12 @@ func (f *fakeTelemetry) RangeQuery(context.Context, string, time.Time, time.Time
 type fakeLogs struct {
 	down  bool
 	lines map[string]int
+	// limits records the line limit of every query.
+	limits []int
 }
 
-func (f *fakeLogs) QueryErrorLines(context.Context, string, int64, int) ([]ports.LogEntry, error) {
+func (f *fakeLogs) QueryErrorLines(_ context.Context, _ string, _ int64, limit int) ([]ports.LogEntry, error) {
+	f.limits = append(f.limits, limit)
 	if f.down {
 		return nil, errUnreachable
 	}

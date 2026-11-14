@@ -81,6 +81,8 @@ type fakeFE struct {
 	down   bool
 	queues map[string]int
 	stuck  []ports.StuckTask
+	// windows records the withinSeconds of every diagnose_stuck_tasks call.
+	windows []int
 }
 
 func (f *fakeFE) GetQueueStatus(_ context.Context, processPath string) (ports.QueueStatus, error) {
@@ -90,7 +92,8 @@ func (f *fakeFE) GetQueueStatus(_ context.Context, processPath string) (ports.Qu
 	return ports.QueueStatus{ProcessPath: processPath, Depth: f.queues[processPath]}, nil
 }
 
-func (f *fakeFE) DiagnoseStuckTasks(context.Context, int) (ports.StuckTasksResult, error) {
+func (f *fakeFE) DiagnoseStuckTasks(_ context.Context, withinSeconds int) (ports.StuckTasksResult, error) {
+	f.windows = append(f.windows, withinSeconds)
 	if f.down {
 		return ports.StuckTasksResult{}, errUnreachable
 	}
@@ -138,9 +141,12 @@ func (f *fakeFacility) EstimateTravelDistance(_ context.Context, from, to string
 type fakeLP struct {
 	down bool
 	util map[string]ports.TaskTypeUtilization
+	// asked records the task type of every get_task_type_utilization call.
+	asked []string
 }
 
 func (f *fakeLP) GetTaskTypeUtilization(_ context.Context, taskType string, _ int64) (ports.TaskTypeUtilization, error) {
+	f.asked = append(f.asked, taskType)
 	if f.down {
 		return ports.TaskTypeUtilization{}, errUnreachable
 	}

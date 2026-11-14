@@ -15,6 +15,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -42,12 +43,20 @@ func TestFeatures(t *testing.T) {
 	slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, nil)))
 	t.Cleanup(func() { slog.SetDefault(previous) })
 
+	// Scenarios tagged @known-bug describe the SPEC behaviour where the code
+	// diverges from it: they are excluded by default and run (and must fail)
+	// with BDD_TAGS=@known-bug.
+	tags := os.Getenv("BDD_TAGS")
+	if tags == "" {
+		tags = "~@known-bug"
+	}
 	suite := godog.TestSuite{
 		ScenarioInitializer: InitializeScenario,
 		Options: &godog.Options{
 			Format:   "pretty",
 			Paths:    []string{"features"},
 			Strict:   true,
+			Tags:     tags,
 			TestingT: t,
 		},
 	}
@@ -119,6 +128,12 @@ type world struct {
 	targets  []usecases.PathTarget
 	bindings map[string]string
 	unwired  map[string]bool
+
+	// docs is the state of the documentation-derived steps
+	// (steps_doc_rules_test.go); hooks let those steps add wiring to the
+	// handlers start() builds without this file knowing about them.
+	docs  *docState
+	hooks []func(h *inboundhttp.Handlers) error
 
 	server *httptest.Server
 	response
@@ -200,6 +215,9 @@ func (w *world) start() error {
 		return err
 	}
 	h.Idempotency = store
+	if err := w.applyHooks(h); err != nil {
+		return err
+	}
 	w.server = httptest.NewServer(inboundhttp.NewRouter(h, "warehouse-ops-agent"))
 	return nil
 }
@@ -599,6 +617,7 @@ func InitializeScenario(sc *godog.ScenarioContext) {
 	registerConsoleSteps(sc, w)
 	registerOptionalContextSteps(sc, w)
 	registerLaborReallocationSteps(sc, w)
+	registerDocRulesSteps(sc, w)
 }
 
 func registerCommonSteps(sc *godog.ScenarioContext, w *world) {
