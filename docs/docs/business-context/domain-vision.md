@@ -7,7 +7,7 @@ description: Why warehouse-ops-agent exists, what it deliberately refuses to own
 
 # Domain vision
 
-> A read-side, decision-support mechanism that correlates signals from the
+> A decision-support mechanism (read-side, plus two opt-in human-gated act slices) that correlates signals from the
 > fleet's bounded contexts into a single diagnosis and a ranked,
 > human-gated recommendation. It owns no aggregate, enforces no new
 > invariant, and persists no domain state — its "domain" is decision
@@ -28,7 +28,7 @@ description: Why warehouse-ops-agent exists, what it deliberately refuses to own
 | Whether stock is actually usable, reserved, or in a bin | `inventory-storage` |
 | Whether a location physically exists and what site it belongs to | `facility-layout` |
 | How long associates actually spent on tasks versus idle | `labor-performance` |
-| **Executing** any recommendation this agent makes | a human, today; a later, separately-gated write slice, eventually |
+| **Executing** any recommendation this agent makes | a human; or, on a human's explicit approval through one of the two opt-in act slices ([ADR 0027](../adr/0027-act-slice-human-confirmed-work-release.md) release the next work unit, [ADR 0029](../adr/0029-labor-reallocation-act-slice.md) labor reallocation), the owning context, which receives the write over A2A |
 
 The line is *correlation versus ground truth*. This agent never re-derives
 or duplicates a fact an upstream context already owns — it reads that
@@ -38,13 +38,18 @@ it reasons about.
 
 ## The guardrails that make this safe by construction
 
-1. **Reads everywhere, writes nowhere directly.** Every domain fact this
-   agent reasons over crosses an MCP tool-call boundary to an upstream
-   context's *existing* read tools. It has never called, and in v1 cannot
-   call, any of their write tools (`assign_labor`, `release_next_work`,
-   `revoke_reservation`, `complete_task`) — see the
+1. **Reads everywhere, writes only through two human-gated act slices.**
+   Every domain fact this agent reasons over crosses an MCP tool-call
+   boundary to an upstream context's *existing* read tools, and it calls no
+   write tool over MCP (`revoke_reservation` and `complete_task` are never
+   called at all). The only writes are the two opt-in REST slices
+   ([ADR 0027](../adr/0027-act-slice-human-confirmed-work-release.md),
+   [ADR 0029](../adr/0029-labor-reallocation-act-slice.md)): a
+   propose-then-approve pair, never an MCP tool and never reachable by the LLM,
+   whose approval delegates exactly one A2A skill (`release_next_work`,
+   `assign_labor`) to the owning context. Off until the peer's A2A URL is set. See the
    [Governance note](../mcp/governance-note.md). This is CI-enforced by
-   `internal/architecture/zerowrite/zerowrite_test.go`.
+   `internal/architecture/zerowrite` (`act_slice_test.go`).
 2. **Correlate, don't alert on one metric.** The E3 daily-brief rule flags
    a path as an open exception only when **two or more independent
    signals** fire together (see `internal/domain/policy.deriveExceptions`).
