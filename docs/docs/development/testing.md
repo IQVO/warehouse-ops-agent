@@ -24,7 +24,7 @@ API.
 | Acceptance (BDD) | `features/*.feature`, driven by `features_test.go` and the `steps_*_test.go` / `fakes_*_test.go` files at the module root | black-box scenarios against the **real** chi router and the real use cases, with fake outbound adapters ([ADR 0022](../adr/0022-godog-bdd-acceptance-tests.md)) | `make bdd` |
 | MCP tool-selection evals | `internal/adapters/outbound/mcpclient/agent_selection_eval_test.go` (`TestAgentEval_*`) | that the stranded-reservation use case calls exactly the right sibling tools, with the right arguments, in the right order, through the real `mcpclient` adapters against recording Streamable HTTP stubs; no LLM involved | `go test ./internal/adapters/outbound/mcpclient/... -race -run '^TestAgentEval' -v` |
 | Architecture fitness | `internal/architecture/*_test.go` | the hexagonal dependency rules (arch-go), the MCP adapter rule, no auth middleware, no struct tags in the domain, CloudEvents-only and replay-consumer sensors, every outbound `http.Client` built by `httpclient.New` with the otelhttp transport (`TestOutboundHTTPClientsUseOtelhttp`) | `make arch-test` |
-| Zero-write guardrail | `internal/architecture/zerowrite/*_test.go` | no outbound client uses a mutating HTTP method, every MCP client calls only read tools (product-master and inbound-receiving pinned to their tool lists), and every tool this server registers carries `ReadOnlyHint`; `act_slice_test.go` pins the act slices to exactly four `POST` routes and the two A2A write verbs (`ReleaseNextWork`, `AssignLabor`) | `make arch-test` |
+| Zero-write guardrail | `internal/architecture/zerowrite/*_test.go` | no outbound client uses a mutating HTTP method, every MCP client calls only read tools (product-master and inbound-receiving pinned to their tool lists), and every tool this server registers carries `ReadOnlyHint`; `act_slice_test.go` pins the act slices to exactly the two propose/approve route pairs plus the deprecated `.../approve` alias (five `POST` routes, ADR 0031) and the two A2A write verbs (`ReleaseNextWork`, `AssignLabor`) | `make arch-test` |
 | Mutation | `gremlins` over `./internal/domain` | the domain tests actually kill mutants | `make mutation-fast` |
 
 At the time of writing the repo holds 280 `func Test...` functions across
@@ -32,25 +32,41 @@ its `_test.go` files.
 
 ### Acceptance features
 
-12 feature files with 102 `Scenario`/`Scenario Outline` blocks (11 of them
-outlines). With the outline examples expanded, the local
-`make check-all` run on this branch reported
-`142 scenarios (142 passed)` and `1079 steps (1079 passed)`.
+20 feature files hold **196** `Scenario`/`Scenario Outline` blocks (43 of them
+outlines; `git grep -c -E "^[[:space:]]*Scenario" -- features`). With the
+outline examples expanded, `make bdd` runs **305** scenarios and 2380 steps
+(`305 scenarios (305 passed)`, `2380 steps (2380 passed)`, godog's own summary
+from `go test . -run TestFeatures -count=1 -v`). No scenario is tagged
+`@known-bug` today; the harness still excludes that tag by default
+(`BDD_TAGS` defaults to `~@known-bug`, `BDD_TAGS=@known-bug` runs only such
+scenarios and they must fail).
 
-| Feature file | Scenario blocks |
-|---|---|
-| `console_reports.feature` | 11 |
-| `flow_balance.feature` | 11 |
-| `llm_arbitration.feature` | 10 |
-| `transfer_watch.feature` | 10 |
-| `daily_brief.feature` | 8 |
-| `explain_travel_factor.feature` | 8 |
-| `inbound_outlook.feature` | 8 |
-| `master_data_gaps.feature` | 8 |
-| `reasoner_resilience.feature` | 8 |
-| `order_lifecycle.feature` | 7 |
-| `http_conventions.feature` | 7 |
-| `runtime_signals.feature` | 6 |
+| Feature file | Scenario blocks | Executed | What it pins |
+|---|---|---|---|
+| `console_reports.feature` | 11 | 12 | the WMS and WES report dashboards |
+| `console_read_model_rules.feature` | 6 | 9 | the console read model's edges: `to` equal to `from`, a half-open window, one task lookup per work unit, `packageSealed` only from a completed SLAM task |
+| `flow_balance.feature` | 12 | 24 | the E1 flow-balance advisory |
+| `decision_rules.feature` | 18 | 26 | the daily-brief signal correlation, the flow-balance decision table, the utilization overlay thresholds (ADR 0008), arbitration |
+| `llm_arbitration.feature` | 10 | 16 | the LLM reasoner behind the policy layer |
+| `reasoner_resilience.feature` | 8 | 8 | the reasoner path's breaker, timeout and retry |
+| `daily_brief.feature` | 8 | 8 | the E3 daily brief |
+| `signal_and_report_edges.feature` | 19 | 34 | runtime-signal thresholds, inbound-outlook and master-data-gap bounds |
+| `explain_travel_factor.feature` | 8 | 12 | travel-factor advisory |
+| `inbound_outlook.feature` | 8 | 8 | inbound outlook |
+| `master_data_gaps.feature` | 8 | 8 | master-data gaps |
+| `runtime_signals.feature` | 6 | 10 | runtime signals |
+| `order_lifecycle.feature` | 7 | 9 | order lifecycle read model |
+| `http_conventions.feature` | 7 | 17 | conventions shared by every route |
+| `mcp_surface_rules.feature` | 9 | 22 | the agent's own MCP server: `list_open_exceptions`, the stranded-reservation rules, read-only tools |
+| `transfer_watch.feature` | 10 | 16 | transfer watch |
+| `transfer_watch_rules.feature` | 7 | 19 | triage by state (an unknown state is `unclassified`, ADR 0019), parameter bounds, imbalance ordering |
+| `labor_reallocation.feature` | 20 | 22 | the labor-reallocation act slice (ADR 0029) |
+| `labor_reallocation_rules.feature` | 5 | 10 | skip reasons, move budget, ranking, token expiry |
+| `release_next_work_rules.feature` | 9 | 15 | the release-next-work act slice (ADR 0027): when a token is minted, the refusal shapes, approve outcomes |
+| **20 files** | **196** | **305** | |
+
+The `*_rules.feature` files and `signal_and_report_edges.feature` pin rules
+written in the documentation; their steps are in `steps_doc_rules_test.go`.
 
 `TestFeatures` runs godog with `Strict: true`, so an undefined or pending
 step fails the suite. It pins `CORS_ALLOWED_ORIGINS` to empty (the console
