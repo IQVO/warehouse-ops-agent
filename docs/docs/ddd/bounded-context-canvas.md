@@ -50,7 +50,7 @@ flowchart LR
     end
     subgraph BC["warehouse-ops-agent - Supporting, owns no aggregate - read-side agent and console BFF"]
         direction TB
-        purpose["<b>Purpose</b><br/>Correlate read-only facts fanned out from the bounded<br/>contexts into ranked, evidence-carrying, human-gated<br/>recommendations (daily brief, flow-balance and<br/>stranded-reservation exceptions, travel factor, runtime<br/>signals) and serve the console its order lifecycle and<br/>dashboards. It recommends; it never acts."]:::card
+        purpose["<b>Purpose</b><br/>Correlate read-only facts fanned out from the bounded<br/>contexts into ranked, evidence-carrying, human-gated<br/>recommendations (daily brief, flow-balance and<br/>stranded-reservation exceptions, travel factor, runtime<br/>signals) and serve the console its order lifecycle and<br/>dashboards. It recommends; it acts only through two opt-in, human-gated slices."]:::card
         roles["<b>Domain roles</b><br/>- Analysis context (no invariant of its own)<br/>- Gateway / BFF for warehouse-console"]:::card
         rules["<b>Business decisions it enforces</b><br/>- Correlate, do not alert on one metric: two signals =<br/>warning, three = critical<br/>- Degrade to hold, never guess<br/>- No revoke without a blast radius<br/>- Reject, never default, untrusted enums<br/>- Model output never bypasses policy; LLM mode off by<br/>default<br/>- Each console-bff section degrades independently"]:::card
         purpose ~~~ roles ~~~ rules

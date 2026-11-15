@@ -10,10 +10,17 @@ description: Symptom, cause, check and fix for the failure modes visible in ware
 Every row below comes from a code path on this branch. The agent has no
 database, no Kafka consumer and no `/readyz`, so the fleet's usual
 "consumer lag", "DLQ growth" and "migration failed" rows do not apply
-([Runbook](./runbook.md#what-does-not-exist-here)). Errors are a flat
-`{"error": "<message>"}` body, not RFC 7807 problem documents, so there
-are no `409`, `412` or `422` problem types and no idempotency keys to
-conflict (the API is read-only `GET`).
+([Runbook](./runbook.md#what-does-not-exist-here)). Errors are RFC 9457
+`application/problem+json` documents (`type`, `title`, `status`, `detail`,
+`instance`; `internal/adapters/inbound/http/problem.go`). Rows below that still
+quote an `{"error": "<message>"}` body predate that change: the status code is
+right, the body is the problem document. The API is `GET` except the five
+opt-in `POST` routes of the two act slices ([ADR 0027](../adr/0027-act-slice-human-confirmed-work-release.md),
+[ADR 0029](../adr/0029-labor-reallocation-act-slice.md),
+[ADR 0031](../adr/0031-approvals-route-replaces-the-approve-verb.md)): they alone
+answer `409`, `410`, `413` and `415`, and carry the `idempotency-key-*` problem
+types ([ADR 0030](../adr/0030-act-slice-idempotency-key-store.md)); see
+[Act slices](#act-slices-post). There is no `412` or `422`.
 
 Start every investigation with the startup line:
 
@@ -70,7 +77,32 @@ answers most "why is this feature off" questions.
 | `freshnessLagSeconds: null` but the section is available | only the `/freshness` call failed | log `console_reports: freshness unavailable` | not a degradation; check the reader's `/freshness` route |
 | `400` from `/console/reports/wms` or `/wes` | `from`/`to` not RFC3339, or `to` not after `from` | the `error` text | send e.g. `from=2026-10-09T00:00:00Z` |
 | Browser call from the console fails with a CORS error | the console's origin is not in `CORS_ALLOWED_ORIGINS` (default only `http://localhost:5173`); only `GET` and `OPTIONS` are allowed | browser devtools, `Access-Control-Allow-Origin` missing | add the origin to the chart value `config.corsAllowedOrigins` (comma-separated) |
-| `405` on a `POST` to a REST route | every REST route is `GET` only | — | use `GET`; `/mcp` is the only path that accepts other methods |
+| `405` on a `POST` to a REST route | every REST route is `GET` only except the five act-slice `POST` routes below | — | use `GET`; `/mcp` accepts every method |
+
+## Act slices (`POST`)
+
+`POST /act/release-next-work/{proposals,approvals}` and
+`POST /labor-reallocation/proposals`, `.../proposals/{proposalId}/approvals`
+(and the deprecated `.../approve` alias). Source:
+`internal/adapters/inbound/http/act_release_work.go`,
+`act_labor_reallocation.go`, `idempotency.go`. Detail sentences never carry
+upstream prose.
+
+| Symptom | Cause | Check | Fix |
+|---|---|---|---|
+| `503` "act slice not configured (WES_WORK_PLANNING_A2A_URL unset)" / "labor reallocation not configured (WORKFORCE_MANAGEMENT_A2A_URL unset)" | the slice is opt-in and its A2A peer URL is unset: the agent is read-only ([ADR 0027](../adr/0027-act-slice-human-confirmed-work-release.md)) | the startup line, [Configuration](./configuration.md) | set the URL |
+| `400` problem type `idempotency-key-required` / `idempotency-key-invalid` | no `Idempotency-Key` header, or not one value of 1-128 printable ASCII characters starting and ending with a visible one (not on the deprecated `.../approve` alias, which is keyless) | request headers | send a fresh UUID per logical submit and reuse it on retry |
+| `409` problem type `idempotency-key-reused` | the same key with another method, path or body | client key generation | use a new key for a different request; a same-key, same-body retry replays the stored answer with `Idempotency-Replayed: true` |
+| `415` | `Content-Type` is not `application/json` (this is also what keeps a cross-site HTML form out) | request headers | send `application/json` |
+| `413` | body above 8 KiB | the body | shrink it |
+| `400` "invalid JSON body: ..." | malformed JSON, an unknown field or trailing data | the detail | send exactly the documented fields |
+| `400` on propose | a required field is missing or blank (`invalid input`) | the detail | send `pathId`, `buildingId` and `shiftId` (release), or the documented reallocation fields |
+| `400` on approve | the token is invalid (forged or tampered), is not act-enabled, or belongs to another proposal; or workforce-management refused the assignment arguments | the detail | propose again |
+| `409` on propose | the policy itself does not recommend this action (for a release: anything but `release_next_work`; or the recommendation rests on incomplete evidence); for a reallocation: the target path is not understaffed, or no offered associate can be moved | the flow-balance or staffing-gap reading | none: no token is minted when the agent would not recommend the action |
+| `409` on approve | the token was already used (the approval ran once; an approval retried after a `5xx` answers this, never a second delegation), there is no pending work to release, or the peer rejected the move on a domain rule | the detail | propose again |
+| `410` on approve | the token expired (5 minutes) | the clock | propose again, then approve |
+| `404` on approve | wes-work-planning does not know the path (release), or workforce-management does not know the associate or path (reallocation) | the path and associate ids | fix the ids |
+| `502` on approve or propose | the peer (wes-work-planning over A2A, or workforce-management over MCP/A2A) is unreachable or answered off-contract; `5xx` answers are never stored under the key | the detail names the service | restore the peer, retry with the same key |
 
 ## Daily brief
 
