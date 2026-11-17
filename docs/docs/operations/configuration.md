@@ -15,13 +15,14 @@ configuration comes from environment variables. Most are read in
 in `internal/observability/telemetry.go`. Nothing is read from a file or a
 flag.
 
-Startup fails, and the process exits with status 1, in four cases:
+Startup fails, and the process exits with status 1, in five cases:
 
 1. `DAILY_BRIEF_PATH_TARGETS` is set but is not a JSON array of targets, or
    is an empty array or `null` ([ADR 0017](../adr/0017-empty-path-targets-is-a-config-error.md)).
 2. `LLM_MODE` is not `off`, `shadow`, `on` or empty.
 3. `LLM_MODE` is `shadow` or `on` and `ANTHROPIC_API_KEY` is empty.
 4. A `LLM_TOOL_ALLOWLIST` entry is not of the form `<upstream>/<tool>`.
+5. A `LLM_TOOL_ALLOWLIST` entry for `dock-scheduling` or `yard-management` names a tool outside that upstream's pinned read tools, in particular any write tool (ADR 0032).
 
 Every other bad value falls back to the default or turns the feature off.
 The startup log line `warehouse-ops-agent listening` reports which optional
@@ -106,6 +107,8 @@ else changes.
 | `VENDOR_CONNECTIVITY_MCP_ENDPOINT` | empty | no | No vendor-connectivity client is built (fail-open, ADR 0025; wired, no consuming use case yet, so nothing else changes). | `internal/config/config.go` | `upstreams.vendorConnectivity.endpoint` |
 | `TASK_INTERLEAVING_MCP_ENDPOINT` | empty | no | No task-interleaving client is built (fail-open, ADR 0025; wired, no consuming use case yet, so nothing else changes). | `internal/config/config.go` | `upstreams.taskInterleaving.endpoint` |
 | `PICK_FACE_REPLENISHMENT_MCP_ENDPOINT` | empty | no | No pick-face-replenishment client is built (fail-open, ADR 0025; wired, no consuming use case yet, so nothing else changes). | `internal/config/config.go` | `upstreams.pickFaceReplenishment.endpoint` |
+| `DOCK_SCHEDULING_MCP_ENDPOINT` | empty | no | No dock-scheduling client is built and the reasoner gets no session for it (fail-open, ADR 0023; wired, no consuming use case yet, ADR 0032). Set to `http://dock-scheduling-mcp.warehouse-systems.svc.cluster.local:8090/mcp` to switch it on. Only its 7 read tools are ever called. | `internal/config/config_loaders.go` | `upstreams.dockScheduling.endpoint` |
+| `YARD_MANAGEMENT_MCP_ENDPOINT` | empty | no | No yard-management client is built and the reasoner gets no session for it (fail-open, ADR 0023; wired, no consuming use case yet, ADR 0032). Set to `http://yard-management-mcp.warehouse-systems.svc.cluster.local:8090/mcp` to switch it on. Only its 10 read tools are ever called. | `internal/config/config_loaders.go` | `upstreams.yardManagement.endpoint` |
 | `INBOUND_STALE_RECEIPT_AGE` | none | no | Go duration, e.g. `6h`. An Open receipt older than this is listed in `staleReceipts`. Unset, unparseable or non-positive means the section is omitted with the reason `INBOUND_STALE_RECEIPT_AGE is not configured`. There is deliberately no default. | `internal/config/config.go` | `config.inboundStaleReceiptAge` |
 | `SLOT_PLAN_STALE_AGE` | `24h` | no | Go duration, e.g. `12h`. An Approved slot plan whose moves are not fully executed this long after approval is listed in the daily brief's `slotPlanWatch.stale`. Unset, unparseable or non-positive means `24h`. Used only when `SLOTTING_OPTIMIZATION_MCP_ENDPOINT` is set. | `internal/config/config.go` | `config.slotPlanStaleAge` |
 
@@ -174,7 +177,7 @@ see [ADR 0004](../adr/0004-llm-reasoner-behind-the-policy-layer.md) and
 | `LLM_MODEL` | empty, which the adapter turns into `claude-sonnet-4-5` | no | Model id sent in every request. | `internal/config/config.go`, `internal/adapters/outbound/llm/anthropic/reasoner.go` | `llm.model` |
 | `LLM_BASE_URL` | empty, which means `https://api.anthropic.com` | no | Base URL for `POST /v1/messages`; for tests and proxies. | `internal/config/config.go`, `internal/adapters/outbound/llm/anthropic/reasoner.go` | none |
 | `LLM_TIMEOUT` | `8s` | no | Go duration bounding one whole reasoning call (every tool-use turn). An unparseable or non-positive value means `8s`. | `internal/config/config.go` | `llm.timeout` |
-| `LLM_TOOL_ALLOWLIST` | `wes-work-planning/get_backlog_telemetry,wes-work-planning/get_rebalance_recommendation,workforce-management/get_staffing_gap,fulfillment-execution/get_queue_status,fulfillment-execution/diagnose_stuck_tasks` | no | Comma-separated `<upstream>/<tool>` MCP read tools the model may call. Only five upstream names have a session in the reasoner: `wes-work-planning`, `fulfillment-execution`, `workforce-management`, `inventory-storage`, `facility-layout`. An entry for any other upstream is accepted but never offered to the model. | `internal/config/config.go`, `cmd/agent/reasoner.go` | `llm.toolAllowList` (a list) |
+| `LLM_TOOL_ALLOWLIST` | `wes-work-planning/get_backlog_telemetry,wes-work-planning/get_rebalance_recommendation,workforce-management/get_staffing_gap,fulfillment-execution/get_queue_status,fulfillment-execution/diagnose_stuck_tasks` | no | Comma-separated `<upstream>/<tool>` MCP read tools the model may call. Seven upstream names have a session in the reasoner: `wes-work-planning`, `fulfillment-execution`, `workforce-management`, `inventory-storage`, `facility-layout` and the two yard services `dock-scheduling` and `yard-management` (a session only when its endpoint is set; ADR 0032). An entry for any other upstream is accepted but never offered to the model. For the two yard upstreams an entry must be one of the pinned read tools (`mcpclient.DockSchedulingReadTools`, `mcpclient.YardManagementReadTools`), else boot aborts. | `internal/config/config.go`, `cmd/agent/reasoner.go` | `llm.toolAllowList` (a list) |
 
 warehouse-infra runs the k3s cluster with `llm.mode: shadow` and the
 key in the Secret `warehouse-ops-agent-anthropic`

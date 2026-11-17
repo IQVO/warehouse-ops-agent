@@ -8,6 +8,7 @@ import "github.com/claudioed/warehouse-ops-agent/internal/ports"
 // constructor and its tool methods (fleet dupl rule, 2026-11-02).
 var _ ports.CustomerOrderingClient = (*CustomerOrdering)(nil)
 var _ ports.DeliveryPromiseClient = (*DeliveryPromise)(nil)
+var _ ports.DockSchedulingClient = (*DockScheduling)(nil)
 var _ ports.ExceptionManagementClient = (*ExceptionManagement)(nil)
 var _ ports.FacilityLayoutClient = (*FacilityLayout)(nil)
 var _ ports.FulfillmentExecutionClient = (*FulfillmentExecution)(nil)
@@ -34,4 +35,5 @@ var _ ports.VendorConnectivityClient = (*VendorConnectivity)(nil)
 var _ ports.WarehousePlanningClient = (*WarehousePlanning)(nil)
 var _ ports.WesWorkPlanningClient = (*WesWorkPlanning)(nil)
 var _ ports.WorkforceManagementClient = (*WorkforceManagement)(nil)
+var _ ports.YardManagementClient = (*YardManagement)(nil)
 var _ ports.StaffingGapBySiteClient = (*WorkforceManagement)(nil)

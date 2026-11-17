@@ -136,6 +136,7 @@ const sidebars: SidebarsConfig = {
         'adr/0029-labor-reallocation-act-slice',
         'adr/0030-act-slice-idempotency-key-store',
         'adr/0031-approvals-route-replaces-the-approve-verb',
+        'adr/0032-yard-mcp-clients-dock-scheduling-and-yard-management',
       ],
     },
   ],

@@ -70,6 +70,8 @@ column); for an "optional" one the feature is off.
 | vendor-connectivity | `VENDOR_CONNECTIVITY_MCP_ENDPOINT` (optional) | `get_vendor_node`, `get_node_scorecard` | `get_vendor`, `list_vendor_nodes`, `get_purchase_order`, `poll_purchase_orders`, `get_inbound_shipment`, `poll_inbound_shipments`, `get_transaction` (published; no use case here calls them) | `get_network_node_outlook` (vendor + vendorScores sections, only when node-topology registered the node under a vendor, ADR 0026) | the outlook section is `omitted` with the reason; the tool errors only when every attempted section failed |
 | task-interleaving | `TASK_INTERLEAVING_MCP_ENDPOINT` (optional) | `get_hint`, `get_site_policy`, `get_station`, `list_hints` | none | none yet (ADR 0025; wired for the interleaving read surface; no consuming use case) | none: unset = no client, nothing depends on it (fail-open) |
 | pick-face-replenishment | `PICK_FACE_REPLENISHMENT_MCP_ENDPOINT` (optional) | `get_policy`, `list_policies`, `get_replenishment`, `list_replenishments`, `list_pick_faces` | none | none yet (ADR 0025; wired for the pick-face read surface; no consuming use case) | none: unset = no client, nothing depends on it (fail-open) |
+| dock-scheduling | `DOCK_SCHEDULING_MCP_ENDPOINT` (optional) | `list_appointments`, `get_appointment`, `get_door_availability`, `get_dock_calendar`, `list_carriers`, `get_carrier`, `list_at_risk_appointments` | none (all seven are wired; no use case here calls them yet, ADR 0032). The server's seven L3 write tools (`book_appointment`, `reschedule_appointment`, `cancel_appointment`, `register_carrier`, `suspend_carrier`, `reinstate_carrier`, `report_eta`) are never called | none yet | none: unset = no client, nothing depends on it (fail-open) |
+| yard-management | `YARD_MANAGEMENT_MCP_ENDPOINT` (optional) | `get_yard_board`, `list_trailers`, `get_trailer`, `list_moves`, `list_visits`, `get_visit`, `get_yard_policy`, `get_yard_dwell_report`, `get_inspection`, `list_trailer_inspections` | none (all ten are wired; no use case here calls them yet, ADR 0032). The server's eleven L3 write tools are never called | none yet | none: unset = no client, nothing depends on it (fail-open) |
 
 process-path-management is the thirteenth client
 ([ADR 0026](../adr/0026-network-outlook-and-process-path-client.md)):
@@ -98,10 +100,13 @@ the tools above.
 ### Tools the LLM may call
 
 When `LLM_MODE` is `shadow` or `on`, the reasoner can call the MCP tools
-on `LLM_TOOL_ALLOWLIST` through the same clients (`ToolInvoker`). Only
-five upstreams have a reasoner session: wes-work-planning,
-fulfillment-execution, workforce-management, inventory-storage and
-facility-layout (`cmd/agent/reasoner.go`). The default list is
+on `LLM_TOOL_ALLOWLIST` through the same clients (`ToolInvoker`). Seven
+upstreams have a reasoner session: wes-work-planning,
+fulfillment-execution, workforce-management, inventory-storage,
+facility-layout and, only when their endpoints are set (off by default), the
+two yard services dock-scheduling and yard-management (`cmd/agent/reasoner.go`,
+ADR 0032). For the yard services the allow-list is held to each upstream's
+pinned read tools: an entry naming a write tool is a startup error. The default list is
 `wes-work-planning/get_backlog_telemetry`,
 `wes-work-planning/get_rebalance_recommendation`,
 `workforce-management/get_staffing_gap`,

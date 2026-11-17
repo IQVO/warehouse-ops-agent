@@ -48,6 +48,11 @@ func wireReasoner(ctx context.Context, cfg config.Config, logger *slog.Logger, f
 		"workforce-management":  mcpclient.New(mcpclient.Config{Name: "workforce-management", Endpoint: cfg.WorkforceManagement.Endpoint}),
 		"inventory-storage":     mcpclient.New(mcpclient.Config{Name: "inventory-storage", Endpoint: cfg.InventoryStorage.Endpoint}),
 		"facility-layout":       mcpclient.New(mcpclient.Config{Name: "facility-layout", Endpoint: cfg.FacilityLayout.Endpoint}),
+		// The two yard services (ADR 0032): an empty endpoint (the default)
+		// drops the session, and the allow-list is held to each upstream's
+		// pinned read set by CheckReasonerAllowList below.
+		"dock-scheduling": mcpclient.New(mcpclient.Config{Name: "dock-scheduling", Endpoint: cfg.DockScheduling.Endpoint}),
+		"yard-management": mcpclient.New(mcpclient.Config{Name: "yard-management", Endpoint: cfg.YardManagement.Endpoint}),
 	}
 	allowed := map[string][]string{}
 	for _, entry := range cfg.LLM.ToolAllowList {
@@ -56,6 +61,9 @@ func wireReasoner(ctx context.Context, cfg config.Config, logger *slog.Logger, f
 			return fmt.Errorf("LLM_TOOL_ALLOWLIST entry %q is not <upstream>/<tool>", entry)
 		}
 		allowed[upstream] = append(allowed[upstream], tool)
+	}
+	if err := mcpclient.CheckReasonerAllowList(allowed); err != nil {
+		return err
 	}
 	invoker := mcpclient.NewToolInvoker(sessions, allowed)
 
