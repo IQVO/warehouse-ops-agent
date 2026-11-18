@@ -130,6 +130,12 @@ spec:
               value: {{ .Values.upstreams.taskInterleaving.endpoint | quote }}
             - name: PICK_FACE_REPLENISHMENT_MCP_ENDPOINT
               value: {{ .Values.upstreams.pickFaceReplenishment.endpoint | quote }}
+            # The two yard services (ADR 0032), always rendered; empty =
+            # no client is built (the yard is OFF by default).
+            - name: DOCK_SCHEDULING_MCP_ENDPOINT
+              value: {{ .Values.upstreams.dockScheduling.endpoint | quote }}
+            - name: YARD_MANAGEMENT_MCP_ENDPOINT
+              value: {{ .Values.upstreams.yardManagement.endpoint | quote }}
             # process-path-management (ADR 0026): the thirteenth client,
             # re-added after ADR 0024 removal, pinned to the current
             # three-tool registry; rendered from values so the ConfigMap

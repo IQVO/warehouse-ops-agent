@@ -325,6 +325,18 @@ upstreams:
   # http://process-path-management.warehouse-systems.svc.cluster.local:8090/mcp
   processPathManagement:
     endpoint: ""
+  # The two yard services (ADR 0032): dock-scheduling and yard-management.
+  # Each MCP server publishes read tools (L1) AND write tools (L3); the
+  # agent's clients wrap the read tools only, and writes stay behind the
+  # human-approval act slices (D-Y4). Empty = not configured: the binary
+  # builds no client (fail-open, ADR 0023), so the yard is OFF by default;
+  # no use case consumes either client yet. In-cluster values:
+  # http://dock-scheduling-mcp.warehouse-systems.svc.cluster.local:8090/mcp
+  # http://yard-management-mcp.warehouse-systems.svc.cluster.local:8090/mcp
+  dockScheduling:
+    endpoint: ""
+  yardManagement:
+    endpoint: ""
 
 # warehouse-infra Prometheus base URL, for the telemetry-reader port's
 # REAL implementation (already wired: cmd/agent's newTelemetryReader picks

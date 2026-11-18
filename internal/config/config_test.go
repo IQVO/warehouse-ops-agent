@@ -271,6 +271,41 @@ func TestLoad_NetworkFleetEndpoints_DefaultAndRead(t *testing.T) {
 	}
 }
 
+// TestLoad_YardEndpoints_OffByDefaultAndRead covers the two ADR-0032 yard
+// upstream endpoints: unset means not configured (the yard is OFF), and a
+// set value reaches its config field verbatim.
+func TestLoad_YardEndpoints_OffByDefaultAndRead(t *testing.T) {
+	cases := map[string]func(Config) string{
+		"DOCK_SCHEDULING_MCP_ENDPOINT": func(c Config) string { return c.DockScheduling.Endpoint },
+		"YARD_MANAGEMENT_MCP_ENDPOINT": func(c Config) string { return c.YardManagement.Endpoint },
+	}
+	for env, read := range cases {
+		t.Run(env, func(t *testing.T) {
+			t.Setenv(env, "")
+			if got := read(mustLoad(t)); got != "" {
+				t.Errorf("an unset endpoint must stay empty (= not configured), got %q", got)
+			}
+			want := "http://" + env + ".example:8090/mcp"
+			t.Setenv(env, want)
+			if got := read(mustLoad(t)); got != want {
+				t.Errorf("endpoint = %q, want %q", got, want)
+			}
+		})
+	}
+}
+
+// TestLoad_DefaultToolAllowListNamesNoYardTool: ADR 0032 leaves the
+// default reasoner allow-list unchanged, so the yard stays invisible to the
+// model until an operator lists its read tools.
+func TestLoad_DefaultToolAllowListNamesNoYardTool(t *testing.T) {
+	t.Setenv("LLM_TOOL_ALLOWLIST", "")
+	for _, entry := range mustLoad(t).LLM.ToolAllowList {
+		if strings.HasPrefix(entry, "dock-scheduling/") || strings.HasPrefix(entry, "yard-management/") {
+			t.Errorf("the default allow-list must name no yard tool, got %q", entry)
+		}
+	}
+}
+
 func TestLoad_Act_UnsetIsNotConfiguredWithDefaultTTL(t *testing.T) {
 	t.Setenv("WES_WORK_PLANNING_A2A_URL", "")
 	t.Setenv("APPROVAL_SIGNING_KEY", "")

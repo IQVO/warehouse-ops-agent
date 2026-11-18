@@ -70,6 +70,22 @@ grep -q 'SELLER_INBOUND_MCP_ENDPOINT' <<<"$set_seller_endpoint" || fail "upstrea
 grep -q 'value: "http://seller-inbound-mcp.warehouse-systems.svc.cluster.local:8090/mcp"' <<<"$set_seller_endpoint" ||
   fail "upstreams.sellerInbound.endpoint does not reach the Deployment as SELLER_INBOUND_MCP_ENDPOINT verbatim"
 
+# The two yard upstreams (ADR 0032) are ALWAYS rendered in both the
+# Deployment and the ConfigMap, EMPTY by default (the yard is OFF: no client
+# is built), and a set value reaches the Deployment verbatim.
+for env_name in DOCK_SCHEDULING_MCP_ENDPOINT YARD_MANAGEMENT_MCP_ENDPOINT; do
+  grep -A1 "name: $env_name" <<<"$deployment" | grep -q 'value: ""' || fail "$env_name is not rendered empty (yard off) in the Deployment by default"
+  grep -q "$env_name: \"\"" <<<"$configmap_default" || fail "$env_name is not rendered empty (yard off) in the ConfigMap by default"
+done
+set_yard_endpoints="$(helm template "$release" "$chart_dir" \
+  --set-string 'upstreams.dockScheduling.endpoint=http://dock-scheduling-mcp.warehouse-systems.svc.cluster.local:8090/mcp' \
+  --set-string 'upstreams.yardManagement.endpoint=http://yard-management-mcp.warehouse-systems.svc.cluster.local:8090/mcp' \
+  --show-only templates/deployment.yaml)"
+grep -q 'value: "http://dock-scheduling-mcp.warehouse-systems.svc.cluster.local:8090/mcp"' <<<"$set_yard_endpoints" ||
+  fail "upstreams.dockScheduling.endpoint does not reach the Deployment as DOCK_SCHEDULING_MCP_ENDPOINT verbatim"
+grep -q 'value: "http://yard-management-mcp.warehouse-systems.svc.cluster.local:8090/mcp"' <<<"$set_yard_endpoints" ||
+  fail "upstreams.yardManagement.endpoint does not reach the Deployment as YARD_MANAGEMENT_MCP_ENDPOINT verbatim"
+
 # WORKFORCE_MANAGEMENT_A2A_URL (ADR 0029, the labor-reallocation act slice) is
 # ALWAYS rendered in both the Deployment and the ConfigMap from
 # upstreams.workforceManagement.a2aEndpoint; empty = the feature is off, and a

@@ -56,6 +56,7 @@ var wantProductMasterCalledTools = []string{"list_products"}
 
 type goldenTool struct {
 	Name         string         `json:"name"`
+	Meta         map[string]any `json:"_meta"`
 	Annotations  map[string]any `json:"annotations"`
 	InputSchema  map[string]any `json:"inputSchema"`
 	OutputSchema map[string]any `json:"outputSchema"`

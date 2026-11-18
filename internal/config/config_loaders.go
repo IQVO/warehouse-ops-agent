@@ -54,9 +54,9 @@ func loadReportsURLs(cfg *Config) {
 
 // loadNetworkFleetEndpoints reads the twelve ADR-0025 upstream endpoints
 // (the ten retail-network contexts plus task-interleaving and
-// pick-face-replenishment) onto cfg. Kept as one helper so Load's own
-// literal stays readable; every env name matches the chart's rendered
-// name exactly.
+// pick-face-replenishment) onto cfg, then the two ADR-0032 yard endpoints
+// through loadYardEndpoints. Kept as one helper so Load's own literal stays
+// readable; every env name matches the chart's rendered name exactly.
 func loadNetworkFleetEndpoints(cfg *Config) {
 	cfg.CustomerOrdering = UpstreamConfig{Endpoint: getenv("CUSTOMER_ORDERING_MCP_ENDPOINT", "")}
 	cfg.DeliveryPromise = UpstreamConfig{Endpoint: getenv("DELIVERY_PROMISE_MCP_ENDPOINT", "")}
@@ -71,6 +71,14 @@ func loadNetworkFleetEndpoints(cfg *Config) {
 	cfg.SellerInbound = UpstreamConfig{Endpoint: getenv("SELLER_INBOUND_MCP_ENDPOINT", "")}
 	cfg.TaskInterleaving = UpstreamConfig{Endpoint: getenv("TASK_INTERLEAVING_MCP_ENDPOINT", "")}
 	cfg.PickFaceReplenishment = UpstreamConfig{Endpoint: getenv("PICK_FACE_REPLENISHMENT_MCP_ENDPOINT", "")}
+	loadYardEndpoints(cfg)
+}
+
+// loadYardEndpoints reads the two yard-service MCP endpoints (ADR 0032)
+// onto cfg. Both default to empty = not configured (no client is built).
+func loadYardEndpoints(cfg *Config) {
+	cfg.DockScheduling = UpstreamConfig{Endpoint: getenv("DOCK_SCHEDULING_MCP_ENDPOINT", "")}
+	cfg.YardManagement = UpstreamConfig{Endpoint: getenv("YARD_MANAGEMENT_MCP_ENDPOINT", "")}
 }
 
 func loadDuration(key string, fallback time.Duration) time.Duration {

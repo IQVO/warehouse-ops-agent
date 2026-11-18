@@ -297,7 +297,10 @@ deterministic path already uses) is invoked through the same `mcpclient`
 sessions as everything else, every call schema-validated
 upstream and logged as `llm.tool_call`. It answers only through a
 `submit_plan` tool whose schema is the policy package's closed action
-vocabulary; `policy.ValidatePlan` rejects anything else.
+vocabulary; `policy.ValidatePlan` rejects anything else. For the two yard
+upstreams (`dock-scheduling`, `yard-management`, off unless their endpoints are
+set, ADR 0032) the allow-list is held to each upstream's pinned read tools:
+naming a yard write tool aborts boot.
 
 Env: `ANTHROPIC_API_KEY` (required unless `off`; startup fails loudly
 otherwise), `LLM_MODEL` (default `claude-sonnet-4-5`), `LLM_TIMEOUT`

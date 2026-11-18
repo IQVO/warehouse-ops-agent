@@ -166,6 +166,16 @@ type Config struct {
 	TaskInterleaving      UpstreamConfig
 	PickFaceReplenishment UpstreamConfig
 
+	// DockScheduling and YardManagement are the two yard services' MCP
+	// servers (DOCK_SCHEDULING_MCP_ENDPOINT, YARD_MANAGEMENT_MCP_ENDPOINT,
+	// ADR 0032). Each server also publishes write tools; this agent's
+	// clients wrap only the read ones. Wired but not consumed by any use
+	// case yet; an empty endpoint (the default) means "not configured" and
+	// no client is built (fail-open, ADR 0023), so the yard is OFF until an
+	// operator sets the value.
+	DockScheduling UpstreamConfig
+	YardManagement UpstreamConfig
+
 	// SlotPlanStaleAge is the approval age past which an Approved slot
 	// plan with unexecuted moves is flagged in the daily brief's
 	// slot-plan section (SLOT_PLAN_STALE_AGE, a Go duration; default

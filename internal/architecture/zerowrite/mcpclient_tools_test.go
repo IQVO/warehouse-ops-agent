@@ -27,6 +27,11 @@ var writeToolPrefixes = []string{
 	"revoke_", "update_", "delete_", "cancel_", "set_", "add_", "remove_",
 	"submit_", "reserve_", "activate_", "deactivate_", "classify_", "record_",
 	"book_", "check_in_", "open_", "receive_", "close_", "retire_",
+	// The yard services' write verbs (ADR 0032): dock-scheduling publishes
+	// book_/reschedule_/cancel_/register_/suspend_/reinstate_/report_ and
+	// yard-management request_/cancel_/place_/release_/record_/secure_/
+	// open_/complete_ tools next to their reads; none is ever callable here.
+	"request_", "place_", "secure_", "complete_", "reschedule_", "suspend_", "reinstate_", "report_",
 }
 
 // productMasterReadTools is the exact allow-list for the product-master
@@ -177,6 +182,12 @@ var networkFleetReadTools = map[string][]string{
 	"shipping_and_tracking.go":   {"get_journey"},
 	"vendor_connectivity.go":     {"get_inbound_shipment", "get_node_scorecard", "get_purchase_order", "get_transaction", "get_vendor", "get_vendor_node", "list_vendor_nodes", "poll_inbound_shipments", "poll_purchase_orders"},
 	"task_interleaving.go":       {"get_hint", "get_site_policy", "get_station", "list_hints"},
+	// The yard services (ADR 0032) publish write tools too, so unlike every
+	// other entry here these two lists are the READ subset of a mixed
+	// registry; the write verbs above plus the exact-set check keep every
+	// write tool out of the client files.
+	"dock_scheduling.go":         {"get_appointment", "get_carrier", "get_dock_calendar", "get_door_availability", "list_appointments", "list_at_risk_appointments", "list_carriers"},
+	"yard_management.go":         {"get_inspection", "get_trailer", "get_visit", "get_yard_board", "get_yard_dwell_report", "get_yard_policy", "list_moves", "list_trailer_inspections", "list_trailers", "list_visits"},
 	"pick_face_replenishment.go": {"get_policy", "get_replenishment", "list_pick_faces", "list_policies", "list_replenishments"},
 	"process_path_management.go": {"get_cpt_schedule", "get_process_path", "list_process_paths"},
 }
@@ -233,12 +244,13 @@ func TestMCPClientsCallOnlyReadTools(t *testing.T) {
 // TestWritePrefixDetector pins the detector itself, so the scan above
 // cannot silently stop recognising write tools.
 func TestWritePrefixDetector(t *testing.T) {
-	for _, name := range []string{"create_capacity_plan", "publish_capacity_plan", "register_process_path", "declare_station_standard", "assign_labor", "revoke_reservation", "classify_product", "record_measurement", "register_asn", "cancel_asn", "book_appointment", "check_in_appointment", "open_receipt", "receive_line", "close_receipt", "declare_pack_level", "retire_pack_level"} {
+	for _, name := range []string{"create_capacity_plan", "publish_capacity_plan", "register_process_path", "declare_station_standard", "assign_labor", "revoke_reservation", "classify_product", "record_measurement", "register_asn", "cancel_asn", "book_appointment", "check_in_appointment", "open_receipt", "receive_line", "close_receipt", "declare_pack_level", "retire_pack_level",
+		"request_move", "place_hold", "secure_trailer", "complete_inspection", "reschedule_appointment", "suspend_carrier", "reinstate_carrier", "report_eta"} {
 		if writePrefixOf(name) == "" {
 			t.Errorf("%q must be flagged as a write tool", name)
 		}
 	}
-	for _, name := range []string{"get_process_path_capacity", "get_capacity_plan", "get_storage_capacity", "list_station_standards", "find_claimable_work", "diagnose_stuck_tasks", "get_product", "list_products", "get_product_classification", "get_physical_profile", "get_pack_levels", "resolve_gtin", "list_asns", "get_asn", "list_appointments", "get_appointment", "list_receipts", "get_receipt", "list_docks"} {
+	for _, name := range []string{"get_process_path_capacity", "get_capacity_plan", "get_storage_capacity", "list_station_standards", "find_claimable_work", "diagnose_stuck_tasks", "get_product", "list_products", "get_product_classification", "get_physical_profile", "get_pack_levels", "resolve_gtin", "list_asns", "get_asn", "list_appointments", "get_appointment", "list_receipts", "get_receipt", "list_docks", "get_yard_board", "list_trailers", "get_trailer", "list_moves", "get_visit", "get_yard_policy", "get_yard_dwell_report", "get_inspection", "list_trailer_inspections", "get_dock_calendar", "get_door_availability", "list_at_risk_appointments", "list_carriers", "get_carrier"} {
 		if p := writePrefixOf(name); p != "" {
 			t.Errorf("%q is a read tool but was flagged by prefix %q", name, p)
 		}

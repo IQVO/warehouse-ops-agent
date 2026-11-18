@@ -46,6 +46,8 @@ data:
   TASK_INTERLEAVING_MCP_ENDPOINT: {{ .Values.upstreams.taskInterleaving.endpoint | quote }}
   PICK_FACE_REPLENISHMENT_MCP_ENDPOINT: {{ .Values.upstreams.pickFaceReplenishment.endpoint | quote }}
   PROCESS_PATH_MANAGEMENT_MCP_ENDPOINT: {{ .Values.upstreams.processPathManagement.endpoint | quote }}
+  DOCK_SCHEDULING_MCP_ENDPOINT: {{ .Values.upstreams.dockScheduling.endpoint | quote }}
+  YARD_MANAGEMENT_MCP_ENDPOINT: {{ .Values.upstreams.yardManagement.endpoint | quote }}
   {{- if .Values.restUrls.orderManagement }}
   ORDER_MANAGEMENT_REST_URL: {{ .Values.restUrls.orderManagement | quote }}
   {{- end }}

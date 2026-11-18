@@ -75,8 +75,15 @@ type outboundClients struct {
 	// PROCESS_PATH_MANAGEMENT_MCP_ENDPOINT is unset (fail-open); no use
 	// case consumes it yet.
 	processPathManagement ports.ProcessPathManagementClient
-	telemetry             ports.TelemetryReader
-	logs                  ports.LogReader
+	// dockScheduling and yardManagement are the ADR-0032 yard clients (read
+	// tools only; both servers also publish L3 write tools this agent never
+	// calls). Each is nil when its *_MCP_ENDPOINT is unset (fail-open, ADR
+	// 0023), which is the default: the yard is OFF. No use case consumes
+	// them yet.
+	dockScheduling ports.DockSchedulingClient
+	yardManagement ports.YardManagementClient
+	telemetry      ports.TelemetryReader
+	logs           ports.LogReader
 }
 
 // newMCPClient builds one upstream's MCP client, or returns the zero
@@ -162,6 +169,24 @@ func newProcessPathManagementClient(cfg config.Config) ports.ProcessPathManageme
 	})
 }
 
+// newDockSchedulingClient builds the dock-scheduling MCP client (its seven
+// read tools only, ADR 0032), or nil when no endpoint is configured
+// (fail-open, the default). No use case consumes the client yet.
+func newDockSchedulingClient(cfg config.Config) ports.DockSchedulingClient {
+	return newMCPClient("dock-scheduling", cfg.DockScheduling.Endpoint, func(c mcpclient.Config) ports.DockSchedulingClient {
+		return mcpclient.NewDockScheduling(c)
+	})
+}
+
+// newYardManagementClient builds the yard-management MCP client (its ten
+// read tools only, ADR 0032), or nil when no endpoint is configured
+// (fail-open, the default). No use case consumes the client yet.
+func newYardManagementClient(cfg config.Config) ports.YardManagementClient {
+	return newMCPClient("yard-management", cfg.YardManagement.Endpoint, func(c mcpclient.Config) ports.YardManagementClient {
+		return mcpclient.NewYardManagement(c)
+	})
+}
+
 // newOutboundClients builds every outbound MCP client (one per upstream
 // bounded context, each only when its endpoint is set) plus the telemetry
 // and log readers.
@@ -240,5 +265,7 @@ func newOutboundClients(cfg config.Config) outboundClients {
 			return mcpclient.NewPickFaceReplenishment(c)
 		}),
 		processPathManagement: newProcessPathManagementClient(cfg),
+		dockScheduling:        newDockSchedulingClient(cfg),
+		yardManagement:        newYardManagementClient(cfg),
 	}
 }

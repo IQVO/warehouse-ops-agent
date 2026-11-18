@@ -185,6 +185,8 @@ func serveAgent(cfg config.Config, logger *slog.Logger, serviceName string, hand
 			"task_interleaving_endpoint_configured", cfg.TaskInterleaving.Endpoint != "",
 			"pick_face_replenishment_endpoint_configured", cfg.PickFaceReplenishment.Endpoint != "",
 			"process_path_management_endpoint_configured", cfg.ProcessPathManagement.Endpoint != "",
+			"dock_scheduling_endpoint_configured", cfg.DockScheduling.Endpoint != "",
+			"yard_management_endpoint_configured", cfg.YardManagement.Endpoint != "",
 			"path_targets", len(cfg.PathTargets),
 		)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
