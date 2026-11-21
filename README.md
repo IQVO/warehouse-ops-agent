@@ -232,7 +232,10 @@ Plus:
   `POST /labor-reallocation/proposals/{proposalId}/approvals` delegates ONE
   human-approved move (the old `.../approve` path is a deprecated alias until
   2027-02-10, ADR 0031). Every act POST needs an `Idempotency-Key` header
-  (ADR 0030). The read-only MCP tool `labor_reallocation_outlook`
+  (ADR 0030); each problem type it can answer has a replay class (ADR 0033):
+  FINAL and OUTCOME refusals (and every success) are stored and replayed
+  under the same key, RETRYABLE ones (a propose the peers' current state
+  does not support) release the key so the same key retries. The read-only MCP tool `labor_reallocation_outlook`
   (authority L2, no token) needs only the MCP endpoint. The same
   `APPROVAL_TTL` / `APPROVAL_SIGNING_KEY` apply.
 - **Advisory exception context (opt-in, ADR 0028):**

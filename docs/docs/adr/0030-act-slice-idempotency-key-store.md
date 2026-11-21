@@ -17,6 +17,12 @@ ADR 0013 and workforce-management ADR 0027/0042) to the act slices of
 [ADR 0031](./0031-approvals-route-replaces-the-approve-verb.md) (the verb
 route). Closes issue #211.
 
+> **Post-decision update (2026-11-21):** the "2xx and 4xx answers are
+> stored" sentence of the Decision below is superseded by
+> [ADR 0033](./0033-act-problem-types-have-a-replay-class.md): a 4xx is
+> stored only when its problem type declares FINAL or OUTCOME; a RETRYABLE
+> refusal releases the key. The Decision text is left as written.
+
 ## Context
 
 The `api-lint` job runs the fleet `rest-guideline` Spectral rule. The four act

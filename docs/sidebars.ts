@@ -137,6 +137,7 @@ const sidebars: SidebarsConfig = {
         'adr/0030-act-slice-idempotency-key-store',
         'adr/0031-approvals-route-replaces-the-approve-verb',
         'adr/0032-yard-mcp-clients-dock-scheduling-and-yard-management',
+        'adr/0033-act-problem-types-have-a-replay-class',
       ],
     },
   ],

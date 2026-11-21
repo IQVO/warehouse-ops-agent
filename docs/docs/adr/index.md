@@ -52,6 +52,7 @@ accepted.
 | [0030](./0030-act-slice-idempotency-key-store.md) | Idempotency-Key on every act POST (fleet REST guideline: 400 required/invalid, 409 reused, replay with `Idempotency-Replayed`, 2xx/4xx stored, 5xx never), kept in a process-local, 24 h, 2048-answer store beside the used-nonce set; removes the api-lint grandfathering | Accepted |
 | [0031](./0031-approvals-route-replaces-the-approve-verb.md) | `POST /labor-reallocation/proposals/{proposalId}/approvals` replaces the `/approve` verb route; the old path stays as a keyless deprecated alias (`Deprecation`, `Sunset` 2027-02-10, `Link` successor-version) outside the OpenAPI contract | Accepted |
 | [0032](./0032-yard-mcp-clients-dock-scheduling-and-yard-management.md) | Two read-only MCP clients for the yard services (dock-scheduling 7 of 14 tools, yard-management 10 of 21), pinned to their verbatim registry goldens with a read/write split; off until an endpoint is set; the reasoner allow-list is held to the pinned reads; wired, not yet consumed; every yard write stays human-approved (D-Y4) | Accepted |
+| [0033](./0033-act-problem-types-have-a-replay-class.md) | Every act problem type declares a replay class (FINAL, OUTCOME, RETRYABLE) on its catalogue entry; the middleware stores 2xx, FINAL and OUTCOME answers and releases the key for RETRYABLE ones; the approvals' post-consume peer refusals are the fleet's first real OUTCOME entries | Accepted |
 
 ## Proposing a new one
 
