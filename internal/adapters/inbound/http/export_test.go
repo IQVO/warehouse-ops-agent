@@ -48,21 +48,29 @@ func RefuseProblem(w nethttp.ResponseWriter, r *nethttp.Request, slug string) {
 	}
 	switch slug {
 	case "idempotency-key-required":
+		markReplayClass(w, classFinal)
 		writeKeyRequired(w, r)
 	case "idempotency-key-invalid":
+		markReplayClass(w, classFinal)
 		writeKeyInvalid(w, r)
 	case "idempotency-key-reused":
+		markReplayClass(w, classFinal)
 		writeKeyReused(w, r)
 	case "unsupported-media-type":
-		writeProblem(w, r, nethttp.StatusUnsupportedMediaType, "Content-Type must be application/json")
+		writeFinalProblem(w, r, nethttp.StatusUnsupportedMediaType, "Content-Type must be application/json")
 	case "malformed-body":
-		writeProblem(w, r, nethttp.StatusBadRequest, "invalid JSON body")
+		writeFinalProblem(w, r, nethttp.StatusBadRequest, "invalid JSON body")
 	case "request-body-too-large":
-		writeProblem(w, r, nethttp.StatusRequestEntityTooLarge, "request body too large")
+		writeFinalProblem(w, r, nethttp.StatusRequestEntityTooLarge, "request body too large")
 	case "idempotency-store-not-configured":
+		markReplayClass(w, classRetryable)
 		writeProblem(w, r, nethttp.StatusServiceUnavailable, idempotencyNotConfigured)
 	case "idempotency-key-wait-cancelled":
+		markReplayClass(w, classRetryable)
 		writeProblem(w, r, nethttp.StatusServiceUnavailable, "request cancelled while an earlier request with the same Idempotency-Key was running")
+	case "slice-not-configured":
+		markReplayClass(w, classRetryable)
+		writeProblem(w, r, nethttp.StatusServiceUnavailable, actNotConfigured)
 	case "upstream-unavailable":
 		writeActErrorFor(w, r, errors.New("test: peer answered an unrecognised problem"), "wes-work-planning")
 	default:

@@ -23,9 +23,13 @@ import (
 //   - the same key with the same fingerprint replays the stored answer
 //     (status, headers, body) plus Idempotency-Replayed: true, without running
 //     the handler; with another fingerprint it is 409 idempotency-key-reused;
-//   - 2xx and 4xx answers are stored; a 5xx or a panic is never stored, so a
-//     retry re-executes (the act slice's single-use token still guarantees at
-//     most one delegation, ADR 0027).
+//   - 2xx answers are stored, and a 4xx is stored only when its problem type
+//     declares FINAL or OUTCOME on the catalogue entry (ADR 0033; the error
+//     writer marks the capture with the class). A RETRYABLE refusal — and any
+//     refusal with no class, the safe fallback — is NOT stored: the key is
+//     released, exactly like a 5xx or a panic, so the retry executes again.
+//     A released key never compares fingerprints again: a different body
+//     under it is a NEW request, not idempotency-key-reused.
 const (
 	idempotencyKeyHeader      = "Idempotency-Key"
 	idempotencyReplayedHeader = "Idempotency-Replayed"
@@ -85,11 +89,15 @@ func requireIdempotencyKey(store ports.IdempotencyStore) func(http.Handler) http
 			resp, replayed, err := store.Execute(r.Context(), key, fingerprint(r, body),
 				func(ctx context.Context) (ports.StoredResponse, error) {
 					out := capture(next, r.WithContext(ctx), body)
-					if out.Status >= http.StatusInternalServerError {
-						unstored = out
-						return out, ports.ErrResponseNotStored
+					stored := ports.StoredResponse{Status: out.Code, Header: out.Header().Clone(), Body: out.Body.Bytes()}
+					if !out.storable() {
+						// A 5xx, a panic-poisoned answer or a RETRYABLE
+						// refusal (ADR 0033): the key is released and the
+						// captured answer is flushed unstored.
+						unstored = stored
+						return stored, ports.ErrResponseNotStored
 					}
-					return out, nil
+					return stored, nil
 				})
 			switch {
 			case errors.Is(err, ports.ErrResponseNotStored):
@@ -140,12 +148,42 @@ func readIdempotencyKey(w http.ResponseWriter, r *http.Request) (string, bool) {
 	return keys[0], true
 }
 
-// capture runs next against a recorder, replaying body as the request body.
-func capture(next http.Handler, req *http.Request, body []byte) ports.StoredResponse {
+// captureWriter is the recorder the middleware runs the handler against. It
+// carries the replay class the production error writer marks on it
+// (replay_class.go): the class, with the status, decides storable().
+type captureWriter struct {
+	*httptest.ResponseRecorder
+	class replayClass
+}
+
+// markReplayClass implements replayMarker; the error writers call it through
+// markReplayClass(w, class), a no-op on any other writer.
+func (c *captureWriter) markReplayClass(class replayClass) { c.class = class }
+
+// storable reports whether the captured answer is final for the request: a
+// 2xx is stored, a 5xx never is, and any other answer is stored only when its
+// problem type declared FINAL or OUTCOME. A refusal that reached the capture
+// with no class (a writer that forgot the catalogue) is released like
+// RETRYABLE: a released refusal costs one more execution, a wrongly stored
+// one pins a stale refusal for the whole retention window (ADR 0033).
+func (c *captureWriter) storable() bool {
+	switch {
+	case c.Code >= http.StatusOK && c.Code < http.StatusMultipleChoices:
+		return true
+	case c.Code >= http.StatusInternalServerError:
+		return false
+	default:
+		return c.class == classFinal || c.class == classOutcome
+	}
+}
+
+// capture runs next against a captureWriter, replaying body as the request
+// body.
+func capture(next http.Handler, req *http.Request, body []byte) *captureWriter {
 	req.Body = io.NopCloser(bytes.NewReader(body))
-	rec := httptest.NewRecorder()
+	rec := &captureWriter{ResponseRecorder: httptest.NewRecorder()}
 	next.ServeHTTP(rec, req)
-	return ports.StoredResponse{Status: rec.Code, Header: rec.Header().Clone(), Body: rec.Body.Bytes()}
+	return rec
 }
 
 // writeStored writes a first answer or a replay of one.

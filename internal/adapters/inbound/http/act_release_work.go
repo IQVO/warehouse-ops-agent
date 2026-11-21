@@ -149,11 +149,12 @@ func (h *Handlers) postReleaseApproval(w nethttp.ResponseWriter, r *nethttp.Requ
 
 // decodeActBody enforces the transport protections described above and
 // decodes the JSON body into dst. It writes the error response itself and
-// reports whether the handler should continue.
+// reports whether the handler should continue. Its failures are functions of
+// the request alone, so they are FINAL and stored (writeFinalProblem, ADR 0033).
 func decodeActBody(w nethttp.ResponseWriter, r *nethttp.Request, dst any) bool {
 	mt, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if err != nil || mt != "application/json" {
-		writeProblem(w, r, nethttp.StatusUnsupportedMediaType, "Content-Type must be application/json")
+		writeFinalProblem(w, r, nethttp.StatusUnsupportedMediaType, "Content-Type must be application/json")
 		return false
 	}
 	dec := json.NewDecoder(nethttp.MaxBytesReader(w, r.Body, maxActBodyBytes))
@@ -161,14 +162,14 @@ func decodeActBody(w nethttp.ResponseWriter, r *nethttp.Request, dst any) bool {
 	if err := dec.Decode(dst); err != nil {
 		var tooBig *nethttp.MaxBytesError
 		if errors.As(err, &tooBig) {
-			writeProblem(w, r, nethttp.StatusRequestEntityTooLarge, "request body too large")
+			writeFinalProblem(w, r, nethttp.StatusRequestEntityTooLarge, "request body too large")
 			return false
 		}
-		writeProblem(w, r, nethttp.StatusBadRequest, "invalid JSON body: "+err.Error())
+		writeFinalProblem(w, r, nethttp.StatusBadRequest, "invalid JSON body: "+err.Error())
 		return false
 	}
 	if _, err := dec.Token(); !errors.Is(err, io.EOF) {
-		writeProblem(w, r, nethttp.StatusBadRequest, "invalid JSON body: trailing data")
+		writeFinalProblem(w, r, nethttp.StatusBadRequest, "invalid JSON body: trailing data")
 		return false
 	}
 	return true
