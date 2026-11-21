@@ -67,10 +67,21 @@ that is not 1-128 printable ASCII characters starting and ending with a
 visible character is `400` `idempotency-key-invalid`. A retry with the same key,
 method, path and body gets the stored answer back, byte for byte, with
 `Idempotency-Replayed: true`, and nothing runs again; the same key with
-another request is `409` `idempotency-key-reused`. `2xx` and `4xx` answers are
-kept for 24 hours; a `5xx` is never kept, so its retry runs again (an approval
-retry then answers `409 token already used`, never a second delegation). The
-store is in this one process (the chart keeps `replicaCount: 1`).
+another request is `409` `idempotency-key-reused`. Which answers are kept for
+24 hours is per problem type, its replay class ([ADR
+0033](../adr/0033-act-problem-types-have-a-replay-class.md)): every success,
+and a refusal that either depends on the request alone (`FINAL`: an invalid
+body or token, an expired or already-used token) or that the act committed
+before refusing (`OUTCOME`: the approvals' peer refusals after the
+confirmation token was consumed). A refusal that only reflects state that can
+change (`RETRYABLE`: the policy does not currently recommend, the evidence is
+incomplete, the target is not understaffed, no candidate can move) is NOT
+kept: the key is released and a retry — same key and body, or a new key —
+executes again; a different body under a released key is a NEW request, not
+`409 idempotency-key-reused`. A `5xx` is never kept, so its retry runs again
+(an approval retry then answers `409 token already used`, never a second
+delegation). The store is in this one process (the chart keeps
+`replicaCount: 1`).
 
 ```mermaid
 flowchart LR

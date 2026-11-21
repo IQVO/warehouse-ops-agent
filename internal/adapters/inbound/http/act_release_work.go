@@ -10,7 +10,6 @@ import (
 
 	"github.com/claudioed/warehouse-ops-agent/internal/application/usecases"
 	"github.com/claudioed/warehouse-ops-agent/internal/domain/approval"
-	"github.com/claudioed/warehouse-ops-agent/internal/ports"
 )
 
 // The act slice routes (ADR 0027) — the only POST routes on this agent:
@@ -150,11 +149,12 @@ func (h *Handlers) postReleaseApproval(w nethttp.ResponseWriter, r *nethttp.Requ
 
 // decodeActBody enforces the transport protections described above and
 // decodes the JSON body into dst. It writes the error response itself and
-// reports whether the handler should continue.
+// reports whether the handler should continue. Its failures are functions of
+// the request alone, so they are FINAL and stored (writeFinalProblem, ADR 0033).
 func decodeActBody(w nethttp.ResponseWriter, r *nethttp.Request, dst any) bool {
 	mt, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if err != nil || mt != "application/json" {
-		writeProblem(w, r, nethttp.StatusUnsupportedMediaType, "Content-Type must be application/json")
+		writeFinalProblem(w, r, nethttp.StatusUnsupportedMediaType, "Content-Type must be application/json")
 		return false
 	}
 	dec := json.NewDecoder(nethttp.MaxBytesReader(w, r.Body, maxActBodyBytes))
@@ -162,58 +162,19 @@ func decodeActBody(w nethttp.ResponseWriter, r *nethttp.Request, dst any) bool {
 	if err := dec.Decode(dst); err != nil {
 		var tooBig *nethttp.MaxBytesError
 		if errors.As(err, &tooBig) {
-			writeProblem(w, r, nethttp.StatusRequestEntityTooLarge, "request body too large")
+			writeFinalProblem(w, r, nethttp.StatusRequestEntityTooLarge, "request body too large")
 			return false
 		}
-		writeProblem(w, r, nethttp.StatusBadRequest, "invalid JSON body: "+err.Error())
+		writeFinalProblem(w, r, nethttp.StatusBadRequest, "invalid JSON body: "+err.Error())
 		return false
 	}
 	if _, err := dec.Token(); !errors.Is(err, io.EOF) {
-		writeProblem(w, r, nethttp.StatusBadRequest, "invalid JSON body: trailing data")
+		writeFinalProblem(w, r, nethttp.StatusBadRequest, "invalid JSON body: trailing data")
 		return false
 	}
 	return true
 }
 
-// writeActError maps the act slice's typed outcomes onto statuses. Anything
-// unrecognised is an upstream degradation (502), never blamed on the caller.
-func writeActError(w nethttp.ResponseWriter, r *nethttp.Request, err error) {
-	writeActErrorFor(w, r, err, "wes-work-planning")
-}
-
-// writeActErrorFor is writeActError naming the upstream a 502 blames: each act
-// slice delegates to a different peer (ADR 0027 wes-work-planning, ADR 0029
-// workforce-management).
-func writeActErrorFor(w nethttp.ResponseWriter, r *nethttp.Request, err error, upstream string) {
-	status := nethttp.StatusBadGateway
-	switch {
-	case errors.Is(err, usecases.ErrInvalidInput), errors.Is(err, approval.ErrInvalidToken), errors.Is(err, approval.ErrUnsupportedAction),
-		errors.Is(err, usecases.ErrProposalMismatch), errors.Is(err, ports.ErrAssignmentInvalid):
-		status = nethttp.StatusBadRequest
-	case errors.Is(err, approval.ErrExpired):
-		status = nethttp.StatusGone
-	case errors.Is(err, usecases.ErrNotRecommended),
-		errors.Is(err, usecases.ErrIncompleteEvidence),
-		errors.Is(err, usecases.ErrTokenAlreadyUsed),
-		errors.Is(err, ports.ErrNoPendingWork),
-		errors.Is(err, usecases.ErrNotUnderstaffed),
-		errors.Is(err, usecases.ErrNoReallocationMove),
-		errors.Is(err, ports.ErrAssignmentRejected):
-		status = nethttp.StatusConflict
-	case errors.Is(err, ports.ErrUnknownWorkPlanningPath), errors.Is(err, ports.ErrAssignmentNotFound):
-		status = nethttp.StatusNotFound
-	case errors.Is(err, ports.ErrWorkPlanningUnreachable), errors.Is(err, ports.ErrWorkforceAgentUnreachable):
-		status = nethttp.StatusBadGateway
-	}
-	if status == nethttp.StatusBadGateway {
-		writeProblem(w, r, status, upstreamDetail(upstream, err))
-		return
-	}
-	if errors.Is(err, ports.ErrAssignmentRejected) {
-		// The peer's own prose never reaches the body (problem.go); a fixed
-		// sentence beats callerDetail reading the "ports:" prefix as a slug.
-		writeProblem(w, r, status, "workforce-management rejected the move on a domain rule")
-		return
-	}
-	writeProblem(w, r, status, callerDetail(err))
-}
+// writeActError / writeActErrorFor and the act problem catalogue (every
+// problem type the keyed routes answer, each with its status) live in
+// act_problems.go.

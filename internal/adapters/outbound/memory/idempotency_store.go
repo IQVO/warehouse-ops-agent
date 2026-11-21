@@ -147,3 +147,13 @@ func (s *IdempotencyStore) Len() int {
 	defer s.mu.Unlock()
 	return len(s.keys)
 }
+
+// Held reports whether the store currently holds key: in flight or stored,
+// the process-local equivalent of one key row (for tests; 0 rows after a
+// release, when nothing was stored under it).
+func (s *IdempotencyStore) Held(key string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, ok := s.keys[key]
+	return ok
+}
