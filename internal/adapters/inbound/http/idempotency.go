@@ -95,9 +95,7 @@ func requireIdempotencyKey(store ports.IdempotencyStore) func(http.Handler) http
 			case errors.Is(err, ports.ErrResponseNotStored):
 				resp = unstored
 			case errors.Is(err, ports.ErrIdempotencyKeyReused):
-				writeTypedProblem(w, r, http.StatusConflict, "idempotency-key-reused",
-					"Idempotency-Key was already used with a different request",
-					"the "+idempotencyKeyHeader+" was first used with a different method, path or body; use a new key for a different request")
+				writeKeyReused(w, r)
 				return
 			case err != nil:
 				// Only the waiter's own context can fail here (client gone).
@@ -109,17 +107,34 @@ func requireIdempotencyKey(store ports.IdempotencyStore) func(http.Handler) http
 	}
 }
 
+// The three Idempotency-Key problems the middleware answers itself, before
+// the store is touched (so never stored). They are also catalogue entries
+// (act_problems.go) with their replay class declared there.
+func writeKeyRequired(w http.ResponseWriter, r *http.Request) {
+	writeTypedProblem(w, r, http.StatusBadRequest, "idempotency-key-required", "Idempotency-Key header is required",
+		"send an "+idempotencyKeyHeader+" header of 1 to 128 printable ASCII characters (a client-generated UUID per logical submit; reuse it on retry)")
+}
+
+func writeKeyInvalid(w http.ResponseWriter, r *http.Request) {
+	writeTypedProblem(w, r, http.StatusBadRequest, "idempotency-key-invalid", "Idempotency-Key header is invalid",
+		"the "+idempotencyKeyHeader+" header must be one value of 1 to 128 printable ASCII characters that starts and ends with a visible character")
+}
+
+func writeKeyReused(w http.ResponseWriter, r *http.Request) {
+	writeTypedProblem(w, r, http.StatusConflict, "idempotency-key-reused",
+		"Idempotency-Key was already used with a different request",
+		"the "+idempotencyKeyHeader+" was first used with a different method, path or body; use a new key for a different request")
+}
+
 // readIdempotencyKey validates the header; it answers the 400 itself.
 func readIdempotencyKey(w http.ResponseWriter, r *http.Request) (string, bool) {
 	keys := r.Header.Values(idempotencyKeyHeader)
 	if len(keys) == 0 {
-		writeTypedProblem(w, r, http.StatusBadRequest, "idempotency-key-required", "Idempotency-Key header is required",
-			"send an "+idempotencyKeyHeader+" header of 1 to 128 printable ASCII characters (a client-generated UUID per logical submit; reuse it on retry)")
+		writeKeyRequired(w, r)
 		return "", false
 	}
 	if len(keys) > 1 || !validIdempotencyKey(keys[0]) {
-		writeTypedProblem(w, r, http.StatusBadRequest, "idempotency-key-invalid", "Idempotency-Key header is invalid",
-			"the "+idempotencyKeyHeader+" header must be one value of 1 to 128 printable ASCII characters that starts and ends with a visible character")
+		writeKeyInvalid(w, r)
 		return "", false
 	}
 	return keys[0], true

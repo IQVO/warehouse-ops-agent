@@ -10,7 +10,6 @@ import (
 
 	"github.com/claudioed/warehouse-ops-agent/internal/application/usecases"
 	"github.com/claudioed/warehouse-ops-agent/internal/domain/approval"
-	"github.com/claudioed/warehouse-ops-agent/internal/ports"
 )
 
 // The act slice routes (ADR 0027) — the only POST routes on this agent:
@@ -175,45 +174,6 @@ func decodeActBody(w nethttp.ResponseWriter, r *nethttp.Request, dst any) bool {
 	return true
 }
 
-// writeActError maps the act slice's typed outcomes onto statuses. Anything
-// unrecognised is an upstream degradation (502), never blamed on the caller.
-func writeActError(w nethttp.ResponseWriter, r *nethttp.Request, err error) {
-	writeActErrorFor(w, r, err, "wes-work-planning")
-}
-
-// writeActErrorFor is writeActError naming the upstream a 502 blames: each act
-// slice delegates to a different peer (ADR 0027 wes-work-planning, ADR 0029
-// workforce-management).
-func writeActErrorFor(w nethttp.ResponseWriter, r *nethttp.Request, err error, upstream string) {
-	status := nethttp.StatusBadGateway
-	switch {
-	case errors.Is(err, usecases.ErrInvalidInput), errors.Is(err, approval.ErrInvalidToken), errors.Is(err, approval.ErrUnsupportedAction),
-		errors.Is(err, usecases.ErrProposalMismatch), errors.Is(err, ports.ErrAssignmentInvalid):
-		status = nethttp.StatusBadRequest
-	case errors.Is(err, approval.ErrExpired):
-		status = nethttp.StatusGone
-	case errors.Is(err, usecases.ErrNotRecommended),
-		errors.Is(err, usecases.ErrIncompleteEvidence),
-		errors.Is(err, usecases.ErrTokenAlreadyUsed),
-		errors.Is(err, ports.ErrNoPendingWork),
-		errors.Is(err, usecases.ErrNotUnderstaffed),
-		errors.Is(err, usecases.ErrNoReallocationMove),
-		errors.Is(err, ports.ErrAssignmentRejected):
-		status = nethttp.StatusConflict
-	case errors.Is(err, ports.ErrUnknownWorkPlanningPath), errors.Is(err, ports.ErrAssignmentNotFound):
-		status = nethttp.StatusNotFound
-	case errors.Is(err, ports.ErrWorkPlanningUnreachable), errors.Is(err, ports.ErrWorkforceAgentUnreachable):
-		status = nethttp.StatusBadGateway
-	}
-	if status == nethttp.StatusBadGateway {
-		writeProblem(w, r, status, upstreamDetail(upstream, err))
-		return
-	}
-	if errors.Is(err, ports.ErrAssignmentRejected) {
-		// The peer's own prose never reaches the body (problem.go); a fixed
-		// sentence beats callerDetail reading the "ports:" prefix as a slug.
-		writeProblem(w, r, status, "workforce-management rejected the move on a domain rule")
-		return
-	}
-	writeProblem(w, r, status, callerDetail(err))
-}
+// writeActError / writeActErrorFor and the act problem catalogue (every
+// problem type the keyed routes answer, each with its status) live in
+// act_problems.go.
