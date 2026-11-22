@@ -39,12 +39,12 @@ func RequestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
 
 			duration := time.Since(start)
 			attrs := []any{
-				"method", r.Method,
+				"method", sanitizeForLog(r.Method),
 				"path", sanitizeForLog(r.URL.Path),
 				"status", ww.Status(),
 				"duration_ms", duration.Milliseconds(),
 				"bytes", ww.BytesWritten(),
-				"request_id", middleware.GetReqID(r.Context()),
+				"request_id", sanitizeForLog(middleware.GetReqID(r.Context())),
 			}
 
 			// *Context variants, not the bare ones: the request context is
