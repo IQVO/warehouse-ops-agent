@@ -147,7 +147,7 @@ func (uc *LaborReallocation) Approve(ctx context.Context, proposalId, token, app
 		AgentId:     LaborReallocationAgentId,
 	})
 	if err != nil {
-		uc.logger.WarnContext(ctx, "act: assign_labor delegation failed", "proposalId", r.ProposalId(), "associateId", logsanitize.Sanitize(r.AssociateId), "approvedBy", logsanitize.Sanitize(approvedBy), "error", err)
+		uc.logger.WarnContext(ctx, "act: assign_labor delegation failed", "proposalId", r.ProposalId(), "associateId", logsanitize.Sanitize(r.AssociateId), "approvedBy", logsanitize.Sanitize(approvedBy), "error", logsanitize.Sanitize(err.Error()))
 		return ReallocationOutcome{}, err
 	}
 	uc.logger.InfoContext(ctx, "act: labor reallocation executed", "proposalId", r.ProposalId(), "associateId", logsanitize.Sanitize(assigned.AssociateId), "pathId", logsanitize.Sanitize(assigned.PathId), "approvedBy", logsanitize.Sanitize(approvedBy))

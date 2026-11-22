@@ -182,7 +182,7 @@ func (uc *ReleaseWork) exceptionContext(ctx context.Context, pathId string) Exce
 	defer cancel()
 	summary, err := uc.exceptions.OpenExceptions(lookupCtx, ports.ExceptionContextQuery{})
 	if err != nil {
-		uc.logger.WarnContext(ctx, "act: exception context unavailable; the proposal is unaffected", keyPathID, logsanitize.Sanitize(pathId), "error", err)
+		uc.logger.WarnContext(ctx, "act: exception context unavailable; the proposal is unaffected", keyPathID, logsanitize.Sanitize(pathId), "error", logsanitize.Sanitize(err.Error()))
 		return ExceptionContextResult{Status: ExceptionContextUnavailable}
 	}
 	return ExceptionContextResult{Status: ExceptionContextOK, Summary: &summary}
@@ -203,7 +203,7 @@ func (uc *ReleaseWork) Approve(ctx context.Context, token string) (ReleaseOutcom
 	}
 	released, err := uc.releaser.ReleaseNextWork(ctx, p.PathId)
 	if err != nil {
-		uc.logger.WarnContext(ctx, "act: release_next_work delegation failed", keyPathID, logsanitize.Sanitize(p.PathId), "nonce", logsanitize.Sanitize(p.Nonce), "error", err)
+		uc.logger.WarnContext(ctx, "act: release_next_work delegation failed", keyPathID, logsanitize.Sanitize(p.PathId), "nonce", logsanitize.Sanitize(p.Nonce), "error", logsanitize.Sanitize(err.Error()))
 		return ReleaseOutcome{}, err
 	}
 	out := ReleaseOutcome{Released: released, PathId: p.PathId, ExecutedAt: uc.now().UTC()}
