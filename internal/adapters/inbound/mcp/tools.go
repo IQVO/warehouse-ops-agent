@@ -93,6 +93,10 @@ type dailyBriefOutput struct {
 	// PromiseHealth is present only when order-management is configured
 	// (ADR 0024); absent otherwise, so the tool's output is unchanged.
 	PromiseHealth *promiseHealthDTO `json:"promiseHealth,omitempty"`
+	// WesEdgeWatch is present only when pick-face-replenishment or
+	// task-interleaving is configured (ADR 0034); absent otherwise, so
+	// the tool's output is unchanged.
+	WesEdgeWatch *wesEdgeWatchDTO `json:"wesEdgeWatch,omitempty"`
 }
 
 func (d Deps) getDailyBrief(ctx context.Context, _ dailyBriefInput) (dailyBriefOutput, error) {
@@ -102,6 +106,7 @@ func (d Deps) getDailyBrief(ctx context.Context, _ dailyBriefInput) (dailyBriefO
 		OpenExceptions: toOpenExceptionDTOs(brief.OpenExceptions),
 		SlotPlanWatch:  toSlotPlanWatchDTO(brief.SlotPlanWatch),
 		PromiseHealth:  toPromiseHealthDTO(brief.PromiseHealth),
+		WesEdgeWatch:   toWesEdgeWatchDTO(brief.WesEdgeWatch),
 	}, nil
 }
 

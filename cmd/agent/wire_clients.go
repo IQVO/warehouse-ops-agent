@@ -47,8 +47,7 @@ type outboundClients struct {
 	// unset (fail-open). No use case consumes it yet: it exists so the
 	// returns/exceptions read surface is reachable the moment one does.
 	exceptionManagement ports.ExceptionManagementClient
-	// The twelve ADR-0025 upstreams (the ten retail-network contexts plus
-	// task-interleaving and pick-face-replenishment). Each is nil when
+	// The ten retail-network ADR-0025 upstreams. Each is nil when
 	// its *_MCP_ENDPOINT is unset (fail-open, ADR 0023). No use case
 	// consumes any of them yet: they exist so each upstream's read
 	// surface is reachable the moment one does.
@@ -66,8 +65,15 @@ type outboundClients struct {
 	// (fail-open, ADR 0023). No use case consumes it yet: it exists so
 	// the partner-inbound read surface is reachable the moment one does
 	// (ADR 0027).
-	sellerInbound         ports.SellerInboundClient
-	taskInterleaving      ports.TaskInterleavingClient
+	sellerInbound ports.SellerInboundClient
+	// taskInterleaving is nil when TASK_INTERLEAVING_MCP_ENDPOINT is
+	// unset (fail-open, ADR 0023): the WES-edge watch's interleaving
+	// half is then not wired (ADR 0034).
+	taskInterleaving ports.TaskInterleavingClient
+	// pickFaceReplenishment is nil when
+	// PICK_FACE_REPLENISHMENT_MCP_ENDPOINT is unset (fail-open, ADR
+	// 0023): the WES-edge watch's replenishment half is then not wired
+	// (ADR 0034).
 	pickFaceReplenishment ports.PickFaceReplenishmentClient
 	// processPathManagement is the thirteenth ADR-0026 client (re-added
 	// after ADR 0024's gap-A9 deletion, now pinned to the current

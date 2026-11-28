@@ -205,6 +205,15 @@ type DailyBrief struct {
 	// non-nil section with Unavailable lines means it was configured but
 	// could not read order-management.
 	PromiseHealth *PromiseHealthSection
+
+	// WesEdgeWatch is the optional WES-edge section (ADR 0034):
+	// pick-face-replenishment's open replenishment requests (counted by
+	// priority, oldest pending age) and task-interleaving's interleaving
+	// hint lifecycle counts. nil means the watch is not configured (the
+	// DTOs then omit it entirely); a non-nil section with a half carrying
+	// Unavailable lines means that half was configured but could not be
+	// fully read.
+	WesEdgeWatch *WesEdgeWatchSection
 }
 
 // SiteBrief groups every monitored PathBrief under the facility-layout site

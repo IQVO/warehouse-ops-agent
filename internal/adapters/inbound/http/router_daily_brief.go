@@ -18,6 +18,10 @@ type dailyBriefDTO struct {
 	// PromiseHealth is present only when order-management is configured
 	// (ADR 0024); absent otherwise, so the brief is unchanged.
 	PromiseHealth *promiseHealthDTO `json:"promiseHealth,omitempty"`
+	// WesEdgeWatch is present only when pick-face-replenishment or
+	// task-interleaving is configured (ADR 0034); absent otherwise, so
+	// the brief is unchanged.
+	WesEdgeWatch *wesEdgeWatchDTO `json:"wesEdgeWatch,omitempty"`
 }
 
 type siteBriefDTO struct {
@@ -162,6 +166,7 @@ func toDailyBriefDTO(b policy.DailyBrief) dailyBriefDTO {
 		OpenExceptions: toOpenExceptionDTOs(b.OpenExceptions),
 		SlotPlanWatch:  toSlotPlanWatchDTO(b.SlotPlanWatch),
 		PromiseHealth:  toPromiseHealthDTO(b.PromiseHealth),
+		WesEdgeWatch:   toWesEdgeWatchDTO(b.WesEdgeWatch),
 	}
 	for _, s := range b.Sites {
 		dto.Sites = append(dto.Sites, toSiteBriefDTO(s))
