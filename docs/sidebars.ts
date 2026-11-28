@@ -138,6 +138,7 @@ const sidebars: SidebarsConfig = {
         'adr/0031-approvals-route-replaces-the-approve-verb',
         'adr/0032-yard-mcp-clients-dock-scheduling-and-yard-management',
         'adr/0033-act-problem-types-have-a-replay-class',
+        'adr/0034-wes-edge-watch-pick-face-replenishment-and-task-interleaving',
       ],
     },
   ],
