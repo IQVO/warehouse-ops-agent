@@ -78,6 +78,18 @@ func newDecisionSupport(cfg config.Config, clients outboundClients) decisionSupp
 		dailyBrief.PromiseHealth = &usecases.PromiseHealth{OrderMgmt: clients.om}
 	}
 
+	// WES-edge watch (ADR 0034): wired when either WMS-edge client is
+	// configured; each half is independently fail-open, so a configured
+	// replenishment half survives an unset task-interleaving endpoint and
+	// vice versa. A nil watch leaves the daily brief byte-for-byte as it
+	// was.
+	if clients.pickFaceReplenishment != nil || clients.taskInterleaving != nil {
+		dailyBrief.WesEdgeWatch = &usecases.WesEdgeWatch{
+			PFR:          clients.pickFaceReplenishment,
+			Interleaving: clients.taskInterleaving,
+		}
+	}
+
 	// StrandedReservation is the E2 correlation use case: read-only,
 	// consuming the already-wired fulfillment-execution and
 	// inventory-storage clients above. It only ever recommends a

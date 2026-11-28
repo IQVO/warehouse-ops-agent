@@ -156,6 +156,8 @@ for both the liveness and the readiness probe. There is no `/readyz` route.
 | once, optional | slotting-optimization `list_slot_plans` | `state = "Approved"`, pages of 500 (at most 10) | `slotPlanWatch` (ADR 0024) |
 | per approved plan past the threshold, optional | slotting-optimization `get_slot_plan` | `plan_id` | the plan's execution counters in `slotPlanWatch.stale[]` |
 | once, optional | order-management `get_promise_health` | `from` = start of today, `to` = now, no `pathId` | `promiseHealth` (ADR 0024) |
+| once, optional | pick-face-replenishment `list_replenishments` | `state = "Requested"`, pages of 500 (at most 10) | `wesEdgeWatch.replenishment` (ADR 0034) |
+| once per lifecycle state, optional | task-interleaving `list_hints` | `state = Active/Consumed/Expired/Superseded`, pages of 500 (at most 10) | `wesEdgeWatch.interleaving` (ADR 0034) |
 
 **Status:** always `200`. A failed call adds an entry such as
 `"wes-work-planning: <error>"` to that path's `unavailable` list and leaves
@@ -218,6 +220,18 @@ time. It does not skip the path.
     "repromiseRate": 0.04,
     "promiseToCutoffGapSeconds": 5400,
     "unavailable": ["only when order-management could not be read"]
+  },
+  "wesEdgeWatch": {
+    "replenishment": {
+      "total": 3,
+      "open": [{"priority": "urgent", "count": 2}, {"priority": "normal", "count": 1}],
+      "oldest": {"requestId": "req-1", "siteId": "WH1", "sku": "SKU-1", "priority": "urgent", "requestedAt": "2026-11-27T06:00:00Z", "ageSeconds": 108000},
+      "unavailable": ["only when pick-face-replenishment could not be read"]
+    },
+    "interleaving": {
+      "counts": [{"state": "Active", "count": 2}, {"state": "Consumed", "count": 1}, {"state": "Expired", "count": 0}, {"state": "Superseded", "count": 0}],
+      "unavailable": ["only when task-interleaving could not be read"]
+    }
   }
 }
 ```
@@ -252,6 +266,22 @@ present only when `ORDER_MANAGEMENT_MCP_ENDPOINT` is set) carries
 order-management's `get_promise_health` KPIs over `[from, to)` = today so
 far, exactly as the tool returned them (the tool has no site dimension);
 `unavailable` means unknown, not healthy.
+
+`wesEdgeWatch` ([ADR 0034](../adr/0034-wes-edge-watch-pick-face-replenishment-and-task-interleaving.md),
+present only when `PICK_FACE_REPLENISHMENT_MCP_ENDPOINT` or
+`TASK_INTERLEAVING_MCP_ENDPOINT` is set) has two independently fail-open
+halves. `replenishment` (pick-face-replenishment, when its endpoint is
+set) counts the open (`state = "Requested"`) replenishment requests by
+`priority` — a free string the upstream publishes, ordered largest count
+first — with `total` and the `oldest` pending one (`requestId`, `siteId`,
+`sku`, `priority`, `requestedAt`, `ageSeconds`); a request whose
+`requested_at` broke the contract is dropped and named on `unavailable`.
+`interleaving` (task-interleaving, when its endpoint is set) carries the
+hint `counts` by lifecycle state, `Active` first; a zero count is a fact
+("no active hints"), while a state whose scan failed is absent and named
+on `unavailable`. The 10-page scan bound says so on `unavailable` (the
+counts are then a lower bound); a non-empty `unavailable` means that half
+is incomplete, never "all clear".
 
 ## Flow-balance exception — `GET /flow-balance/{pathId}`
 

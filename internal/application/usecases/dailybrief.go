@@ -72,6 +72,14 @@ type DailyBrief struct {
 	// "not configured": no section is added and the brief is identical to
 	// one produced before the section existed.
 	PromiseHealth *PromiseHealth
+
+	// WesEdgeWatch is the optional WES-edge section (ADR 0034):
+	// pick-face-replenishment's open replenishment requests (counted by
+	// priority, oldest pending age) and task-interleaving's interleaving
+	// hint lifecycle counts. nil means "not configured": no section is
+	// added and the brief is identical to one produced before the watch
+	// existed.
+	WesEdgeWatch *WesEdgeWatch
 }
 
 // now returns the injected clock, defaulting to time.Now so production
@@ -129,6 +137,11 @@ func (uc *DailyBrief) Execute(ctx context.Context) policy.DailyBrief {
 	// Promise health (ADR 0024): one network-wide section for the whole
 	// brief; a nil watch (or a nil port) leaves the brief untouched.
 	brief.PromiseHealth = uc.PromiseHealth.Execute(ctx, uc.now())
+
+	// WES-edge watch (ADR 0034): one network-wide section for the whole
+	// brief; a nil watch (or nil ports on both sides) leaves the brief
+	// untouched.
+	brief.WesEdgeWatch = uc.WesEdgeWatch.Execute(ctx, uc.now())
 
 	return brief
 }

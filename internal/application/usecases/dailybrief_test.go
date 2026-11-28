@@ -510,3 +510,86 @@ func TestDailyBrief_Execute_UnreachableOrderManagementDegradesInsideTheSection(t
 		t.Fatalf("the rest of the brief must still be produced, got %+v", brief.Sites)
 	}
 }
+
+func TestDailyBrief_Execute_WesEdgeWatchSectionRidesTheBrief(t *testing.T) {
+	targets := []usecases.PathTarget{{SiteCode: "WH1", PathId: "pick-zone-a", ProcessPath: "PICK"}}
+	now := time.Date(2026, 11, 28, 12, 0, 0, 0, time.UTC)
+	pfr := &fakePickFaceReplenishment{pages: map[string]ports.ReplenishmentPage{"": {Items: []ports.ReplenishmentRequest{{
+		RequestID: "req-1", SiteID: "WH1", SKU: "SKU-1", Priority: "urgent", State: "Requested",
+		RequestedAt: now.Add(-30 * time.Hour).UTC().Format(time.RFC3339),
+	}}}}}
+	ti := &fakeTaskInterleaving{pagesByState: map[string]ports.HintPage{"Active|": {Items: []ports.InterleavingHint{{HintID: "h-1", State: "Active"}}}}}
+	uc := &usecases.DailyBrief{
+		Facility: &fakeFacility{},
+		Wes:      &fakeWes{},
+		Fe:       &fakeFe{},
+		Wfm:      &fakeWfm{},
+		Targets:  targets,
+		Now:      fixedClock(now),
+		WesEdgeWatch: &usecases.WesEdgeWatch{
+			PFR:          pfr,
+			Interleaving: ti,
+		},
+	}
+	brief := uc.Execute(context.Background())
+
+	if brief.WesEdgeWatch == nil {
+		t.Fatal("a configured WES-edge watch must attach its section to the brief")
+	}
+	if brief.WesEdgeWatch.Replenishment == nil || brief.WesEdgeWatch.Replenishment.Total != 1 ||
+		brief.WesEdgeWatch.Replenishment.Oldest == nil || brief.WesEdgeWatch.Replenishment.Oldest.RequestID != "req-1" {
+		t.Fatalf("the replenishment half must carry the open request and the oldest one, got %+v", brief.WesEdgeWatch.Replenishment)
+	}
+	if brief.WesEdgeWatch.Interleaving == nil || len(brief.WesEdgeWatch.Interleaving.Counts) != 4 || brief.WesEdgeWatch.Interleaving.Counts[0].Count != 1 {
+		t.Fatalf("the interleaving half must carry the lifecycle counts, got %+v", brief.WesEdgeWatch.Interleaving)
+	}
+	// The section must not leak into the per-path facts or exceptions.
+	if len(brief.OpenExceptions) != 0 {
+		t.Fatalf("the WES-edge watch is informational and must not raise path exceptions, got %v", brief.OpenExceptions)
+	}
+}
+
+func TestDailyBrief_Execute_NilWesEdgeWatchLeavesBriefUnchanged(t *testing.T) {
+	targets := []usecases.PathTarget{{SiteCode: "WH1", PathId: "pick-zone-a", ProcessPath: "PICK"}}
+	uc := &usecases.DailyBrief{
+		Facility: &fakeFacility{},
+		Wes:      &fakeWes{},
+		Fe:       &fakeFe{},
+		Wfm:      &fakeWfm{},
+		Targets:  targets,
+		Now:      fixedClock(time.Unix(0, 0)),
+	}
+	brief := uc.Execute(context.Background())
+	if brief.WesEdgeWatch != nil {
+		t.Fatalf("no WES-edge watch configured => no section, got %+v", brief.WesEdgeWatch)
+	}
+}
+
+func TestDailyBrief_Execute_UnreachableWmsEdgeDegradesInsideTheSection(t *testing.T) {
+	targets := []usecases.PathTarget{{SiteCode: "WH1", PathId: "pick-zone-a", ProcessPath: "PICK"}}
+	uc := &usecases.DailyBrief{
+		Facility: &fakeFacility{},
+		Wes:      &fakeWes{},
+		Fe:       &fakeFe{},
+		Wfm:      &fakeWfm{},
+		Targets:  targets,
+		Now:      fixedClock(time.Unix(0, 0)),
+		WesEdgeWatch: &usecases.WesEdgeWatch{
+			PFR:          &fakePickFaceReplenishment{listErr: errors.New("connect: connection refused")},
+			Interleaving: &fakeTaskInterleaving{listErr: map[string]error{"Active": errors.New("connect: connection refused")}},
+		},
+	}
+	brief := uc.Execute(context.Background())
+	if brief.WesEdgeWatch == nil {
+		t.Fatal("a configured watch must attach its section even when both halves are degraded")
+	}
+	if brief.WesEdgeWatch.Replenishment == nil || len(brief.WesEdgeWatch.Replenishment.Unavailable) != 1 {
+		t.Fatalf("an unreachable pick-face-replenishment must degrade to an unavailable line on the half, got %+v", brief.WesEdgeWatch.Replenishment)
+	}
+	if brief.WesEdgeWatch.Interleaving == nil || len(brief.WesEdgeWatch.Interleaving.Unavailable) != 1 {
+		t.Fatalf("an unreachable task-interleaving state scan must degrade to an unavailable line on the half, got %+v", brief.WesEdgeWatch.Interleaving)
+	}
+	if len(brief.Sites) != 1 || len(brief.Sites[0].Paths) != 1 {
+		t.Fatalf("the rest of the brief must still be produced, got %+v", brief.Sites)
+	}
+}

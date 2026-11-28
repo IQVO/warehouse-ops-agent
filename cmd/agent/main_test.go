@@ -365,6 +365,37 @@ func TestNewDecisionSupport_PromiseHealthOnlyWiredWhenOrderManagementConfigured(
 	}
 }
 
+// TestNewDecisionSupport_WesEdgeWatchOnlyWiredWhenAWmsEdgeClientConfigured
+// pins the ADR-0034 fail-open wiring: no WMS-edge client => no section, and
+// either client alone wires the watch with only its own half live.
+func TestNewDecisionSupport_WesEdgeWatchOnlyWiredWhenAWmsEdgeClientConfigured(t *testing.T) {
+	cfg := config.Config{PathTargets: []config.PathTarget{{SiteCode: "WH1", PathId: "p", ProcessPath: "PICK"}}}
+
+	if got := newDecisionSupport(cfg, outboundClients{}).dailyBrief.WesEdgeWatch; got != nil {
+		t.Fatal("no WMS-edge client => no WES-edge watch: the brief must be unchanged")
+	}
+
+	cfg.PickFaceReplenishment.Endpoint = "http://pick-face-replenishment-mcp:8090/mcp"
+	pfrOnly := newOutboundClients(cfg)
+	if pfrOnly.pickFaceReplenishment == nil {
+		t.Fatal("a configured endpoint must build the pick-face-replenishment client")
+	}
+	got := newDecisionSupport(cfg, pfrOnly).dailyBrief.WesEdgeWatch
+	if got == nil || got.PFR == nil || got.Interleaving != nil {
+		t.Fatalf("a configured pick-face-replenishment client must wire only the replenishment half: %+v", got)
+	}
+
+	cfg.TaskInterleaving.Endpoint = "http://task-interleaving-mcp:8090/mcp"
+	both := newOutboundClients(cfg)
+	if both.taskInterleaving == nil {
+		t.Fatal("a configured endpoint must build the task-interleaving client")
+	}
+	got = newDecisionSupport(cfg, both).dailyBrief.WesEdgeWatch
+	if got == nil || got.PFR == nil || got.Interleaving == nil {
+		t.Fatalf("two configured WMS-edge clients must wire both halves: %+v", got)
+	}
+}
+
 // TestNewProcessPathManagementClient_UnsetEndpoint_IsANilInterface is the
 // ADR-0026 re-add's fail-open half: an unset
 // PROCESS_PATH_MANAGEMENT_MCP_ENDPOINT builds no client at all.

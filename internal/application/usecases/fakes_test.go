@@ -128,11 +128,85 @@ func (f *fakeOrderMgmtMCP) GetPromiseHealth(ctx context.Context, query ports.Pro
 	return f.health, nil
 }
 
+// fakePickFaceReplenishment is a table-driven fake of the
+// pick-face-replenishment port: canned list pages keyed by cursor, an
+// optional list error, and zero-value answers for the tools the WES-edge
+// watch never calls.
+type fakePickFaceReplenishment struct {
+	pages     map[string]ports.ReplenishmentPage // cursor -> page ("" is the first)
+	listErr   error
+	lastQuery ports.ReplenishmentListQuery
+	listCalls int
+}
+
+func (f *fakePickFaceReplenishment) ListReplenishments(ctx context.Context, query ports.ReplenishmentListQuery) (ports.ReplenishmentPage, error) {
+	f.lastQuery = query
+	f.listCalls++
+	if f.listErr != nil {
+		return ports.ReplenishmentPage{}, f.listErr
+	}
+	if page, ok := f.pages[query.Cursor]; ok {
+		return page, nil
+	}
+	return ports.ReplenishmentPage{}, nil
+}
+
+func (f *fakePickFaceReplenishment) GetPolicy(ctx context.Context, siteID, sku string) (ports.ReplenishmentPolicy, error) {
+	return ports.ReplenishmentPolicy{}, nil
+}
+
+func (f *fakePickFaceReplenishment) ListPolicies(ctx context.Context, query ports.ReplenishmentPolicyListQuery) (ports.ReplenishmentPolicyPage, error) {
+	return ports.ReplenishmentPolicyPage{}, nil
+}
+
+func (f *fakePickFaceReplenishment) GetReplenishment(ctx context.Context, requestID string) (ports.ReplenishmentRequest, error) {
+	return ports.ReplenishmentRequest{}, nil
+}
+
+func (f *fakePickFaceReplenishment) ListPickFaces(ctx context.Context, query ports.PickFaceListQuery) (ports.PickFacePage, error) {
+	return ports.PickFacePage{}, nil
+}
+
+// fakeTaskInterleaving is a table-driven fake of the task-interleaving
+// port: canned hint pages keyed by "state|cursor" (the WES-edge watch scans
+// one state at a time), optional per-state list errors, and zero-value
+// answers for the tools the watch never calls.
+type fakeTaskInterleaving struct {
+	pagesByState map[string]ports.HintPage // "state|cursor" -> page
+	listErr      map[string]error          // state -> error
+	queries      []ports.HintListQuery
+}
+
+func (f *fakeTaskInterleaving) ListHints(ctx context.Context, query ports.HintListQuery) (ports.HintPage, error) {
+	f.queries = append(f.queries, query)
+	if err, ok := f.listErr[query.State]; ok {
+		return ports.HintPage{}, err
+	}
+	if page, ok := f.pagesByState[query.State+"|"+query.Cursor]; ok {
+		return page, nil
+	}
+	return ports.HintPage{}, nil
+}
+
+func (f *fakeTaskInterleaving) GetHint(ctx context.Context, hintID string) (ports.InterleavingHint, error) {
+	return ports.InterleavingHint{}, nil
+}
+
+func (f *fakeTaskInterleaving) GetSitePolicy(ctx context.Context, siteID string) (ports.InterleavingPolicy, error) {
+	return ports.InterleavingPolicy{}, nil
+}
+
+func (f *fakeTaskInterleaving) GetStation(ctx context.Context, stationID string) (ports.StationState, error) {
+	return ports.StationState{}, nil
+}
+
 var (
-	_ ports.FacilityLayoutClient       = (*fakeFacility)(nil)
-	_ ports.WesWorkPlanningClient      = (*fakeWes)(nil)
-	_ ports.FulfillmentExecutionClient = (*fakeFe)(nil)
-	_ ports.WorkforceManagementClient  = (*fakeWfm)(nil)
-	_ ports.SlottingOptimizationClient = (*fakeSlotting)(nil)
-	_ ports.OrderManagementMCPClient   = (*fakeOrderMgmtMCP)(nil)
+	_ ports.FacilityLayoutClient        = (*fakeFacility)(nil)
+	_ ports.WesWorkPlanningClient       = (*fakeWes)(nil)
+	_ ports.FulfillmentExecutionClient  = (*fakeFe)(nil)
+	_ ports.WorkforceManagementClient   = (*fakeWfm)(nil)
+	_ ports.SlottingOptimizationClient  = (*fakeSlotting)(nil)
+	_ ports.OrderManagementMCPClient    = (*fakeOrderMgmtMCP)(nil)
+	_ ports.PickFaceReplenishmentClient = (*fakePickFaceReplenishment)(nil)
+	_ ports.TaskInterleavingClient      = (*fakeTaskInterleaving)(nil)
 )
